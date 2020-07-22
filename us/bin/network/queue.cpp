@@ -6,6 +6,9 @@
 
 #include <cstdio>
 #include <vector>
+#include <iostream>
+
+#include <string.h>
 
 #include "ethernet/eth.h"
 
@@ -36,7 +39,7 @@ void consumer(twzobj *qobj)
     while(1) {
         struct packet_queue_entry pqe;
         queue_receive(qobj, (struct queue_entry *)&pqe, 0);
-           printf("consumer got %d: %p\n", pqe.qe.info, pqe.ptr);
+ //          printf("consumer got %d: %p\n", pqe.qe.info, pqe.ptr);
         
         
 //        char *packet_data = twz_object_lea(qobj, (char *)pqe.ptr);
@@ -45,7 +48,9 @@ void consumer(twzobj *qobj)
         
         
         eth_hdr_t *eth_hdr = twz_object_lea(qobj, (eth_hdr_t *)pqe.ptr);
-        printf("INCOMING PAYLOAD: %s\n", eth_hdr->payload);
+        (void)eth_hdr;
+        std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
+        std::cout<<"INCOMING PAYLOAD: "<< eth_hdr->payload <<std::endl;
         
 
         count++;
@@ -104,22 +109,27 @@ static void *make_packet(twzobj *data_obj)
     
     eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
     
-    //strncpy(eth_hdr->payload, "This is ex payload data", strlen(eth_hdr->payload));
-    eth_hdr->payload[0] = 'S';
-    eth_hdr->payload[1] = 'a';
-    eth_hdr->payload[2] = 'm';
-    eth_hdr->payload[3] = 'p';
-    eth_hdr->payload[4] = 'l';
-    eth_hdr->payload[5] = 'e';
-    eth_hdr->payload[6] = ' ';
-    eth_hdr->payload[7] = 'd';
-    eth_hdr->payload[8] = 'a';
-    eth_hdr->payload[9] = 't';
-    eth_hdr->payload[10] = 'a';
-    eth_hdr->payload[11] = '\0';
     
-    //printf("Sending the payload %s\n", eth_hdr->payload);
     
+    eth_hdr->dst_mac.mac[0] = 'b';
+    eth_hdr->dst_mac.mac[1] = 'r';
+    eth_hdr->dst_mac.mac[2] = 'o';
+    eth_hdr->dst_mac.mac[3] = 'a';
+    eth_hdr->dst_mac.mac[4] = 'd';
+    eth_hdr->dst_mac.mac[5] = '\0';
+    
+    char test[] = "Test this";
+    
+    //eth_hdr->payload = (char *)malloc((strlen(test) + 1)*sizeof(test)); //learn how to do this in twizzler
+    strcpy(eth_hdr->payload, test);
+    
+    
+    
+    
+    
+    //std::cout << "Sending the payload: " << eth_hdr->payload << std::endl;
+    
+    //MUST FREE DATA AFTER SENDING IT!!
     
     return eth_hdr;
 }

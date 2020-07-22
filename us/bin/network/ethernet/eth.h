@@ -1,7 +1,9 @@
+//#include <string>
+
 #pragma pack(push,1)
 typedef struct mac_addr
 {
-	char mac[48];
+	unsigned char mac[6];
 }mac_addr_t;
 
 typedef struct eth_hdr
@@ -10,7 +12,7 @@ typedef struct eth_hdr
     mac_addr_t dst_mac; //6 bytes
     mac_addr_t src_mac;
     unsigned short type; //aka type field... 2 bytes
-    char payload[248] = "test"; /*Allowed 46-1500 bytest*/
+    char payload[248];/*Allowed 46-1500 bytes*/ //this needs to me modified so data is allocated then freed every time we send data
     //unsigned int FCS; //CRC aka Frame Check Sequence
 }eth_hdr_t;
 #pragma pack(pop)
