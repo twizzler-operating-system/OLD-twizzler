@@ -7,8 +7,12 @@
 #include <cstdio>
 #include <vector>
 #include <iostream>
+#include <map>
 
 #include <string.h>
+
+#include "cons.h"
+#include "orp.h"
 
 
 #pragma pack(push,1)
@@ -16,6 +20,10 @@ typedef struct mac_addr
 {
 	unsigned char mac[6];
 }mac_addr_t;
+typedef struct obj_id
+{
+	unsigned char id[16];
+}obj_id_t;
 
 typedef struct eth_hdr
 {
@@ -34,6 +42,8 @@ struct packet_queue_entry {
     void *ptr;
 };
 
-
+/*network APIs*/
 void init_queue(twzobj *qo);
-void send_pkt(char *data, twzobj *queue_obj);
+void send(char *data, twzobj *queue_obj);
+void recv(twzobj *queue_obj, char *recv_buffer);
+

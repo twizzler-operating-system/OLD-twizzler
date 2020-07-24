@@ -7,7 +7,7 @@ int main()
     init_queue(&queue_obj);
     
     char test[] = "Sending this data.";
-    send_pkt(test, &queue_obj);
+    send(test, &queue_obj);
     
     
 }

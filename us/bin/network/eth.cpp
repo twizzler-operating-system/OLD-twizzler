@@ -40,20 +40,24 @@ static void release_info(uint32_t info)
 static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
 {
     eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
-     
+    
+    //find out how to get MAC address from NIC card
     eth_hdr->dst_mac.mac[0] = 'b';
     eth_hdr->dst_mac.mac[1] = 'r';
     eth_hdr->dst_mac.mac[2] = 'o';
     eth_hdr->dst_mac.mac[3] = 'a';
     eth_hdr->dst_mac.mac[4] = 'd';
     eth_hdr->dst_mac.mac[5] = '\0';
+    
+    //memset(eth_hdr->dst_mac, 0xFF, 6*(sizeof(char))); !!!! why does this not work?!
+    //also memset all all other fields to zero
 
-    //eth_hdr->payload = (char *)malloc((strlen(test) + 1)*sizeof(test)); //learn how to do this in twizzler
+    //eth_hdr->payload = (char *)malloc((strlen(test) + 1)*sizeof(test)); //learn how to do this in twizzler and malloc more data in the data object
     strcpy(eth_hdr->payload, data);
 
     std::cout << "Sending the payload: " << eth_hdr->payload << std::endl;
     
-    //MUST FREE DATA AFTER SENDING IT!!
+    //MUST FREE DATA AFTER SENDING IT (send function)!!
     
     return eth_hdr;
 }
@@ -68,12 +72,14 @@ void init_queue(twzobj *qo)
     queue_init_hdr(qo, 22, sizeof(struct packet_queue_entry), 8, sizeof(struct packet_queue_entry));
     
     /* start the consumer... */
-    if(!fork()) consumer(qo);
+    //if(!fork()) consumer(qo);
+    //this will need to be a thread running on the background, but for now, we'll manually read from buffer
     
 }
 
 
-void send_pkt(char *data, twzobj *queue_obj)
+//must set a max buffer size, once new_eth_frame_with_payload funcation gets correctly modified to deal with malloc
+void send(char *data, twzobj *queue_obj) //needs to be modified to also include destination, & also deal if destination is NULL
 {
     twzobj data_obj;
 
@@ -96,15 +102,32 @@ void send_pkt(char *data, twzobj *queue_obj)
     release_info(pqe.qe.info);
 }
 
+void recv(twzobj *queue_obj, char *recv_buffer)
+{
+    struct packet_queue_entry pqe;
+    queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
+    eth_hdr_t *eth_hdr = twz_object_lea(queue_obj, (eth_hdr_t *)pqe.ptr);
+    (void)eth_hdr;
+    
+    std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
+
+    strcpy(recv_buffer, eth_hdr->payload);
+    queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
+}
+
 
 
 int main()
 {
-    //initialize queue and start consumer thread
+    //initialize queue
     twzobj queue_obj;
     init_queue(&queue_obj);
     
-    char test[] = "Sending this data.";
-    send_pkt(test, &queue_obj);
+    char pkt_out[] = "Sending this data.";
+    send(pkt_out, &queue_obj);
+    
+    char recv_buffer [248];
+    recv(&queue_obj, recv_buffer);
+    std::cout<<"Got data "<<recv_buffer<<std::endl;
     
 }
