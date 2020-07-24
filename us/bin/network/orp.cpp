@@ -1,19 +1,19 @@
-#include "eth.cpp"
+#include "eth.h"
 
 /*ORP APIs*/
-void init_orp_map(twzobj *orp_obj)
+void init_orp_map(orp_table_t *orp_obj)
 {
     
 }
-void add_orp_entry(twzobj *orp_table)
+void add_orp_entry(orp_table_t *orp_table)
 {
     
 }
-void remove_orp_entry(twzobj *orp_table, obj_id_t id) //when should we delete, how do we know entry is expired and obj_id has moved?
+void remove_orp_entry(orp_table_t *orp_table, obj_id_t id) //when should we delete, how do we know entry is expired and obj_id has moved?
 {
     
 }
-mac_addr_t orp_lookup(twzobj *orp_table, obj_id_t id)
+mac_addr_t orp_lookup(orp_table_t *orp_table, obj_id_t id)
 {
     
 }
