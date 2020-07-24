@@ -41,18 +41,12 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
 {
     eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
     
-    //find out how to get MAC address from NIC card
-    eth_hdr->dst_mac.mac[0] = 'b';
-    eth_hdr->dst_mac.mac[1] = 'r';
-    eth_hdr->dst_mac.mac[2] = 'o';
-    eth_hdr->dst_mac.mac[3] = 'a';
-    eth_hdr->dst_mac.mac[4] = 'd';
-    eth_hdr->dst_mac.mac[5] = '\0';
-    
-    //memset(eth_hdr->dst_mac, 0xFF, 6*(sizeof(char))); !!!! why does this not work?!
+    memset((void*)eth_hdr->dst_mac.mac, 'b', MAC_ADDR_SIZE*(sizeof(char))); //using broacast address for now
+    //must set the source mac (interface with NIC)
     //also memset all all other fields to zero
 
-    //eth_hdr->payload = (char *)malloc((strlen(test) + 1)*sizeof(test)); //learn how to do this in twizzler and malloc more data in the data object
+    //char *payload = (char *) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
+    //eth_hdr->payload = (char *)malloc((strlen(data) + 1)*sizeof(data)); //learn how to do this in twizzler and malloc more data in the data object
     strcpy(eth_hdr->payload, data);
 
     std::cout << "Sending the payload: " << eth_hdr->payload << std::endl;
@@ -113,21 +107,4 @@ void recv(twzobj *queue_obj, char *recv_buffer)
 
     strcpy(recv_buffer, eth_hdr->payload);
     queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
-}
-
-
-
-int main()
-{
-    //initialize queue
-    twzobj queue_obj;
-    init_queue(&queue_obj);
-    
-    char pkt_out[] = "Sending this data.";
-    send(pkt_out, &queue_obj);
-    
-    char recv_buffer [248];
-    recv(&queue_obj, recv_buffer);
-    std::cout<<"Got data "<<recv_buffer<<std::endl;
-    
 }

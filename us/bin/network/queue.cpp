@@ -10,4 +10,8 @@ int main()
     send(test, &queue_obj);
     
     
+    char recv_buffer [248];
+    recv(&queue_obj, recv_buffer);
+    std::cout<<"Got data "<<recv_buffer<<std::endl;
+    
 }
