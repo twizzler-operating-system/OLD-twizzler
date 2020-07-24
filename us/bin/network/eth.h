@@ -1,4 +1,15 @@
-//#include <string>
+#include <twz/obj.h>
+#include <twz/queue.h>
+
+#include <cstdlib>
+#include <unistd.h>
+
+#include <cstdio>
+#include <vector>
+#include <iostream>
+
+#include <string.h>
+
 
 #pragma pack(push,1)
 typedef struct mac_addr
@@ -16,3 +27,13 @@ typedef struct eth_hdr
     //unsigned int FCS; //CRC aka Frame Check Sequence
 }eth_hdr_t;
 #pragma pack(pop)
+
+
+struct packet_queue_entry {
+    struct queue_entry qe;
+    void *ptr;
+};
+
+
+void init_queue(twzobj *qo);
+void send_pkt(char *data, twzobj *queue_obj);
