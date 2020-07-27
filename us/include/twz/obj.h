@@ -73,6 +73,9 @@ __attribute__((const)) static inline void *__twz_object_lea(twzobj *o, const voi
 
 twzobj twz_object_from_ptr(const void *);
 
+
+void twz_object_from_ptr_cpp(const void *p, twzobj *o);
+
 #define twz_object_lea(o, p) ({ (typeof(p)) __twz_object_lea((o), (p), ~0); })
 
 #define twz_object_lea_mask(o, p, f) ({ (typeof(p)) __twz_object_lea((o), (p), (f)); })

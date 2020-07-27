@@ -39,11 +39,11 @@ struct queue_entry_bio {
 
 #define PACKET_CMD_SEND 0
 
-struct queue_entry_packet {
-	struct queue_entry qe;
-	objid_t objid;
-	uint64_t pdata;
-	uint32_t len;
-	uint16_t cmd;
-	uint16_t stat;
+struct packet_queue_entry {
+    struct queue_entry qe;
+    void *ptr;
+    uint32_t flags;
+    uint16_t len;
+    uint16_t cmd;
 };
+

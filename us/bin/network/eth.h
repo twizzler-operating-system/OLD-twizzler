@@ -36,11 +36,7 @@ typedef struct eth_hdr
 }eth_hdr_t;
 #pragma pack(pop)
 
-
-struct packet_queue_entry {
-    struct queue_entry qe;
-    void *ptr;
-};
+#include <twz/driver/queue.h>
 
 /*network APIs*/
 void init_queue(twzobj *qo);
