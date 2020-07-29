@@ -133,7 +133,7 @@ static packet *get_packet(e1000_controller *nc)
 	p->vaddr = twz_object_lea(&nc->packet_obj, (void *)nc->packet_off);
 	p->pinaddr = nc->packet_off + nc->packet_pin - OBJ_NULLPAGE_SIZE;
 	p->length = 0x1000;
-	fprintf(stderr, "[e1000] alloc new packet: %p (%lx)\n", p->vaddr, p->pinaddr);
+	// fprintf(stderr, "[e1000] alloc new packet: %p (%lx)\n", p->vaddr, p->pinaddr);
 	nc->packet_off += 0x1000;
 	__prep_packet(nc, p);
 	return p;
