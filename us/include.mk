@@ -40,7 +40,7 @@ $(BUILDDIR)/us/$(MUSL)/configure: $(MUSL_SRCS)
 $(BUILDDIR)/us/sysroot/%: us/sysroot/%
 	mkdir -p $(dir $@)
 	@echo "[CP]       $< -> $@"
-	-@cp $< $@
+	-@cp -r $< $@
 
 SYSROOT_FILES+=$(addprefix $(BUILDDIR)/,$(shell find us/sysroot/))
 
