@@ -67,12 +67,27 @@ int main(int argc, char **argv)
 
 	fprintf(stderr, "NET TESTING\n");
 
+	/* NICs expose an "info object" that contains a bunch of data about them. Like the MAC address.
+	 * But we have to protect this against reading it before it's ready. We do this with a simple
+	 * flag, "NIC_FL_MAC_VALID", that indicates if the MAC data is valid or not. For now, we'll
+	 * assume the MAC data itself is atomic too... */
 	struct nic_header *nh = (struct nic_header *)twz_object_base(&info_obj);
+	/* we can also wait on these flags, because if the NIC changes them, it's supposed to wake up
+	 * any thread waiting on this memory qword. If you're not familiar with what this means, check
+	 * out futexes on linux (this is similar).
+	 *
+	 * This is a standard wait loop for checking if a bit is set and waiting if not. First, grab the
+	 * word, and check the bit */
 	uint64_t flags = nh->flags;
 	while(!(flags & NIC_FL_MAC_VALID)) {
+		/* if it's not set, sleep and specify the comparison value as the value we just checked. */
 		twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
+		/* we woke up, so someone woke us up. Reload the flags to check the new value */
 		flags = nh->flags;
+		/* we have to go around the loop again because we might have had a spurious wake up. */
 	}
+	/* for now the mac is stored as a uint8_t[6]. Let me know if you want it in a different form...
+	 * Maybe we'll add a uint32_t as well via a union. */
 	fprintf(stderr,
 	  "MAC is %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",
 	  nh->mac[0],
