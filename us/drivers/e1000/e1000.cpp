@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 
 #include <twz/debug.h>
 #include <twz/driver/device.h>
+#include <twz/driver/nic.h>
 #include <twz/driver/pcie.h>
 
 #include "e1000.h"
@@ -114,6 +116,12 @@ int e1000c_init(e1000_controller *nc)
 	nc->mac[3] = (ral >> 24) & 0xff;
 	nc->mac[4] = rah & 0xff;
 	nc->mac[5] = (rah >> 8) & 0xff;
+
+	struct nic_header *nh = (struct nic_header *)twz_object_base(&nc->info_obj);
+	memcpy(nh->mac, nc->mac, 6);
+	nh->flags |= NIC_FL_MAC_VALID;
+	twz_thread_sync(THREAD_SYNC_WAKE, &nh->flags, INT_MAX, NULL);
+
 	e1000_reg_write32(nc, REG_CTRL, BAR_MEMORY, CTRL_FD | CTRL_ASDE);
 
 	if(twz_object_new(&nc->buf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
@@ -230,12 +238,12 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 	struct packet_queue_entry packet;
 	while(nc->head_rx != head) {
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->head_rx];
-		//packet.objid = twz_object_guid(&nc->buf_obj);
-		//packet.pdata = desc->addr;
-		//packet.len = desc->length;
-		//packet.stat = 0;
-		//packet.qe.info = head;
-		//queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&packet, 0);
+		// packet.objid = twz_object_guid(&nc->buf_obj);
+		// packet.pdata = desc->addr;
+		// packet.len = desc->length;
+		// packet.stat = 0;
+		// packet.qe.info = head;
+		// queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&packet, 0);
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}
 
@@ -244,8 +252,8 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		//	fprintf(stderr, "got completion for %d\n", packet.qe.info);
 
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->tail_rx];
-		//desc->status = 0;
-		//desc->addr = packet.pdata;
+		// desc->status = 0;
+		// desc->addr = packet.pdata;
 		e1000_reg_write32(nc, REG_RXDESCTAIL, BAR_MEMORY, nc->tail_rx);
 		nc->tail_rx = (nc->tail_rx + 1) % nc->nr_rx_desc;
 	}
@@ -353,7 +361,7 @@ void e1000_tx_queue(e1000_controller *nc)
 	while(1) {
 		tx_request *req = new tx_request;
 		queue_receive(&nc->txqueue_obj, (struct queue_entry *)&req->packet, 0);
-			
+
 		void *packet_data = twz_object_lea(&nc->txqueue_obj, req->packet.ptr);
 
 		twzobj data_obj;
@@ -368,7 +376,7 @@ void e1000_tx_queue(e1000_controller *nc)
 		} else {
 			data_pin = pins[data_id];
 		}
-	
+
 		size_t offset = (size_t)twz_ptr_local(packet_data);
 		offset -= OBJ_NULLPAGE_SIZE;
 		if(mapped.find(std::make_pair(data_id, offset)) == mapped.end()) {
@@ -396,8 +404,8 @@ void e1000_tx_queue(e1000_controller *nc)
 
 int main(int argc, char **argv)
 {
-	if(!argv[1] || argc < 4) {
-		fprintf(stderr, "usage: e1000 controller-name tx-queue-name rx-queue-name\n");
+	if(!argv[1] || argc < 5) {
+		fprintf(stderr, "usage: e1000 controller-name tx-queue-name rx-queue-name info-name\n");
 		return 1;
 	}
 
@@ -420,6 +428,12 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	r = twz_object_init_name(&nc.info_obj, argv[4], FE_READ | FE_WRITE);
+	if(r) {
+		fprintf(stderr, "e1000: failed to open info obj\n");
+		return 1;
+	}
+
 	printf("[e1000] starting e1000 controller %s\n", argv[1]);
 
 	if(e1000c_reset(&nc))
@@ -436,6 +450,10 @@ int main(int argc, char **argv)
 	e1000c_interrupt(&nc);
 
 	std::thread thr(e1000_tx_queue, &nc);
+
+	struct nic_header *nh = (struct nic_header *)twz_object_base(&nc.info_obj);
+	nh->flags |= NIC_FL_UP;
+	twz_thread_sync(THREAD_SYNC_WAKE, &nh->flags, INT_MAX, NULL);
 
 	e1000_wait_for_event(&nc);
 	return 0;

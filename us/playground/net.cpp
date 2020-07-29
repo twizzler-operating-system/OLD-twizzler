@@ -5,9 +5,10 @@
 #include <unistd.h>
 
 #include <thread>
+#include <twz/driver/nic.h>
 #include <twz/driver/queue.h>
 
-twzobj txqueue_obj, rxqueue_obj;
+twzobj txqueue_obj, rxqueue_obj, info_obj;
 
 void consumer()
 {
@@ -41,8 +42,8 @@ void consumer()
 
 int main(int argc, char **argv)
 {
-	if(argc < 3) {
-		fprintf(stderr, "usage: net txqueue rxqueue\n");
+	if(argc < 4) {
+		fprintf(stderr, "usage: net txqueue rxqueue info\n");
 		return 1;
 	}
 	int r;
@@ -58,7 +59,28 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	r = twz_object_init_name(&info_obj, argv[3], FE_READ | FE_WRITE);
+	if(r) {
+		fprintf(stderr, "e1000: failed to open rxqueue\n");
+		return 1;
+	}
+
 	fprintf(stderr, "NET TESTING\n");
+
+	struct nic_header *nh = (struct nic_header *)twz_object_base(&info_obj);
+	uint64_t flags = nh->flags;
+	while(!(flags & NIC_FL_MAC_VALID)) {
+		twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
+		flags = nh->flags;
+	}
+	fprintf(stderr,
+	  "MAC is %2.2x:%2.2x:%2.2x:%2.2x:%2.2x:%2.2x\n",
+	  nh->mac[0],
+	  nh->mac[1],
+	  nh->mac[2],
+	  nh->mac[3],
+	  nh->mac[4],
+	  nh->mac[5]);
 
 	uint64_t buf_pin;
 	twzobj buf_obj;

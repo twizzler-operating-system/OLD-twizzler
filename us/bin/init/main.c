@@ -282,10 +282,14 @@ int main()
 
 	twzobj rxqobj;
 	twzobj txqobj;
+	twzobj infoobj;
 	if(twz_object_new(&txqobj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE)
 	   < 0)
 		abort();
 	if(twz_object_new(&rxqobj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE)
+	   < 0)
+		abort();
+	if(twz_object_new(&infoobj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE)
 	   < 0)
 		abort();
 	queue_init_hdr(
@@ -295,11 +299,17 @@ int main()
 
 	twz_name_assign(twz_object_guid(&txqobj), "/dev/e1000-rxqueue");
 	twz_name_assign(twz_object_guid(&rxqobj), "/dev/e1000-txqueue");
+	twz_name_assign(twz_object_guid(&infoobj), "/dev/e1000-info");
 
 	if(!fork()) {
 		kso_set_name(NULL, "[instance] e1000-driver");
 		execvp("e1000",
-		  (char *[]){ "e1000", "/dev/e1000", "/dev/e1000-txqueue", "/dev/e1000-rxqueue", NULL });
+		  (char *[]){ "e1000",
+		    "/dev/e1000",
+		    "/dev/e1000-txqueue",
+		    "/dev/e1000-rxqueue",
+		    "/dev/e1000-info",
+		    NULL });
 		fprintf(stderr, "failed to start e1000 driver: %d\n", errno);
 		exit(1);
 	}

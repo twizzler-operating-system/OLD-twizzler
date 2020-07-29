@@ -162,7 +162,7 @@ class tx_request
 class e1000_controller
 {
   public:
-	twzobj ctrl_obj, buf_obj, txqueue_obj, rxqueue_obj;
+	twzobj ctrl_obj, buf_obj, txqueue_obj, rxqueue_obj, info_obj;
 	uint64_t buf_pin;
 	size_t nr_tx_desc, nr_rx_desc;
 	struct e1000_tx_desc *tx_ring;
