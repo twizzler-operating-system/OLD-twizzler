@@ -157,7 +157,7 @@ struct e1000_tx_desc {
 class tx_request
 {
   public:
-	struct queue_entry_packet packet;
+	struct packet_queue_entry packet;
 };
 class e1000_controller
 {

@@ -48,7 +48,7 @@ struct sys_invalidate_op {
 	uint32_t length;
 	uint16_t flags;
 	uint16_t result;
-} __packed;
+};
 
 #define KSO_INVL_RES_OK 0
 #define KSO_INVL_RES_ERR -1

@@ -14,6 +14,7 @@ void consumer()
 	twzobj pdo;
 	int ok = 0;
 	while(1) {
+#if 0
 		struct queue_entry_packet packet;
 		queue_receive(&rxqueue_obj, (struct queue_entry *)&packet, 0);
 		fprintf(stderr, "net got packet!\n");
@@ -34,6 +35,7 @@ void consumer()
 		fprintf(stderr, ":: packet: %s\n", pd);
 
 		queue_complete(&rxqueue_obj, (struct queue_entry *)&packet, 0);
+#endif
 	}
 }
 
@@ -62,6 +64,7 @@ int main(int arg, char **argv)
 	if(r)
 		return 1;
 
+#if 0
 	std::thread thr(consumer);
 
 	void *d = twz_object_base(&buf_obj);
@@ -88,4 +91,5 @@ int main(int arg, char **argv)
 
 	for(;;)
 		usleep(10000);
+#endif
 }

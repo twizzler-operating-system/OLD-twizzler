@@ -227,15 +227,15 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 	}
 	uint32_t head = e1000_reg_read32(nc, REG_RXDESCHEAD, BAR_MEMORY);
 
-	struct queue_entry_packet packet;
+	struct packet_queue_entry packet;
 	while(nc->head_rx != head) {
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->head_rx];
-		packet.objid = twz_object_guid(&nc->buf_obj);
-		packet.pdata = desc->addr;
-		packet.len = desc->length;
-		packet.stat = 0;
-		packet.qe.info = head;
-		queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&packet, 0);
+		//packet.objid = twz_object_guid(&nc->buf_obj);
+		//packet.pdata = desc->addr;
+		//packet.len = desc->length;
+		//packet.stat = 0;
+		//packet.qe.info = head;
+		//queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&packet, 0);
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}
 
@@ -244,8 +244,8 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		//	fprintf(stderr, "got completion for %d\n", packet.qe.info);
 
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->tail_rx];
-		desc->status = 0;
-		desc->addr = packet.pdata;
+		//desc->status = 0;
+		//desc->addr = packet.pdata;
 		e1000_reg_write32(nc, REG_RXDESCTAIL, BAR_MEMORY, nc->tail_rx);
 		nc->tail_rx = (nc->tail_rx + 1) % nc->nr_rx_desc;
 	}
@@ -343,29 +343,47 @@ void e1000_wait_for_event(e1000_controller *nc)
 }
 
 #include <set>
+#include <unordered_map>
 
 void e1000_tx_queue(e1000_controller *nc)
 {
 	std::set<std::pair<objid_t, size_t>> mapped;
+	std::unordered_map<objid_t, uint64_t> pins;
+	kso_set_name(NULL, "e1000.queue_handler");
 	while(1) {
 		tx_request *req = new tx_request;
 		queue_receive(&nc->txqueue_obj, (struct queue_entry *)&req->packet, 0);
+			
+		void *packet_data = twz_object_lea(&nc->txqueue_obj, req->packet.ptr);
 
-		size_t offset = req->packet.pdata % OBJ_MAXSIZE;
+		twzobj data_obj;
+		twz_object_from_ptr_cpp(packet_data, &data_obj);
+		objid_t data_id = twz_object_guid(&data_obj);
+
+		uint64_t data_pin;
+		if(pins.find(data_id) == pins.end()) {
+			int r = twz_object_pin(&data_obj, &data_pin, 0);
+			assert(!r);
+			pins[data_id] = data_pin;
+		} else {
+			data_pin = pins[data_id];
+		}
+	
+		size_t offset = (size_t)twz_ptr_local(packet_data);
 		offset -= OBJ_NULLPAGE_SIZE;
-		if(mapped.find(std::make_pair(req->packet.objid, offset)) == mapped.end()) {
+		if(mapped.find(std::make_pair(data_id, offset)) == mapped.end()) {
 			twzobj tmpobj;
-			twz_object_init_guid(&tmpobj, req->packet.objid, FE_READ);
+			twz_object_init_guid(&tmpobj, twz_object_guid(&data_obj), FE_READ);
 			int nr_prep = 128;
 			twz_device_map_object(&nc->ctrl_obj, &tmpobj, offset, 0x1000 * nr_prep);
 			for(int i = 0; i < nr_prep; i++) {
-				mapped.insert(std::make_pair(req->packet.objid, offset + 0x1000 * i));
+				mapped.insert(std::make_pair(twz_object_guid(&data_obj), offset + 0x1000 * i));
 			}
 		}
 
 		{
 			std::unique_lock<std::mutex> lck(nc->mtx);
-			int32_t pn = e1000c_send_packet(nc, req->packet.pdata, req->packet.len);
+			int32_t pn = e1000c_send_packet(nc, data_pin + offset, req->packet.len);
 			if(pn < 0) {
 				fprintf(stderr, "TODO: dropped packet\n");
 			} else {

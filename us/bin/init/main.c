@@ -214,9 +214,9 @@ int main()
 	   < 0)
 		abort();
 	queue_init_hdr(
-	  &txqobj, 5, sizeof(struct queue_entry_packet), 5, sizeof(struct queue_entry_packet));
+	  &txqobj, 5, sizeof(struct packet_queue_entry), 5, sizeof(struct packet_queue_entry));
 	queue_init_hdr(
-	  &rxqobj, 5, sizeof(struct queue_entry_packet), 5, sizeof(struct queue_entry_packet));
+	  &rxqobj, 5, sizeof(struct packet_queue_entry), 5, sizeof(struct packet_queue_entry));
 
 	twz_name_assign(twz_object_guid(&txqobj), "/dev/e1000-rxqueue");
 	twz_name_assign(twz_object_guid(&rxqobj), "/dev/e1000-txqueue");

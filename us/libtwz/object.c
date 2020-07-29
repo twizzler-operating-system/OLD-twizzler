@@ -84,6 +84,13 @@ void *twz_object_base(twzobj *obj)
 }
 
 EXTERNAL
+void twz_object_from_ptr_cpp(const void *p, twzobj *tmp)
+{
+	obj_init(tmp, (void *)((uintptr_t)p & ~(OBJ_MAXSIZE - 1)), 0, 0, TWZ_OBJ_NORELEASE);
+}
+
+
+EXTERNAL
 twzobj twz_object_from_ptr(const void *p)
 {
 	twzobj tmp;
