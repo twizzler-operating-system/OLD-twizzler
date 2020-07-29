@@ -127,6 +127,9 @@ static packet *get_packet(e1000_controller *nc)
 	}
 
 	packet *p = new packet();
+	if(nc->packet_off >= OBJ_TOPDATA) {
+		return NULL;
+	}
 	p->vaddr = twz_object_lea(&nc->packet_obj, (void *)nc->packet_off);
 	p->pinaddr = nc->packet_off + nc->packet_pin - OBJ_NULLPAGE_SIZE;
 	p->length = 0x1000;
@@ -185,8 +188,8 @@ int e1000c_init(e1000_controller *nc)
 	for(size_t i = 0; i < nc->nr_rx_desc; i++) {
 		nc->rx_ring[i].status = 0;
 		packet *p = get_packet(nc);
-		nc->rx_ring[i].addr = p->pinaddr;
-		nc->rx_ring[i].length = p->length;
+		nc->rx_ring[i].addr = p->pinaddr + sizeof(struct packet_header);
+		nc->rx_ring[i].length = p->length - sizeof(struct packet_header);
 		nc->packet_desc_map[i] = p;
 	}
 
@@ -277,20 +280,23 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		assert(packet);
 		pqe.qe.info = nc->head_rx;
 		pqe.ptr = twz_ptr_swizzle(&nc->rxqueue_obj, packet->vaddr, FE_READ);
-		pqe.len = desc->length;
+		pqe.len = desc->length + sizeof(struct packet_header);
 		pqe.flags = 0;
 		pqe.cmd = 0;
 		assert(nc->packet_info_map[pqe.qe.info] == NULL);
 		nc->packet_info_map[pqe.qe.info] = packet;
 		nc->packet_desc_map[nc->head_rx] = NULL;
 		packet->cached = true;
+
+		struct packet_header *ph = (struct packet_header *)packet->vaddr;
+		ph->flags = 0;
+		ph->nicid = 0;
+		ph->packetid = pqe.qe.info;
+		ph->status = 0;
+		ph->len = desc->length;
+
 		fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
 		queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&pqe, 0);
-		// packet.objid = twz_object_guid(&nc->buf_obj);
-		// packet.pdata = desc->addr;
-		// packet.len = desc->length;
-		// packet.stat = 0;
-		// packet.qe.info = head;
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}
 
@@ -303,7 +309,8 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		nc->packet_info_map[pqe.qe.info] = NULL;
 		nc->packet_desc_map[nc->tail_rx] = packet;
 		desc->status = 0;
-		desc->addr = packet->pinaddr;
+		desc->addr = packet->pinaddr + sizeof(struct packet_header);
+		desc->length = packet->length - sizeof(struct packet_header);
 		_clwb(desc);
 
 		if(packet->cached) {
@@ -317,10 +324,8 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		nc->tail_rx = (nc->tail_rx + 1) % nc->nr_rx_desc;
 	}
 
-	// e1000_reg_write32(nc, REG_RXDESCTAIL, nc->head_rx);
-
-	// uint32_t tail = e1000_reg_read32(nc, REG_RXDESCTAIL, BAR_MEMORY);
-	// fprintf(stderr, "got recv!!: %x %x\n", head, tail);
+	/* TODO: free up some descriptors even if we didn't hear back from the other end, we can still
+	 * create more buffers for packets */
 }
 
 void e1000c_interrupt_send(e1000_controller *nc, int q)

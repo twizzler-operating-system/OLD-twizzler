@@ -12,21 +12,28 @@ twzobj txqueue_obj, rxqueue_obj, info_obj;
 
 void consumer()
 {
-	twzobj pdo;
-	int ok = 0;
 	while(1) {
-#if 1
 		struct packet_queue_entry pqe;
+		/* recv a packet queue entry */
 		queue_receive(&rxqueue_obj, (struct queue_entry *)&pqe, 0);
 		fprintf(stderr, "net got packet!\n");
 
-		void *pd = twz_object_lea(&rxqueue_obj, (void *)pqe.ptr);
-		fprintf(stderr, ":: %p %lx\n", pd, pqe.len);
+		/* packet structure from the nic starts with a packet_header struct that contains some
+		 * useful information (or, will in the future), followed by the actual packet data. */
+		struct packet_header *ph = (struct packet_header *)twz_object_lea(&rxqueue_obj, pqe.ptr);
+		/* packet data follows the packet header */
+		char *data = (char *)(ph + 1);
+		/* pqe.len refers to the length of the packet data PLUS the packet_header. The packet
+		 * header's length (ph->len, here) refers to the length of the data. */
+		fprintf(
+		  stderr, ":: packet_header: %p %d :: packet_data: %p %d\n", ph, pqe.len, data, ph->len);
 
-		fprintf(stderr, ":: packet: %s\n", (char *)pd);
+		fprintf(stderr, ":: packet contents: %s\n", (char *)data);
 
+		/* when we're done with the packet, we'll tell the nic driver. This informs the nic driver
+		 * that it may use the packet buffer that it gave us, so don't do this until we're ready to
+		 * give up this memory! */
 		queue_complete(&rxqueue_obj, (struct queue_entry *)&pqe, 0);
-#endif
 	}
 }
 
@@ -87,7 +94,6 @@ int main(int argc, char **argv)
 	  nh->mac[4],
 	  nh->mac[5]);
 
-	uint64_t buf_pin;
 	twzobj buf_obj;
 	if(twz_object_new(&buf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		return 1;
