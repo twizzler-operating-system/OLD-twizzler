@@ -52,7 +52,7 @@ static inline void _clwb(const void *p)
 
 static inline void _clwb_len(const void *p, size_t len)
 {
-	const char *l = p;
+	const char *l = (const char *)p;
 	long long rem = len;
 	while(rem > 0) {
 		_clwb((void *)l);

@@ -38,11 +38,11 @@ $(BUILDDIR)/us/$(MUSL)/configure: $(MUSL_SRCS)
 	@touch $@
 
 $(BUILDDIR)/us/sysroot/%: us/sysroot/%
-	mkdir -p $(dir $@)
+	@mkdir -p $(dir $@)
 	@echo "[CP]       $< -> $@"
-	-@cp -r $< $@
+	-@cp -ra $< $@
 
-SYSROOT_FILES+=$(addprefix $(BUILDDIR)/,$(shell find us/sysroot/))
+SYSROOT_FILES+=$(addprefix $(BUILDDIR)/,$(shell find us/sysroot/ | tail -n +2))
 
 $(BUILDDIR)/us/$(MUSL)/lib/libc.a: $(BUILDDIR)/us/musl-config.mk
 	@echo "[INSTL]   musl-libs-bootstrap"

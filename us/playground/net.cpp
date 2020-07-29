@@ -15,27 +15,17 @@ void consumer()
 	twzobj pdo;
 	int ok = 0;
 	while(1) {
-#if 0
-		struct queue_entry_packet packet;
-		queue_receive(&rxqueue_obj, (struct queue_entry *)&packet, 0);
+#if 1
+		struct packet_queue_entry pqe;
+		queue_receive(&rxqueue_obj, (struct queue_entry *)&pqe, 0);
 		fprintf(stderr, "net got packet!\n");
 
-		if(!ok) {
-			twz_object_init_guid(&pdo, packet.objid, FE_READ);
-			ok = 1;
-		}
-
-		size_t offset = (packet.pdata % OBJ_MAXSIZE) - OBJ_NULLPAGE_SIZE;
-		void *pd = twz_object_lea(&pdo, (void *)offset);
-		// fprintf(stderr, ":: %lx %p\n", offset, pd);
-
-		//	char buf[packet.len + 1];
-		//	memset(buf, 0, sizeof(buf));
-		//	memcpy(buf, pd, packet.len);
+		void *pd = twz_object_lea(&rxqueue_obj, (void *)pqe.ptr);
+		fprintf(stderr, ":: %p %lx\n", pd, pqe.len);
 
 		fprintf(stderr, ":: packet: %s\n", (char *)pd);
 
-		queue_complete(&rxqueue_obj, (struct queue_entry *)&packet, 0);
+		queue_complete(&rxqueue_obj, (struct queue_entry *)&pqe, 0);
 #endif
 	}
 }
@@ -101,24 +91,16 @@ int main(int argc, char **argv)
 	twzobj buf_obj;
 	if(twz_object_new(&buf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		return 1;
-	r = twz_object_pin(&buf_obj, &buf_pin, 0);
-	if(r)
-		return 1;
 
-#if 0
 	std::thread thr(consumer);
 
 	void *d = twz_object_base(&buf_obj);
 	sprintf((char *)d, "              this is a test from net!\n");
-	struct queue_entry_packet p;
-	p.objid = twz_object_guid(&buf_obj);
-	p.pdata = buf_pin;
+	struct packet_queue_entry p;
+	p.ptr = twz_ptr_swizzle(&txqueue_obj, twz_object_base(&buf_obj), FE_READ);
 	p.len = 62;
 
-	p.cmd = PACKET_CMD_SEND;
-	p.stat = 0;
-
-	p.qe.info = 123;
+	p.qe.info = 1;
 
 	while(1) {
 		usleep(100000);
@@ -132,5 +114,4 @@ int main(int argc, char **argv)
 
 	for(;;)
 		usleep(10000);
-#endif
 }

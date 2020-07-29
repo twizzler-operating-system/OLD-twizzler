@@ -7,6 +7,7 @@
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/objctl.h>
+#include <twz/persist.h>
 #include <twz/queue.h>
 #include <twz/sys.h>
 #include <twz/thread.h>
@@ -106,6 +107,35 @@ int e1000c_pcie_init(e1000_controller *nc)
 	return 0;
 }
 
+static void __prep_packet(e1000_controller *nc, packet *p)
+{
+	if(p->mapped)
+		return;
+	int r = twz_device_map_object(
+	  &nc->ctrl_obj, &nc->packet_obj, (p->pinaddr % OBJ_MAXSIZE) - OBJ_NULLPAGE_SIZE, 0x1000);
+	assert(r == 0);
+	p->mapped = true;
+}
+
+static packet *get_packet(e1000_controller *nc)
+{
+	if(nc->packet_buffers.size() > 0) {
+		packet *p = nc->packet_buffers.back();
+		nc->packet_buffers.pop_back();
+		__prep_packet(nc, p);
+		return p;
+	}
+
+	packet *p = new packet();
+	p->vaddr = twz_object_lea(&nc->packet_obj, (void *)nc->packet_off);
+	p->pinaddr = nc->packet_off + nc->packet_pin - OBJ_NULLPAGE_SIZE;
+	p->length = 0x1000;
+	fprintf(stderr, "[e1000] alloc new packet: %p (%lx)\n", p->vaddr, p->pinaddr);
+	nc->packet_off += 0x1000;
+	__prep_packet(nc, p);
+	return p;
+}
+
 int e1000c_init(e1000_controller *nc)
 {
 	uint32_t rah = e1000_reg_read32(nc, REG_RAH, BAR_MEMORY);
@@ -138,6 +168,9 @@ int e1000c_init(e1000_controller *nc)
 	if(r)
 		return r;
 
+	r = twz_object_pin(&nc->packet_obj, &nc->packet_pin, 0);
+	assert(r == 0);
+
 	nc->nr_tx_desc = 0x1000 / sizeof(e1000_tx_desc);
 	nc->nr_rx_desc = 0x1000 / sizeof(e1000_rx_desc);
 
@@ -151,8 +184,10 @@ int e1000c_init(e1000_controller *nc)
 
 	for(size_t i = 0; i < nc->nr_rx_desc; i++) {
 		nc->rx_ring[i].status = 0;
-		nc->rx_ring[i].addr = nc->buf_pin + 0x8000 + 0x1000 * i;
-		nc->rx_ring[i].length = 0x1000;
+		packet *p = get_packet(nc);
+		nc->rx_ring[i].addr = p->pinaddr;
+		nc->rx_ring[i].length = p->length;
+		nc->packet_desc_map[i] = p;
 	}
 
 	for(size_t i = 0; i < nc->nr_tx_desc; i++) {
@@ -235,23 +270,47 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 	}
 	uint32_t head = e1000_reg_read32(nc, REG_RXDESCHEAD, BAR_MEMORY);
 
-	struct packet_queue_entry packet;
+	struct packet_queue_entry pqe;
 	while(nc->head_rx != head) {
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->head_rx];
+		packet *packet = nc->packet_desc_map[nc->head_rx];
+		assert(packet);
+		pqe.qe.info = nc->head_rx;
+		pqe.ptr = twz_ptr_swizzle(&nc->rxqueue_obj, packet->vaddr, FE_READ);
+		pqe.len = desc->length;
+		pqe.flags = 0;
+		pqe.cmd = 0;
+		assert(nc->packet_info_map[pqe.qe.info] == NULL);
+		nc->packet_info_map[pqe.qe.info] = packet;
+		nc->packet_desc_map[nc->head_rx] = NULL;
+		packet->cached = true;
+		fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
+		queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&pqe, 0);
 		// packet.objid = twz_object_guid(&nc->buf_obj);
 		// packet.pdata = desc->addr;
 		// packet.len = desc->length;
 		// packet.stat = 0;
 		// packet.qe.info = head;
-		// queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&packet, 0);
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}
 
-	while(
-	  queue_get_finished(&nc->rxqueue_obj, (struct queue_entry *)&packet, QUEUE_NONBLOCK) == 0) {
+	while(queue_get_finished(&nc->rxqueue_obj, (struct queue_entry *)&pqe, QUEUE_NONBLOCK) == 0) {
 		//	fprintf(stderr, "got completion for %d\n", packet.qe.info);
 
 		struct e1000_rx_desc *desc = &nc->rx_ring[nc->tail_rx];
+		packet *packet = nc->packet_info_map[pqe.qe.info];
+		assert(packet);
+		nc->packet_info_map[pqe.qe.info] = NULL;
+		nc->packet_desc_map[nc->tail_rx] = packet;
+		desc->status = 0;
+		desc->addr = packet->pinaddr;
+		_clwb(desc);
+
+		if(packet->cached) {
+			_clwb_len(packet->vaddr, 0x1000);
+			packet->cached = false;
+		}
+
 		// desc->status = 0;
 		// desc->addr = packet.pdata;
 		e1000_reg_write32(nc, REG_RXDESCTAIL, BAR_MEMORY, nc->tail_rx);
@@ -435,6 +494,10 @@ int main(int argc, char **argv)
 	}
 
 	printf("[e1000] starting e1000 controller %s\n", argv[1]);
+	r = twz_object_new(&nc.packet_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	if(r) {
+		abort();
+	}
 
 	if(e1000c_reset(&nc))
 		return -1;

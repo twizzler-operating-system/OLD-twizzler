@@ -15,3 +15,11 @@ struct nic_header {
 	uint8_t mac[6];
 	uint8_t pad[2];
 };
+
+struct packet_header {
+	uint32_t flags;
+	uint32_t nicid;
+	uint32_t packetid;
+	uint16_t status;
+	uint16_t len;
+};

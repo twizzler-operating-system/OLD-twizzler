@@ -159,17 +159,34 @@ class tx_request
   public:
 	struct packet_queue_entry packet;
 };
+
+class packet
+{
+  public:
+	void *vaddr;
+	size_t length;
+	uint64_t pinaddr;
+	bool mapped;
+	bool cached;
+};
+
+#include <unordered_map>
+
 class e1000_controller
 {
   public:
-	twzobj ctrl_obj, buf_obj, txqueue_obj, rxqueue_obj, info_obj;
-	uint64_t buf_pin;
+	twzobj ctrl_obj, buf_obj, txqueue_obj, rxqueue_obj, info_obj, packet_obj;
+	uint64_t buf_pin, packet_pin;
 	size_t nr_tx_desc, nr_rx_desc;
 	struct e1000_tx_desc *tx_ring;
 	struct e1000_rx_desc *rx_ring;
 
 	std::mutex mtx;
 	std::vector<tx_request *> txs;
+	std::vector<packet *> packet_buffers;
+	std::unordered_map<uint32_t, packet *> packet_info_map;
+	std::unordered_map<uint32_t, packet *> packet_desc_map;
+	size_t packet_off = OBJ_NULLPAGE_SIZE;
 
 	uint8_t mac[6];
 
