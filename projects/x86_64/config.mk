@@ -22,11 +22,7 @@ CONFIG_PRINT_SYSCALLS=n
 CONFIG_DEBUG_LOCKS=y
 
 # set this to your toolchain path
-<<<<<<< HEAD
-TOOLCHAIN_PATH=/home/dbittman/code/twizzler/.tc
-=======
 TOOLCHAIN_PATH=
->>>>>>> 820bead... Update config.
 #/home/dbittman/code/twizzler/.tc
 
 QEMU_FLAGS+="-enable-kvm"
