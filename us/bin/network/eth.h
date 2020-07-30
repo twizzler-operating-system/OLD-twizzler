@@ -1,5 +1,7 @@
 #include <twz/obj.h>
 #include <twz/queue.h>
+#include <twz/driver/nic.h>
+#include <twz/driver/queue.h>
 
 #include <cstdlib>
 #include <unistd.h>
@@ -8,6 +10,7 @@
 #include <vector>
 #include <iostream>
 #include <map>
+#include <thread>
 
 #include <string.h>
 
@@ -18,11 +21,12 @@
 #pragma pack(push,1)
 typedef struct mac_addr
 {
-	unsigned char mac[6];
+    //unsigned char mac[6];
+    uint8_t mac[6];
 }mac_addr_t;
 typedef struct obj_id
 {
-	unsigned char id[16];
+    unsigned char id[16];
 }obj_id_t;
 
 typedef struct eth_hdr

@@ -41,8 +41,43 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
 {
     eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
     
-    memset((void*)eth_hdr->dst_mac.mac, 0xff , MAC_ADDR_SIZE*(sizeof(char))); //using broacast address for now
-    //must set the source mac (interface with NIC)
+    
+    
+    //setting source MAC exposed by NIC
+    twzobj info_obj;
+    int r;
+    r = twz_object_init_name(&info_obj, "/dev/e1000-info", FE_READ | FE_WRITE);
+    if(r)
+    {
+        fprintf(stderr, "e1000: failed to open rxqueue\n");
+        exit(1);
+    }
+    struct nic_header *nh = (struct nic_header *)twz_object_base(&info_obj);
+    uint64_t flags = nh->flags;
+    while(!(flags & NIC_FL_MAC_VALID))
+    {
+        /* if it's not set, sleep and specify the comparison value as the value we just checked. */
+        twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
+        /* we woke up, so someone woke us up. Reload the flags to check the new value */
+        flags = nh->flags;
+        /* we have to go around the loop again because we might have had a spurious wake up. */
+    }
+//    eth_hdr->src_mac.mac[0] = nh->mac[0];
+//    eth_hdr->src_mac.mac[1] = nh->mac[1];
+//    eth_hdr->src_mac.mac[2] = nh->mac[2];
+//    eth_hdr->src_mac.mac[3] = nh->mac[3];
+//    eth_hdr->src_mac.mac[4] = nh->mac[4];
+//    eth_hdr->src_mac.mac[5] = nh->mac[5];
+    memcpy(eth_hdr->src_mac.mac, nh->mac, MAC_ADDR_SIZE);
+    
+    
+    
+    
+    
+    //setting destination MAC (eventually must be taken in as an argument, vs using broadcast address
+    memset((void*)eth_hdr->dst_mac.mac, 0xff , MAC_ADDR_SIZE*(sizeof(char)));
+
+    
     //also memset all all other fields to zero
 
     //char *payload = (char *) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
