@@ -1,4 +1,4 @@
-NETWORK_SRCS=$(addprefix us/bin/network/,queue.cpp eth.cpp orp.cpp)
+NETWORK_SRCS=$(addprefix us/bin/network/,queue.cpp eth.cpp flip.cpp)
 NETWORK_OBJS=$(addprefix $(BUILDDIR)/,$(NETWORK_SRCS:.cpp=.o))
 
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive

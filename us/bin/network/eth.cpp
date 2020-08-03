@@ -62,13 +62,13 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
         flags = nh->flags;
         /* we have to go around the loop again because we might have had a spurious wake up. */
     }
-//    eth_hdr->src_mac.mac[0] = nh->mac[0];
-//    eth_hdr->src_mac.mac[1] = nh->mac[1];
-//    eth_hdr->src_mac.mac[2] = nh->mac[2];
-//    eth_hdr->src_mac.mac[3] = nh->mac[3];
-//    eth_hdr->src_mac.mac[4] = nh->mac[4];
-//    eth_hdr->src_mac.mac[5] = nh->mac[5];
-    memcpy(eth_hdr->src_mac.mac, nh->mac, MAC_ADDR_SIZE);
+    eth_hdr->src_mac.mac[0] = nh->mac[0];
+    eth_hdr->src_mac.mac[1] = nh->mac[1];
+    eth_hdr->src_mac.mac[2] = nh->mac[2];
+    eth_hdr->src_mac.mac[3] = nh->mac[3];
+    eth_hdr->src_mac.mac[4] = nh->mac[4];
+    eth_hdr->src_mac.mac[5] = nh->mac[5];
+//    memcpy(eth_hdr->src_mac.mac, nh->mac, MAC_ADDR_SIZE);
     
     
     
@@ -135,15 +135,24 @@ void send(char *data, twzobj *queue_obj) //needs to be modified to also include 
     //release_info(pqe.qe.info);
 }
 
-void recv(twzobj *queue_obj, char *recv_buffer)
+void recv(twzobj *queue_obj)
 {
-    struct packet_queue_entry pqe;
-    queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
-    eth_hdr_t *eth_hdr = twz_object_lea(queue_obj, (eth_hdr_t *)pqe.ptr);
-    (void)eth_hdr;
+    char recv_buffer [248];
     
-    std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
+    while(1)
+    {
+        struct packet_queue_entry pqe;
+        queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
+        fprintf(stderr, "net got packet!\n");
+        
+        
+        eth_hdr_t *eth_hdr = twz_object_lea(queue_obj, (eth_hdr_t *)pqe.ptr);
+        (void)eth_hdr;
+        
+        std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
 
-    strcpy(recv_buffer, eth_hdr->payload);
-    queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
+        strcpy(recv_buffer, eth_hdr->payload);
+        std::cout<<"Data: "<<recv_buffer<<std::endl;
+        queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
+    }
 }

@@ -15,8 +15,7 @@
 #include <string.h>
 
 #include "cons.h"
-#include "orp.h"
-
+#include "flip.h"
 
 #pragma pack(push,1)
 typedef struct mac_addr
@@ -45,5 +44,5 @@ typedef struct eth_hdr
 /*network APIs*/
 void init_queue(twzobj *qo);
 void send(char *data, twzobj *queue_obj);
-void recv(twzobj *queue_obj, char *recv_buffer);
+void recv(twzobj *queue_obj);
 
