@@ -18,7 +18,7 @@ int main()
     char test[] = "Sending this data.";
     send(test, &tx_queue_obj);
     
-    fprintf(stderr, "main: SENT!\n");
+    fprintf(stderr, "@main: SENT!\n");
     
     for(;;)
 	    usleep(100000);

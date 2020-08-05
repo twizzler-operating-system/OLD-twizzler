@@ -1,21 +1,5 @@
 #include "eth.h"
 
-void consumer(twzobj *qobj)
-{
-    printf("start consumer\n");
-
-    while(1) {
-        struct packet_queue_entry pqe;
-        queue_receive(qobj, (struct queue_entry *)&pqe, 0);
-        eth_hdr_t *eth_hdr = twz_object_lea(qobj, (eth_hdr_t *)pqe.ptr);
-        (void)eth_hdr;
-        std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
-        std::cout<<"INCOMING PAYLOAD: "<< eth_hdr->payload <<std::endl;
-
-        queue_complete(qobj, (struct queue_entry *)&pqe, 0);
-    }
-}
-
 /* this code is for ensuring that every packet we send has a unique ID, so that when we get back the
  * completion we know which packet was sent */
 static uint32_t counter = 0;
@@ -76,6 +60,18 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
     
     //setting destination MAC (eventually must be taken in as an argument, vs using broadcast address
     memset((void*)eth_hdr->dst_mac.mac, 0xff , MAC_ADDR_SIZE*(sizeof(char)));
+//
+//    //for testing purposes
+//    eth_hdr->dst_mac.mac[0] = 0x86;
+//    eth_hdr->dst_mac.mac[1] = 0x1a;
+//    eth_hdr->dst_mac.mac[2] = 0x6c;
+//    eth_hdr->dst_mac.mac[3] = 0x30;
+//    eth_hdr->dst_mac.mac[4] = 0x34;
+//    eth_hdr->dst_mac.mac[5] = 0x28;
+    
+    
+
+    eth_hdr->type = 0x2020;
 
     
     //also memset all all other fields to zero
@@ -83,8 +79,6 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
     //char *payload = (char *) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
     //eth_hdr->payload = (char *)malloc((strlen(data) + 1)*sizeof(data)); //learn how to do this in twizzler and malloc more data in the data object
     strcpy(eth_hdr->payload, data);
-
-    std::cout << "Sending the payload: " << eth_hdr->payload << std::endl;
     
     //MUST FREE DATA AFTER SENDING IT (send function)!!
     
@@ -112,7 +106,7 @@ void send(char *data, twzobj *queue_obj) //needs to be modified to also include 
 {
     twzobj data_obj;
 
-    fprintf(stderr, "object_new\n");
+    /*cannot create new object every time.. this must be changed!!!*/
     if(twz_object_new(&data_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
         abort();
 
@@ -121,14 +115,12 @@ void send(char *data, twzobj *queue_obj) //needs to be modified to also include 
     /* get a unique ID (unique only for outstanding requests; it can be reused) */
     uint32_t info = get_new_info();
 
-    fprintf(stderr, "swizzling\n");
     /* store a pointer to some packet data */
     pqe.qe.info = info;
     pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(&data_obj, data), FE_READ);
     pqe.len = strlen(data) + 14;
 
     
-    fprintf(stderr, "queue_submit\n");
     /* submit the packet! */
     queue_submit(queue_obj, (struct queue_entry *)&pqe, 0);
 
@@ -137,22 +129,23 @@ void send(char *data, twzobj *queue_obj) //needs to be modified to also include 
 
 void recv(twzobj *queue_obj)
 {
-    char recv_buffer [248];
-    
     while(1)
     {
         struct packet_queue_entry pqe;
         queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
-        fprintf(stderr, "net got packet!\n");
+        fprintf(stderr, "Reciever got packet!\n");
+        
+        /* packet structure from the nic starts with a packet_header struct that contains some
+         * useful information (or, will in the future), followed by the actual packet data. */
+        struct packet_header *ph = (struct packet_header *)twz_object_lea(queue_obj, pqe.ptr);
         
         
-        eth_hdr_t *eth_hdr = twz_object_lea(queue_obj, (eth_hdr_t *)pqe.ptr);
+        eth_hdr_t *eth_hdr = (eth_hdr_t *)(ph + 1);
         (void)eth_hdr;
         
-        std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
+        //std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
 
-        strcpy(recv_buffer, eth_hdr->payload);
-        std::cout<<"Data: "<<recv_buffer<<std::endl;
+        std::cout<<"Incoming data: "<<eth_hdr->payload<<std::endl;
         queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
     }
 }
