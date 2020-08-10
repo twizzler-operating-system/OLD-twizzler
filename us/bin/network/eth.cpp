@@ -1,4 +1,4 @@
-#include "eth.h"
+#include "intr_props.h"
 
 /* this code is for ensuring that every packet we send has a unique ID, so that when we get back the
  * completion we know which packet was sent */
@@ -21,41 +21,12 @@ static void release_info(uint32_t info)
 
 /* some example code for making a packet. We have a data object, and we're choosing pages to fill
  * with data */
-static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
+static void *new_eth_frame_with_payload(twzobj *interface_obj, twzobj *data_obj, char *data)
 {
     eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
-    
-    
-    
-    //setting source MAC exposed by NIC
-    twzobj info_obj;
-    int r;
-    r = twz_object_init_name(&info_obj, "/dev/e1000-info", FE_READ | FE_WRITE);
-    if(r)
-    {
-        fprintf(stderr, "e1000: failed to open rxqueue\n");
-        exit(1);
-    }
-    struct nic_header *nh = (struct nic_header *)twz_object_base(&info_obj);
-    uint64_t flags = nh->flags;
-    while(!(flags & NIC_FL_MAC_VALID))
-    {
-        /* if it's not set, sleep and specify the comparison value as the value we just checked. */
-        twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
-        /* we woke up, so someone woke us up. Reload the flags to check the new value */
-        flags = nh->flags;
-        /* we have to go around the loop again because we might have had a spurious wake up. */
-    }
-    eth_hdr->src_mac.mac[0] = nh->mac[0];
-    eth_hdr->src_mac.mac[1] = nh->mac[1];
-    eth_hdr->src_mac.mac[2] = nh->mac[2];
-    eth_hdr->src_mac.mac[3] = nh->mac[3];
-    eth_hdr->src_mac.mac[4] = nh->mac[4];
-    eth_hdr->src_mac.mac[5] = nh->mac[5];
-//    memcpy(eth_hdr->src_mac.mac, nh->mac, MAC_ADDR_SIZE);
-    
-    
-    
+    interface_t *interface = (interface_t *)twz_object_base(interface_obj);
+
+    memcpy(eth_hdr->src_mac.mac, interface->mac.mac, MAC_ADDR_SIZE);
     
     
     //setting destination MAC (eventually must be taken in as an argument, vs using broadcast address
@@ -71,14 +42,15 @@ static void *new_eth_frame_with_payload(twzobj *data_obj, char *data)
     
     
 
-    eth_hdr->type = 0x2020;
+   // eth_hdr->type = 0x2020;
 
     
     //also memset all all other fields to zero
 
     //char *payload = (char *) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-    //eth_hdr->payload = (char *)malloc((strlen(data) + 1)*sizeof(data)); //learn how to do this in twizzler and malloc more data in the data object
-    strcpy(eth_hdr->payload, data);
+    //eth_hdr->payload = (char *)malloc((strlen(daita) + 1)*sizeof(data)); //learn how to do this in twizzler and malloc more data in the data object
+    strcpy(eth_hdr->payload, interface->ipv4_addr.addr);
+
     
     //MUST FREE DATA AFTER SENDING IT (send function)!!
     
@@ -101,8 +73,8 @@ void init_queue(twzobj *qo)
 }
 
 
-//must set a max buffer size, once new_eth_frame_with_payload funcation gets correctly modified to deal with malloc
-void send(char *data, twzobj *queue_obj) //needs to be modified to also include destination, & also deal if destination is NULL
+//must set a max buffer size, once new_eth_frame_with_payload function gets correctly modified to deal with malloc
+void send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be modified to also include destination, & also deal if destination is NULL
 {
     twzobj data_obj;
 
@@ -117,7 +89,7 @@ void send(char *data, twzobj *queue_obj) //needs to be modified to also include 
 
     /* store a pointer to some packet data */
     pqe.qe.info = info;
-    pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(&data_obj, data), FE_READ);
+    pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(interface_obj, &data_obj, data), FE_READ);
     pqe.len = strlen(data) + 14;
 
     

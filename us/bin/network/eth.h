@@ -1,21 +1,24 @@
-#include <twz/obj.h>
-#include <twz/queue.h>
-#include <twz/driver/nic.h>
-#include <twz/driver/queue.h>
-
 #include <cstdlib>
-#include <unistd.h>
-
 #include <cstdio>
 #include <vector>
 #include <iostream>
 #include <map>
 #include <thread>
 
+#include <unistd.h>
 #include <string.h>
 
+#include <twz/name.h>
+#include <twz/obj.h>
+#include <twz/queue.h>
+#include <twz/driver/nic.h>
+#include <twz/driver/queue.h>
+
 #include "cons.h"
-#include "flip.h"
+
+//forward decleration
+typedef struct interface interface_t;
+
 
 #pragma pack(push,1)
 typedef struct mac_addr
@@ -23,10 +26,6 @@ typedef struct mac_addr
     //unsigned char mac[6];
     uint8_t mac[6];
 }mac_addr_t;
-typedef struct obj_id
-{
-    unsigned char id[16];
-}obj_id_t;
 
 typedef struct eth_hdr
 {
@@ -35,14 +34,12 @@ typedef struct eth_hdr
     mac_addr_t src_mac;
     unsigned short type; //aka type field... 2 bytes
     char payload[248];/*Allowed 46-1500 bytes*/ //this needs to me modified so data is allocated then freed every time we send data
-    //unsigned int FCS; //CRC aka Frame Check Sequence
 }eth_hdr_t;
 #pragma pack(pop)
 
-#include <twz/driver/queue.h>
 
 /*network APIs*/
 void init_queue(twzobj *qo);
-void send(char *data, twzobj *queue_obj);
+void send(char *data, twzobj *queue_obj, twzobj *interface_obj);
 void recv(twzobj *queue_obj);
 
