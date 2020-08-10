@@ -39,7 +39,6 @@ typedef struct eth_hdr
 
 
 /*network APIs*/
-void init_queue(twzobj *qo);
-void send(char *data, twzobj *queue_obj, twzobj *interface_obj);
-void recv(twzobj *queue_obj);
+void l2_send(char *data, twzobj *queue_obj, twzobj *interface_obj); //change this function to also add type of data
+void l2_recv(twzobj *queue_obj);
 

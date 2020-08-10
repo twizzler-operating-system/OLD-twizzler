@@ -74,7 +74,7 @@ void init_queue(twzobj *qo)
 
 
 //must set a max buffer size, once new_eth_frame_with_payload function gets correctly modified to deal with malloc
-void send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be modified to also include destination, & also deal if destination is NULL
+void l2_send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be modified to also include destination, & also deal if destination is NULL
 {
     twzobj data_obj;
 
@@ -99,7 +99,7 @@ void send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be mo
     //release_info(pqe.qe.info);
 }
 
-void recv(twzobj *queue_obj)
+void l2_recv(twzobj *queue_obj)
 {
     while(1)
     {

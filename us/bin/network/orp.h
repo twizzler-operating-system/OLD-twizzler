@@ -1,10 +1,8 @@
+#include <string>
+
 #include<twz/obj.h>
 
 #include "intr_props.h"
-
-//forward decleration
-//typedef struct mac_addr mac_addr_t;
-//typedef struct interface interface_t;
 
 #pragma pack(push,1)
 typedef struct orp_hdr
@@ -23,14 +21,14 @@ typedef struct orp_hdr
 
 typedef struct orp_table
 {
-    std::map<ipv4_addr_t, mac_addr_t> orp_lookup_table;
+    std::map<std::string, std::string> orp_lookup_table;
 }orp_table_t;
 
 
 
 /*ObjectResolutionProtocol APIs*/
-void init_orp_map(twzobj *orp_table_obj);
-void add_orp_entry(twzobj *orp_table_obj);
+void init_orp_map(char *name, twzobj *orp_table_obj);
+void add_orp_entry(twzobj *orp_table_obj, ipv4_addr_t ip_addr, mac_addr_t mac_addr);
 void remove_orp_entry(twzobj *orp_table_obj, ipv4_addr_t *addr); //when should we delete, how do we know entry is expired and obj_id has moved?
 mac_addr_t orp_lookup(twzobj *orp_table_obj, ipv4_addr_t *addr);
 //add API to display ORP Table
