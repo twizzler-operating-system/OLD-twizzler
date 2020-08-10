@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "intr_props.h"
+#include "orp.h"
 
 //argv[1] should be IP address
 int main(int argc, char *argv[])

@@ -1,4 +1,4 @@
-#include "intr_props.h"
+#include "orp.h"
 
 void init_interface(char *name, char *info_queue, twzobj *interface_props)
 {

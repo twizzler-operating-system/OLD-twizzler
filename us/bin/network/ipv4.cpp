@@ -1,5 +1,5 @@
 //#include "ipv4.h"
-#include "intr_props.h"
+#include "orp.h"
 bool assign_ipv4_addr_to_intr(ipv4_addr_t *addr, twzobj *interface_obj)
 {
     interface_t *interface = (interface_t *)twz_object_base(interface_obj);

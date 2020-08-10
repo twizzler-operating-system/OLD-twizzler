@@ -1,4 +1,4 @@
-#include "intr_props.h"
+#include "orp.h"
 
 /* this code is for ensuring that every packet we send has a unique ID, so that when we get back the
  * completion we know which packet was sent */

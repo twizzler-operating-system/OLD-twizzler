@@ -1,7 +1,10 @@
+#include<twz/obj.h>
+
+#include "intr_props.h"
+
 //forward decleration
-typedef struct mac_addr mac_addr_t;
-typedef struct obj_id obj_id_t;
-typedef struct eth_hdr eth_hdr_t;
+//typedef struct mac_addr mac_addr_t;
+//typedef struct interface interface_t;
 
 #pragma pack(push,1)
 typedef struct orp_hdr
@@ -12,27 +15,28 @@ typedef struct orp_hdr
     char proto_addr_len; //value: 128 for obj_id
     short opcode; //req or reply
     mac_addr_t *src_mac;
+    unsigned int src_ip;
     mac_addr_t *dst_mac;
-    obj_id_t *dst_obj_id;
+    unsigned int dst_ip;
 }orp_hdr_t;
 #pragma pack(pop)
 
 typedef struct orp_table
 {
-    std::map<obj_id_t, mac_addr_t> orp_lookup_table;
+    std::map<ipv4_addr_t, mac_addr_t> orp_lookup_table;
 }orp_table_t;
 
 
 
 /*ObjectResolutionProtocol APIs*/
-void init_orp_map(orp_table_t *orp_table);
-void add_orp_entry(orp_table_t *orp_table);
-void remove_orp_entry(orp_table_t *orp_table, obj_id_t id); //when should we delete, how do we know entry is expired and obj_id has moved?
-mac_addr_t orp_lookup(orp_table_t *orp_table, obj_id_t id);
+void init_orp_map(twzobj *orp_table_obj);
+void add_orp_entry(twzobj *orp_table_obj);
+void remove_orp_entry(twzobj *orp_table_obj, ipv4_addr_t *addr); //when should we delete, how do we know entry is expired and obj_id has moved?
+mac_addr_t orp_lookup(twzobj *orp_table_obj, ipv4_addr_t *addr);
 //add API to display ORP Table
 
-/*ORP Protocol Implementation*/
-void send_orp_request(obj_id_t id);
-void send_orp_reply(eth_hdr_t *eth_hdr);
-void recv_prp_request(eth_hdr_t *eth_hdr);
-void recv_orp_reply(eth_hdr_t *eth_hdr);
+///*ORP Protocol Implementation*/
+//void send_orp_request(ipv4_addr_t *addr);
+//void send_orp_reply(eth_hdr_t *eth_hdr);
+//void recv_prp_request(eth_hdr_t *eth_hdr);
+//void recv_orp_reply(eth_hdr_t *eth_hdr);
