@@ -9,6 +9,7 @@ typedef struct ipv4_addr
     char addr[MAX_IPV4_CHAR_SIZE];
 }ipv4_addr_t;
 
+
 //must eventually set up loopback interface
 
 //must add subnet mask later
