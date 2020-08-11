@@ -2,7 +2,7 @@
 
 #include<twz/obj.h>
 
-#include "intr_props.cpp"
+#include "intr_props.h"
 
 /*NETWORK LAYER*/
 
@@ -14,10 +14,23 @@
 
 #pragma pack(push,1)
 
-typedef struct flip_l3_metahdr_
+typedef struct flip_esp_14_bit_data
 {
-    uint8_t meta_hdr;
-}flip_l3_metahdr_t;
+    unsigned char data;
+}flip_esp_14_bit_data;
+
+typedef struct flip_l3_hdr3_
+{
+    uint16_t fragment_offset; //indicates fragment offset with respect to original packet
+}flip_l3_hdr3_t;
+
+typedef struct flip_l3_hdr2_
+{
+    uint32_t source; //right now set for 32 bits (ipv4 addres) FUTURE WORK: this must vary based on metaheader specification
+    uint16_t length; //max packet size if 64KBytes
+    uint16_t checksum; //check correctness of packet payload... calculated simular to IP Checksum
+    flip_l3_hdr3_t next_hdr;
+}flip_l3_hdr2_t;
 
 typedef struct flip_l3_hdr1_
 {
@@ -26,26 +39,21 @@ typedef struct flip_l3_hdr1_
     uint8_t type; //protocol type
     uint8_t ttl;
     uint32_t flow; //flow identification for QoS
+    flip_l3_hdr2_t next_hdr;
     
 }flip_l3_hdr1_t;
 
-typedef struct flip_l3_hdr2_
+typedef struct flip_l3_metahdr_
 {
-    uint32_t source; //right now set for 32 bits (ipv4 addres) FUTURE WORK: this must vary based on metaheader specification
-    uint16_t length; //max packet size if 64KBytes
-    uint16_t checksum; //check correctness of packet payload... calculated simular to IP Checksum
-}flip_l3_hdr2_t;
+    //again, memory must be able to be dynamically allocated
+    uint8_t meta_hdr1;
+    uint8_t meta_hdr2;
+    uint8_t meta_hdr3;
+    flip_l3_hdr1_t next_hdr;
+    //eventually add pointer to 14-bit esp
+}flip_l3_metahdr_t;
 
-typedef struct flip_l3_hdr3_
-{
-    uint16_t fragment_offset; //indicates fragment offset with respect to original packet
-}flip_l3_hdr3_t;
-
-typedef struct flip_esp_14_bit_data
-{
-    usigned char data;
-}flip_esp_14_bit_data;
-
+//!! THESE DATA STRUCTURES NEED TO BE MODIFIED TO ALLOCATE MEMORY
 
 #pragma pack (pop)
 
