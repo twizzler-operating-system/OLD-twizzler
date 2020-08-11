@@ -1,4 +1,4 @@
-NETWORK_SRCS=$(addprefix us/bin/network/,main.cpp orp.cpp intr_props.cpp eth.cpp ipv4.cpp)
+NETWORK_SRCS=$(addprefix us/bin/network/,main.cpp flip.cpp intr_props.cpp eth.cpp ipv4.cpp)
 NETWORK_OBJS=$(addprefix $(BUILDDIR)/,$(NETWORK_SRCS:.cpp=.o))
 
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive

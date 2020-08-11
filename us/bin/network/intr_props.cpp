@@ -1,4 +1,4 @@
-#include "orp.h"
+#include "flip.h"
 
 void init_interface(char *name, char *info_queue, twzobj *interface_props)
 {

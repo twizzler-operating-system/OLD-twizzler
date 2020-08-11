@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include "orp.h"
+#include "flip.h"
 
 //argv[1] should be IP address
 int main(int argc, char *argv[])

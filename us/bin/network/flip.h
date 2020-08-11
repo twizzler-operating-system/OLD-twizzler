@@ -1,3 +1,9 @@
+#include <string>
+
+#include<twz/obj.h>
+
+#include "intr_props.cpp"
+
 /*NETWORK LAYER*/
 
 /* L3-meta-header: indicates which indicates which header fields are present in the packet
@@ -42,5 +48,4 @@ typedef struct flip_esp_14_bit_data
 
 
 #pragma pack (pop)
-
 
