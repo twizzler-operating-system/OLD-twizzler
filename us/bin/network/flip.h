@@ -22,6 +22,7 @@ typedef struct flip_esp_14_bit_data
 typedef struct flip_l3_hdr3_
 {
     uint16_t fragment_offset; //indicates fragment offset with respect to original packet
+    //payload must be added
 }flip_l3_hdr3_t;
 
 typedef struct flip_l3_hdr2_
@@ -30,6 +31,7 @@ typedef struct flip_l3_hdr2_
     uint16_t length; //max packet size if 64KBytes
     uint16_t checksum; //check correctness of packet payload... calculated simular to IP Checksum
     flip_l3_hdr3_t next_hdr;
+    //payload must be added
 }flip_l3_hdr2_t;
 
 typedef struct flip_l3_hdr1_
@@ -40,6 +42,8 @@ typedef struct flip_l3_hdr1_
     uint8_t ttl;
     uint32_t flow; //flow identification for QoS
     flip_l3_hdr2_t next_hdr;
+    flip_esp_14_bit_data esp_data;
+    
     
 }flip_l3_hdr1_t;
 
@@ -56,4 +60,8 @@ typedef struct flip_l3_metahdr_
 //!! THESE DATA STRUCTURES NEED TO BE MODIFIED TO ALLOCATE MEMORY
 
 #pragma pack (pop)
+
+
+
+void flip_send(twzobj *hdr_obj, uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data);
 

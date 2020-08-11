@@ -14,7 +14,6 @@ int main(int argc, char *argv[])
     ipv4_addr_t ipv4;
     if(argc > 1)
     {
-        
         strncpy(ipv4.addr, argv[1], MAX_IPV4_CHAR_SIZE);
 
         if(!assign_ipv4_addr_to_intr(&ipv4, &interface_obj))
@@ -43,7 +42,7 @@ int main(int argc, char *argv[])
     std::thread thr(l2_recv, &rx_queue_obj);
     
     
-    
+    //code below should only be done if IP address was entered
     
     
     //initialize orp table
@@ -62,7 +61,7 @@ int main(int argc, char *argv[])
 //    add_orp_entry(&orp_table_obj, ipv4, mac_add);
 //
 //
-    
+   flip_send(NULL, NULL, NULL, NULL, NULL, ipv4.addr, NULL);
     
     char test[] = "Sending this data.";
     l2_send(test, &tx_queue_obj, &interface_obj);
