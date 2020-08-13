@@ -33,7 +33,7 @@ typedef struct eth_hdr
     mac_addr_t dst_mac; //6 bytes
     mac_addr_t src_mac;
     unsigned short type; //aka type field... 2 bytes
-    char payload[248];/*Allowed 46-1500 bytes*/ //this needs to me modified so data is allocated then freed every time we send data
+    /*Payload follows: allowed 46-1500 bytes*/
 }eth_hdr_t;
 #pragma pack(pop)
 

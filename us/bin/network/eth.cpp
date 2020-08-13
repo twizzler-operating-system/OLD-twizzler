@@ -21,9 +21,9 @@ static void release_info(uint32_t info)
 
 /* some example code for making a packet. We have a data object, and we're choosing pages to fill
  * with data */
-static void *new_eth_frame_with_payload(twzobj *interface_obj, twzobj *data_obj, char *data)
+static void *new_eth_frame_with_payload(twzobj *interface_obj, void *eth_ptr)//twzobj *data_obj, char *data)
 {
-    eth_hdr_t *eth_hdr = (eth_hdr_t *)twz_object_base(data_obj);
+    eth_hdr_t *eth_hdr = (eth_hdr_t *)eth_ptr;
     interface_t *interface = (interface_t *)twz_object_base(interface_obj);
 
     memcpy(eth_hdr->src_mac.mac, interface->mac.mac, MAC_ADDR_SIZE);
@@ -40,47 +40,33 @@ static void *new_eth_frame_with_payload(twzobj *interface_obj, twzobj *data_obj,
 //    eth_hdr->dst_mac.mac[4] = 0x34;
 //    eth_hdr->dst_mac.mac[5] = 0x28;
     
-    
+    //must be modified to take in destination MAC
 
-   // eth_hdr->type = 0x2020;
-
-    
-    //also memset all all other fields to zero
-
-    //char *payload = (char *) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-    //eth_hdr->payload = (char *)malloc((strlen(daita) + 1)*sizeof(data)); //learn how to do this in twizzler and malloc more data in the data object
-    strcpy(eth_hdr->payload, interface->ipv4_addr.addr);
-
-    
-    //MUST FREE DATA AFTER SENDING IT (send function)!!
+    //eth_hdr->type = 0x2020;
+    //must take in type!!
     
     return eth_hdr;
 }
 
 
-void init_queue(twzobj *qo)
-{
-    if(twz_object_new(qo, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
-        abort();
-        
-    /* init the queue object, here we have 32 queue entries */
-    queue_init_hdr(qo, 22, sizeof(struct packet_queue_entry), 8, sizeof(struct packet_queue_entry));
-    
-    /* start the consumer... */
-    //if(!fork()) consumer(qo);
-    //this will need to be a thread running on the background, but for now, we'll manually read from buffer
-    
-}
-
 
 //must set a max buffer size, once new_eth_frame_with_payload function gets correctly modified to deal with malloc
 void l2_send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be modified to also include destination, & also deal if destination is NULL
 {
-    twzobj data_obj;
+    twzobj pkt_buffer_obj;
 
     /*cannot create new object every time.. this must be changed!!!*/
-    if(twz_object_new(&data_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
+    if(twz_object_new(&pkt_buffer_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
         abort();
+    
+    twz_object_build_alloc(&pkt_buffer_obj, 0);
+    void *p = twz_object_alloc(&pkt_buffer_obj, strlen(data)+SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD);
+    void *eth_hdr = twz_object_lea(&pkt_buffer_obj, p);
+    
+    char *payload = (char*) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
+    strcpy(payload, data);
+    
+    
 
     struct packet_queue_entry pqe;
     
@@ -89,8 +75,8 @@ void l2_send(char *data, twzobj *queue_obj, twzobj *interface_obj) //needs to be
 
     /* store a pointer to some packet data */
     pqe.qe.info = info;
-    pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(interface_obj, &data_obj, data), FE_READ);
-    pqe.len = strlen(data) + 14;
+    pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(interface_obj, eth_hdr), FE_READ);
+    pqe.len = strlen(data) + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
 
     
     /* submit the packet! */
@@ -117,7 +103,29 @@ void l2_recv(twzobj *queue_obj)
         
         //std::cout<<"INCOMING MAC: "<< eth_hdr->dst_mac.mac <<std::endl;
 
-        std::cout<<"Incoming data: "<<eth_hdr->payload<<std::endl;
+       // std::cout<<"Incoming data: "<<eth_hdr->payload<<std::endl;
         queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
     }
+}
+
+
+
+
+
+
+
+
+//not sure if we will need this function, not using it at all
+void init_queue(twzobj *qo)
+{
+    if(twz_object_new(qo, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
+        abort();
+        
+    /* init the queue object, here we have 32 queue entries */
+    queue_init_hdr(qo, 22, sizeof(struct packet_queue_entry), 8, sizeof(struct packet_queue_entry));
+    
+    /* start the consumer... */
+    //if(!fork()) consumer(qo);
+    //this will need to be a thread running on the background, but for now, we'll manually read from buffer
+    
 }
