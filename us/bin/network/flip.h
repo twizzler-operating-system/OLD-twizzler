@@ -63,5 +63,12 @@ typedef struct flip_l3_metahdr_
 
 
 
-void flip_send(twzobj *hdr_obj, uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data);
+
+void flip_send_esp_14bit_data();
+void flip_send_esp_6bit_data();
+
+
+/*this function will need to be modified
+ for ex destination MAC will need to be discovered with ARP protocol*/
+void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data, twzobj *interface_obj, twzobj *tx_queue_obj);
 

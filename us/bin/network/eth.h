@@ -39,6 +39,6 @@ typedef struct eth_hdr
 
 
 /*network APIs*/
-void l2_send(char *data, twzobj *queue_obj, twzobj *interface_obj); //change this function to also add type of data
+void l2_send(void *pkt_ptr, twzobj *queue_obj, twzobj *interface_obj, int len); //change this function to also add type of data
 void l2_recv(twzobj *queue_obj);
 

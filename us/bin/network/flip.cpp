@@ -63,132 +63,229 @@ void ipv4_int_to_char(uint32_t ip_addr, char *ip_addr_str)
     strcat(ip_addr_str, t);
 }
 
-
-void flip_send(twzobj *hdr_obj, uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *payload)
+/*This function returns the size of the packet buffer needed for metaheaders + chosen flip headers + ethernet header + payload, in bytes
+ pre-req: this function cannot be called when contructing ESP*/
+int total_pkt_size(uint8_t meta1, uint8_t meta2, uint8_t meta3, int payload_size)
 {
-    /*Create meta-header*/
-    flip_l3_metahdr_t *flip_hdr = (flip_l3_metahdr_t *) twz_object_base(hdr_obj);
+    int total_size = 0;
+    total_size += payload_size;
+    total_size += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
     
-    flip_hdr->meta_hdr1 = meta1;
-    flip_hdr->meta_hdr2 = meta2;
-    flip_hdr->meta_hdr3 = meta3;
-    
-    
-    /*Create first header with active fields*/
-    flip_l3_hdr1_t first_flip_hdr; //should we preset the fields to zero, if we are not allocating memory for each field?
-
-    //check if ESP bit is set
-    if(meta1 & 0b01000000)
+    if(meta1)
     {
-        if(meta1 & 0b10000000)
+        total_size += META_HDR_SIZE;
+        if(meta1 & 0b01000000)
         {
-            flip_esp_14_bit_data esp_data;
-            first_flip_hdr.esp_data = esp_data;
-            flip_hdr->next_hdr = first_flip_hdr;
-            return;
+            fprintf(stderr, "error: calling total_pkt_size, but contructing an ESP. Please use either flip_send_esp_14bit_data() or flip_send_esp_6bit_data() functions.");
+            exit(1);
         }
-
+        if(meta1 & 0b00100000)
+            //version: 1 byte
+            total_size += VERSIZON_SIZE;
+        
+        if((meta1 & 0b00011000) == 0b00011000)
+           //destiation: 128 bits -> 16 bytes
+           total_size += ADDR_SIZE_16_BYTES;
+        else if(meta1 & 0b00001000)
+           //destination: 2 bytes
+            total_size += ADDR_SIZE_2_BYTES;
+        else if(meta1 & 0b00010000)
+            //destination: 4 bytes
+            total_size += ADDR_SIZE_4_BYTES;
+        
+        if(meta1 & 0b00000100)
+            //type: 1 byte
+            total_size += TYPE_SIZE;
+        if(meta1 & 0b00000010)
+        {
+            //TTL: 1 byte
+            //total_size += TTL_SIZE;
+            fprintf(stderr, "error: TTL bit set, but TTL not yet supported by FLIP");
+        }
+        if(meta1 & 0b00000001)
+        {
+            //flow: 4 bytes
+            //total_size += FLOW_SIZE;
+            fprintf(stderr, "erro: flow bit set, but flow identification not yet supported by FLIP");
+        }
     }
-    //check if version bit is set
-    if(meta1 & 0b00100000)
+    if(meta2)
     {
-        //assume 0
-        first_flip_hdr.version = 0;
-    }
-    //check if destination bits is set for 2 byte address
-    if(meta1 & 0b00001000)
-    {
-        //struct for this must be created, or memory must be allocated... right now only 4 byte supported
-    }
-    //check if destination bits is set for 4 byte address
-    else if(meta1 & 0b00010000)
-    {
-        uint32_t int_dst_ip = ipv4_char_to_int(dst_ip);
-        first_flip_hdr.destination = int_dst_ip;
-    }
-    //check if destination bits is set for variable length address
-    else if(meta1 & 0b00011000)
-    {
-        //struct for this must be created, or memory must be allocated... right now only 4 byte supported
-    }
-    //check if type bits is set
-    if(meta1 & 0b00000100)
-    {
-        first_flip_hdr.type = type;
-    }
-    //check if TTL bits is set
-    if(meta1 & 0b00000010)
-    {
-        //not yet supported
-    }
-    //check if flow bits is set
-    if(meta1 & 0b00000001)
-    {
-        //not yet supported
-    }
-    //check if continuation bit is set
-    if(meta1 & 0b10000000)
-    {
-        /*Create second header with active fields*/
-        flip_l3_hdr2_t second_flip_hdr;
-
-        //check if source bits is set for 2 byte address
+        total_size += META_HDR_SIZE;
+        
+        if((meta2 & 0b00011000) == 0b00011000)
+            //source: 128 bits -> 16 bytes
+            total_size += ADDR_SIZE_16_BYTES;
         if(meta2 & 0b00100000)
-        {
-            //struct for this must be created, or memory must be allocated... right now only 4 byte supported
-        }
-        //check if source bits is set for 4 byte address
-        else if(meta2 & 0b01000000)
-        {
-            /*!!!!!!CREATE METHOD TO GRAB IP ADDRESS */
-            char src_ip[MAX_IPV4_CHAR_SIZE] = "4.4.4.4";//eventually needs to be grabbed with function
-            uint32_t int_src_ip = ipv4_char_to_int(src_ip);
-            first_flip_hdr.destination = int_src_ip;
-        }
-        //check if source bits is set for variable length address
-        else if(meta2 & 0b01100000)
-        {
-            //struct for this must be created, or memory must be allocated... right now only 4 byte supported
-        }
-
-        //check if length bit is set
+            //source: 2 bytes
+            total_size += ADDR_SIZE_2_BYTES;
+        if(meta2 & 0b01000000)
+            //source: 4 bytes
+            total_size += ADDR_SIZE_4_BYTES;
+        
         if(meta2 & 0b00010000)
-        {
-            //call function to calculate lenght of packet and store the data
-        }
-
-        //check if checksum bit is set
+            //length: 2 bytes
+            total_size += LENGTH_SIZE;
         if(meta2 & 0b00001000)
         {
-            //call function to calculate checksum of packet and store the data
+            //checksum: 2 bytes
+            //total_size += CHECKSUM_SIZE;
+            fprintf(stderr, "error: checksum bit set, but checksum not yet supported by FLIP... CRC done at L2 for now.");
         }
-        //check if don't fragment bit is set
-        if(meta2 & 0b00000100)
-        {
-            //no fragmentation supported
-        }
-        /*last 2 bits are reserved for future use*/
-
-        //check if continuation bit is set
-        if(meta2 & 0b10000000)
-        {
-            /*Create third header with active fields*/
-            flip_l3_hdr3_t third_flip_hdr;
-            /*last header used for fragmentation, which isn't currently supported*/
-
-            second_flip_hdr.next_hdr = third_flip_hdr;
-        }
-        first_flip_hdr.next_hdr = second_flip_hdr;
+        //fragmentation is a flag and does not require a header field
     }
-    flip_hdr->next_hdr = first_flip_hdr;
+    if(meta3)
+    {
+        fprintf(stderr, "Error: FLIP's third metaheader is for fragmentation. Fragmentation is not yet supported.");
+        exit(1);
+    }
+    
+    if(total_size > PACKET_BUFFER_MAX)
+    {
+        fprintf(stderr, "ERROR: sending packet bigger then allowed size max paylaod for ethernet");
+        exit(1);
+    }
+    
+    return total_size;
+}
+
+/*These are not supported by flip_send() function and must be implemented seperatly*/
+void flip_send_esp_14bit_data();
+void flip_send_esp_6bit_data();
+
+
+void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data, twzobj *interface_obj, twzobj *tx_queue_obj)
+{
+    /*Calculate size of packet buffer*/
+    int buff_size = total_pkt_size(meta1, meta2, meta3, strlen(data));
+    fprintf(stderr, "calculated pkt size: %d\n", buff_size);
+    
+    /*Create packet buffer object to store packet that will the transfered*/
+    twzobj pkt_buffer_obj;
+    if(twz_object_new(&pkt_buffer_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
+        fprintf(stderr, "error");
+    //prep object to allocate data
+    twz_object_build_alloc(&pkt_buffer_obj, 0);
+    void *p = twz_object_alloc(&pkt_buffer_obj, buff_size);
+    void *pkt_ptr = twz_object_lea(&pkt_buffer_obj, p);
+    
+    
+    /*Store Payload Data*/
+    char *payload = (char *)pkt_ptr;
+    payload += (buff_size - strlen(data));
+    strcpy(payload, data);
+    fprintf(stderr,"stored payload: %s\n", payload);
+    
+    
+    /*Create FLIP Metaheader Header*/
+    //leave space on the right for the ethernet header
+    uint8_t *flip_ptr = (uint8_t * )pkt_ptr;
+    flip_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
+    
+    *flip_ptr = meta1;
+    fprintf(stderr,"stored meta1: %d\n", *flip_ptr);
+    flip_ptr += META_HDR_SIZE;
+    
+    if(meta2)
+    {
+        *flip_ptr = meta2;
+        flip_ptr += META_HDR_SIZE;
+    }
+    
+    if(meta3)
+    {
+        fprintf(stderr, "ERROR: sending packet with 3rd metaheader. Fragmentation not yet supported");
+        exit(1);
+    }
 
     
     
-    /*
-     !!!!!!!!!!!! MUST BE ABLE TO ADD PAYLOAD TO CORRECT HEADER, BASED ON RATHER OR NOT CONTINUATION BITS ARE SET
-     */
+    
+    /***********************Create FLIP header**************************/
+    
+    /*Add fields based on first metaheader*/
+    if(meta1 & 0b01000000)
+    {
+        fprintf(stderr, "error: Please use either flip_send_esp_14bit_data() or flip_send_esp_6bit_data() functions for ESP pkts.");
+        exit(1);
+    }
+    if(meta1 & 0b00100000)
+    {
+        uint8_t version = 0;
+        uint8_t *version_ptr = (uint8_t *)flip_ptr;
+        *version_ptr = version;
+        flip_ptr += VERSIZON_SIZE;
+    }
+
+    if((meta1 & 0b00011000) == 0b00011000)
+    {
+        fprintf(stderr, "error: implementation for 16 byte address not yet done");
+    }
+    else if(meta1 & 0b00001000)
+    {
+       fprintf(stderr, "error: implementation for 2 byte address not yet done");
+    }
+    else if(meta1 & 0b00010000)
+    {
+        uint32_t ip_dst_dec = ipv4_char_to_int(dst_ip);
+        uint32_t *ip_dst_ptr = (uint32_t *)flip_ptr;
+        *ip_dst_ptr = ip_dst_dec;
+        flip_ptr += ADDR_SIZE_4_BYTES;
+    }
+    
+    if(meta1 & 0b00000100)
+    {
+        uint8_t *type_ptr = (uint8_t *)flip_ptr;
+        *type_ptr = type;
+        flip_ptr += TYPE_SIZE;
+    }
+    if(meta1 & 0b00000010)
+        fprintf(stderr, "error: TTL bit set, but TTL not yet supported by FLIP. Space will not be allocated in FLIP header for TTL field.");
+
+    if(meta1 & 0b00000001)
+        fprintf(stderr, "error: flow bit set, but flow identification not yet supported by FLIP. Space will not be allocated in FLIP header for flow field.");
+
+    /*Add fields based on second metaheader*/
+    if(meta2)
+    {
+        if((meta2 & 0b00011000) == 0b00011000)
+        {
+            fprintf(stderr, "error: implementation for 16 byte address not yet done");
+        }
+        if(meta2 & 0b00100000)
+        {
+           fprintf(stderr, "error: implementation for 2 byte address not yet done");
+        }
+        if(meta2 & 0b01000000)
+        {
+            char src_ip[MAX_IPV4_CHAR_SIZE];
+            get_intr_ipv4(interface_obj, src_ip);
+            
+            uint32_t ip_src_dec = ipv4_char_to_int(src_ip);
+            uint32_t *ip_src_ptr = (uint32_t *)flip_ptr;
+            *ip_src_ptr = ip_src_dec;
+            flip_ptr += ADDR_SIZE_4_BYTES;
+        }
+               
+        if(meta2 & 0b00010000)
+        {
+            uint16_t len = strlen(data);
+            uint16_t *len_ptr = (uint16_t *)flip_ptr;
+            *len_ptr = len;
+            fprintf(stderr, "len %d\n", *len_ptr);
+            flip_ptr += LENGTH_SIZE;
+        }
+        if(meta2 & 0b00001000)
+        {
+            fprintf(stderr, "error: checksum bit set, but checksum not yet supported by FLIP. Space will not be allocated in FLIP header for checksum field.");
+        }
+    }
+    
+    /*Add fields based on third metaheader*/
+    //third metaheader fields not yet supported
     
     
-    
+    /*Pass packet buffer down to Ethernet Layer*/
+    l2_send(pkt_ptr, tx_queue_obj, interface_obj, buff_size);
     
 }

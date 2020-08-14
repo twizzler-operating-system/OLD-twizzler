@@ -5,6 +5,7 @@
 //argv[1] should be IP address
 int main(int argc, char *argv[])
 {
+    
     //initialize interface and create object to store inferface info under /dev/e1000
     //FUTURE WORK: having multiple NICs
     twzobj interface_obj;
@@ -21,8 +22,7 @@ int main(int argc, char *argv[])
             //we must eventually be able to self assign IP address
     }
 
-    
-    
+
 
     //initialize rx and tx queue objs, and start reciever thread
     twzobj tx_queue_obj;
@@ -41,30 +41,14 @@ int main(int argc, char *argv[])
     //start reciever thread
     std::thread thr(l2_recv, &rx_queue_obj);
     
+
     
-    //code below should only be done if IP address was entered
+    char test_data[] = "TEST DATA.";
+    uint8_t meta1 = 0b10110000;
+    uint8_t meta2 = 0b01000000;
+    char destination[MAX_IPV4_CHAR_SIZE] = "1.1.1.1";
     
-    
-    //initialize orp table
-    //*****This code is to test ORP table, not possible due to seg fault in add_orp_entry function, need to get assistance with that
-//    twzobj orp_table_obj;
-//    init_orp_map("/dev/orp-map", &orp_table_obj);
-//
-//    mac_addr_t mac_add;
-//    mac_add.mac[0] = 0xff;
-//    mac_add.mac[1] = 0xff;
-//    mac_add.mac[2] = 0xff;
-//    mac_add.mac[3] = 0xff;
-//    mac_add.mac[4] = 0xff;
-//    mac_add.mac[5] = 0xff;
-//
-//    add_orp_entry(&orp_table_obj, ipv4, mac_add);
-//
-//
-   flip_send(NULL, NULL, NULL, NULL, NULL, ipv4.addr, NULL);
-    
-    char test[] = "Sending this data.";
-    l2_send(test, &tx_queue_obj, &interface_obj);
+    flip_send(meta1, meta2, NULL, 0x2020, destination, test_data, &interface_obj, &tx_queue_obj);
     
     fprintf(stderr, "@main: SENT!\n");
     
