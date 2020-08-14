@@ -53,20 +53,6 @@ static void *new_eth_frame_with_payload(twzobj *interface_obj, void *eth_ptr)//t
 //must set a max buffer size, once new_eth_frame_with_payload function gets correctly modified to deal with malloc
 void l2_send(void *pkt_ptr, twzobj *queue_obj, twzobj *interface_obj, int len) //needs to be modified to also include destination, & also deal if destination is NULL
 {
-//    twzobj pkt_buffer_obj;
-//
-//    /*cannot create new object every time.. this must be changed!!!*/
-//    if(twz_object_new(&pkt_buffer_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
-//        abort();
-//
-//    twz_object_build_alloc(&pkt_buffer_obj, 0);
-//    void *p = twz_object_alloc(&pkt_buffer_obj, strlen(data)+SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD);
-//    void *eth_hdr = twz_object_lea(&pkt_buffer_obj, p);
-//    char *payload = (char*) eth_hdr + SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-//    strcpy(payload, data);
-    
-    
-    
     struct packet_queue_entry pqe;
     
     /* get a unique ID (unique only for outstanding requests; it can be reused) */
