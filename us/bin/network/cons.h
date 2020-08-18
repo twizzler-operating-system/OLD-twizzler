@@ -19,3 +19,7 @@
 #define LENGTH_SIZE 2
 #define CHECKSUM_SIZE 2
 
+
+//L2 types
+#define FLIP_TYPE 0x2020
+#define ARP_TYPE 0x0806

@@ -158,7 +158,6 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
 {
     /*Calculate size of packet buffer*/
     int buff_size = total_pkt_size(meta1, meta2, meta3, strlen(data));
-    fprintf(stderr, "calculated pkt size: %d\n", buff_size);
     
     /*Create packet buffer object to store packet that will the transfered*/
     twzobj pkt_buffer_obj;
@@ -174,7 +173,6 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     char *payload = (char *)pkt_ptr;
     payload += (buff_size - strlen(data));
     strcpy(payload, data);
-    fprintf(stderr,"stored payload: %s\n", payload);
     
     
     /*Create FLIP Metaheader Header*/
@@ -183,7 +181,6 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     flip_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
     
     *flip_ptr = meta1;
-    fprintf(stderr,"stored meta1: %d\n", *flip_ptr);
     flip_ptr += META_HDR_SIZE;
     
     if(meta2)
@@ -286,6 +283,8 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     
     
     /*Pass packet buffer down to Ethernet Layer*/
-    l2_send(pkt_ptr, tx_queue_obj, interface_obj, buff_size);
+    mac_addr_t dest_mac;
+    memset((void*)dest_mac.mac, 0xff, MAC_ADDR_SIZE*(sizeof(char)));
+    l2_send(&dest_mac, tx_queue_obj, interface_obj, pkt_ptr, FLIP_TYPE, buff_size);
     
 }
