@@ -36,7 +36,7 @@ void consumer()
 		queue_complete(&rxqueue_obj, (struct queue_entry *)&pqe, 0);
 	}
 }
-
+// net /dev/e1000-txqueue /dev/e1000-rxqueue /dev/e1000-info
 int main(int argc, char **argv)
 {
 	if(argc < 4) {

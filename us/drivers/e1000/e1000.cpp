@@ -188,6 +188,7 @@ int e1000c_init(e1000_controller *nc)
 	for(size_t i = 0; i < nc->nr_rx_desc; i++) {
 		nc->rx_ring[i].status = 0;
 		packet *p = get_packet(nc);
+		assert(p);
 		nc->rx_ring[i].addr = p->pinaddr + sizeof(struct packet_header);
 		nc->rx_ring[i].length = p->length - sizeof(struct packet_header);
 		nc->packet_desc_map[i] = p;

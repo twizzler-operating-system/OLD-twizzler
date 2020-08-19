@@ -96,10 +96,11 @@ KLIBS=
 
 include third-party/include.mk
 
+export QEMU
+export QEMU_FLAGS
+export BUILDDIR
 test: $(BUILDDIR)/kernel $(BUILDDIR)/us/root.tar bootiso $(BUILDDIR)/us/nvme.img
-	$(QEMU) $(QEMU_FLAGS) -cdrom $(BUILDDIR)/boot.iso -serial stdio \
-	-drive file=$(BUILDDIR)/us/nvme.img,if=none,id=D22 \
-		-device nvme,drive=D22,serial=1234
+	./tools/start_qemu.sh $(INSTANCES)
 
 $(BUILDDIR)/pre-built.zip: $(BUILDDIR)/boot.iso $(BUILDDIR)/us/nvme.img us/pre-built/start.sh us/pre-built/README.md
 	mkdir -p $(BUILDDIR)/twizzler-prebuilt-image
