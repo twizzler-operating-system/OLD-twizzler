@@ -288,3 +288,12 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     l2_send(&dest_mac, tx_queue_obj, interface_obj, pkt_ptr, FLIP_TYPE, buff_size);
     
 }
+
+
+void flip_recv(twzobj *interface_obj, void *pkt_ptr)
+{
+    fprintf(stderr, "in FLIP Recieve");
+    uint8_t *data = (uint8_t *)(pkt_ptr);
+
+    fprintf(stderr, "data after %x\n", *data);
+}

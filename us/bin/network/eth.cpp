@@ -46,12 +46,11 @@ void l2_send(mac_addr_t *dest_mac, twzobj *queue_obj, twzobj *interface_obj, voi
     /* get a unique ID (unique only for outstanding requests; it can be reused) */
     uint32_t info = get_new_info();
 
-    /* store a pointer to some packet data */
+    /* store a pointer to packet data */
     pqe.qe.info = info;
     pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(dest_mac, interface_obj, pkt_ptr, type), FE_READ);
     pqe.len = len;
 
-    
     /* submit the packet! */
     queue_submit(queue_obj, (struct queue_entry *)&pqe, 0);
 
@@ -60,28 +59,28 @@ void l2_send(mac_addr_t *dest_mac, twzobj *queue_obj, twzobj *interface_obj, voi
 
 
 
-void l2_recv(twzobj *queue_obj)
+void l2_recv(twzobj *queue_obj, twzobj *interface_obj)
 {
     while(1)
     {
         struct packet_queue_entry pqe;
         queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
-        fprintf(stderr, "Reciever got packet!\n");
 
-        /* packet structure from the nic starts with a packet_header struct that contains some
-         * useful information (or, will in the future), followed by the actual packet data. */
+        /* packet structure from the nic starts with a packet_header struct that contains information followed by the actual packet data. */
         struct packet_header *ph = (struct packet_header *)twz_object_lea(queue_obj, pqe.ptr);
-
-
-        eth_hdr_t *pkt_ptr = (eth_hdr_t *)(ph + 1);
-
+        
         /*Decapsulate then send to higher layers*/
-        //if its plain FLIP type
+        eth_hdr_t *pkt_ptr = (eth_hdr_t *)(ph + 1);
+        
+        //if its FLIP type
         if(pkt_ptr->type == FLIP_TYPE)
-            fprintf(stderr, "Got FLIP PACKET!\n");
-
+        {
+            void *p_ptr = (pkt_ptr);
+            p_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
+            flip_recv(interface_obj, p_ptr);
+        }
+        
         //if its ARP type
-
 
         queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
     }
