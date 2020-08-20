@@ -39,11 +39,12 @@ for i in $INSTANCES; do
 	else
 		NETFLAGS="$NET -device e1000e,netdev=net0,mac=$mac"
 	fi
+	NETFLAGS="$NETFLAGS -object filter-dump,id=filter0,netdev=net0,file=twz_packetdump_$instance.dat"
 	#echo $NETFLAGS
 	#echo $QEMU
 	#echo $QEMU_FLAGS
 
-	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial file:twz_serial_$instance -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $NETFLAGS $QEMU_FLAGS &
+	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial file:twz_serial_$instance.txt -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $NETFLAGS $QEMU_FLAGS &
 	pids+=" $!"
 	sleep $waittime
 done
