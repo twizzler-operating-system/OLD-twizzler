@@ -208,12 +208,12 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     }
     if(meta1 & 0b00100000)
     {
-        uint8_t version = 0;
+        uint8_t version = CURRENT_VERSION;
         uint8_t *version_ptr = (uint8_t *)flip_ptr;
         *version_ptr = version;
         flip_ptr += VERSIZON_SIZE;
     }
-
+    
     if((meta1 & 0b00011000) == 0b00011000)
     {
         fprintf(stderr, "error: implementation for 16 byte address not yet done");
@@ -292,8 +292,129 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
 
 void flip_recv(twzobj *interface_obj, void *pkt_ptr)
 {
-    fprintf(stderr, "in FLIP Recieve");
-    uint8_t *data = (uint8_t *)(pkt_ptr);
+    uint8_t *meta_ptr = (uint8_t *)(pkt_ptr);
+    
+    //store the start of the FLIP header
+    void *flip_ptr = (void *)meta_ptr + META_HDR_SIZE;
+    
+    //move start of FLIP header based on how many bits of meta-header we have
+    if(*meta_ptr & 0b10000000)
+    {
+        flip_ptr += META_HDR_SIZE;
+        
+        //check if third meta header is set
+        if(*(meta_ptr + META_HDR_SIZE) & 0b10000000)
+            flip_ptr += META_HDR_SIZE;
+    }
+    
+    
+    if(*meta_ptr & 0b01000000)
+    {
+        fprintf(stderr, "error: ESP bit set for packet of type 0x2020. Packet dropped.\n");
+        return;
+    }
+    if(*meta_ptr & 0b00100000)
+    {
+        uint8_t version = CURRENT_VERSION;
+        uint8_t *version_ptr = (uint8_t *)flip_ptr;
+        if(*version_ptr != version)
+        {
+            fprintf(stderr, "error: FLIP packet does not have supported version. Packet dropped.\n");
+            return;
+        }
+        flip_ptr += VERSIZON_SIZE;
+    }
+    
+    if((*meta_ptr & 0b00011000) == 0b00011000)
+    {
+        fprintf(stderr, "error: recieved FLIP packet with 16 byte destination address. This is not yet supported. Packet dropped.\n");
+        return;
+    }
+    else if(*meta_ptr & 0b00001000)
+    {
+       fprintf(stderr, "error: recieved FLIP packet with 2 byte destination address. This is not yet supported. Packet dropped.\n");
+        return;
+    }
+    else if(*meta_ptr & 0b00010000)
+    {
+        char my_ip[MAX_IPV4_CHAR_SIZE];
+        get_intr_ipv4(interface_obj, my_ip);
+        
+        uint32_t my_ip_int = ipv4_char_to_int(my_ip);
+        
+        uint32_t *packet_dst_ip= (uint32_t *)flip_ptr;
+        
+        if(*packet_dst_ip != my_ip_int)
+        {
+            fprintf(stderr, "Received packet with destination IP that does not match interface IP address. Packet dropped.\n");
+            return;
+        }
+        flip_ptr += ADDR_SIZE_4_BYTES;
+    }
+    
+    if(*meta_ptr & 0b00000100)
+    {
+        uint8_t *type_ptr = (uint8_t *)flip_ptr;
+        uint8_t type = *type_ptr;
+        flip_ptr += TYPE_SIZE;
+        fprintf(stderr, "WARNING: Got packet with type set. This condition needs to still be implemented to send packet to correct function based on the type. Right now having a type set in the FLIP header does not do anything. Packet is NOT dropped, but continues to be decapsulated.\n");
+    }
+    if(*meta_ptr & 0b00000010)
+    {
+        fprintf(stderr, "error: TTL bit set on recieved FLIP packet. TTL not yet supported. Packed dropped.\n");
+        return;
+    }
 
-    fprintf(stderr, "data after %x\n", *data);
+    if(*meta_ptr & 0b00000001)
+    {
+        fprintf(stderr, "error: flow bit set on recieved packet, but flow identification not yet supported by FLIP. Packet dropped.\n");
+        return;
+    }
+    
+    //Check if continuation bit is set for metaheader
+    if(*meta_ptr & 0b10000000)
+    {
+        meta_ptr += META_HDR_SIZE;
+        
+        if((*meta_ptr & 0b00011000) == 0b00011000)
+        {
+            fprintf(stderr, "error: recieved FLIP packet with 16 byte source address. This is not yet supported. Packet dropped.\n");
+            return;
+        }
+        if(*meta_ptr & 0b00100000)
+        {
+            fprintf(stderr, "error: recieved FLIP packet with 2 byte source address. This is not yet supported. Packet dropped.\n");
+            return;
+        }
+        if(*meta_ptr & 0b01000000)
+        {
+            //Source IPv4 address is set
+            //How do we want to store this so we can reply?
+            flip_ptr += ADDR_SIZE_4_BYTES;
+        }
+        
+        if(*meta_ptr & 0b00010000)
+        {
+            //length of data included.
+            //how do we want to use this information, pass it to upper layer?
+            
+            flip_ptr += LENGTH_SIZE;
+        }
+        if(*meta_ptr & 0b00001000)
+        {
+            fprintf(stderr, "error: Recieved packet with checksum bit set. Checksum not yet supported by FLIP. Packet is NOT dropped, but continues to be decapsulated.\n");
+        }
+        
+        if(*meta_ptr & 0b10000000)
+        {
+            fprintf(stderr, "error: recieved FLIP packet with 3rd metaheader. This is not yet supported. Packet dropped.\n");
+            return;
+        }
+        
+        
+    }
+    
+    char *payload = (char *)flip_ptr;
+    fprintf(stderr, "Got data: %s", payload);
+
 }
