@@ -69,6 +69,7 @@ void obj_init(struct object *obj)
 	obj->preg = NULL;
 	obj->idx_map = RBINIT;
 	list_init(&obj->derivations);
+	list_init(&obj->sleepers);
 }
 
 static void _obj_dtor(void *_u, void *ptr)

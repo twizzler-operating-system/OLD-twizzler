@@ -21,7 +21,8 @@
 #define SYS_OTIE 16
 #define SYS_OCOPY 17
 #define SYS_KQUEUE 18
-#define NUM_SYSCALLS 19
+#define SYS_OSTAT 19
+#define NUM_SYSCALLS 20
 
 #define KCONF_RDRESET 1
 #define KCONF_ARCH_TSC_PSPERIOD 1001
@@ -140,4 +141,35 @@ enum octl_operation {
 enum kernel_queues {
 	KQ_PAGER,
 	NUM_KERNEL_QUEUES,
+};
+
+#define OS_TYPE_OBJ 0
+#define OS_TYPE_PAGE 1
+
+#define OS_FLAGS_PIN 1
+#define OS_FLAGS_KERNEL 2
+#define OS_FLAGS_PERSIST 4
+#define OS_FLAGS_HIDDEN 8
+#define OS_FLAGS_ALLOC 0x10
+#define OS_FLAGS_PAGER 0x20
+#define OS_FLAGS_SOURCED 0x40
+
+struct kernel_ostat {
+	uint64_t flags;
+	uint32_t cache_mode;
+	uint32_t kso_type;
+	uint32_t nr_sleepers;
+	uint32_t nr_derivations;
+	uint32_t nvreg;
+};
+
+#define OS_PAGE_EXIST 1
+#define OS_PAGE_COW 2
+#define OS_PAGE_MAPPED 4
+
+struct kernel_ostat_page {
+	uint64_t pgnr;
+	uint64_t flags;
+	uint32_t cowcount;
+	uint32_t level;
 };

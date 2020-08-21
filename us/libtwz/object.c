@@ -89,7 +89,6 @@ void twz_object_from_ptr_cpp(const void *p, twzobj *tmp)
 	obj_init(tmp, (void *)((uintptr_t)p & ~(OBJ_MAXSIZE - 1)), 0, 0, TWZ_OBJ_NORELEASE);
 }
 
-
 EXTERNAL
 twzobj twz_object_from_ptr(const void *p)
 {
@@ -651,4 +650,16 @@ void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 fault:
 	_twz_lea_fault(o, p, __builtin_extract_return_addr(__builtin_return_address(0)), info, r);
 	return NULL;
+}
+
+EXTERNAL
+int twz_object_kstat(twzobj *obj, struct kernel_ostat *st)
+{
+	return sys_ostat(OS_TYPE_OBJ, twz_object_guid(obj), 0, st);
+}
+
+EXTERNAL
+int twz_object_kstat_page(twzobj *obj, size_t pgnr, struct kernel_ostat_page *st)
+{
+	return sys_ostat(OS_TYPE_PAGE, twz_object_guid(obj), pgnr, st);
 }

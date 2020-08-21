@@ -27,6 +27,11 @@ static inline long __sys_debug_print(const char *str, size_t len)
 	return __syscall6(SYS_DEBUG_PRINT, (long)str, len, 0, 0, 0, 0);
 }
 
+static inline long sys_ostat(int st, objid_t id, long arg, void *p)
+{
+	return __syscall6(SYS_OSTAT, ID_LO(id), ID_HI(id), st, arg, (long)p, 0);
+}
+
 __attribute__((deprecated)) static inline long sys_vmap(const void *p, int cmd, long arg)
 {
 	return __syscall6(SYS_VMAP, (long)p, cmd, arg, 0, 0, 0);

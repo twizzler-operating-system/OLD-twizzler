@@ -1,6 +1,7 @@
 #include <kalloc.h>
 #include <nvdimm.h>
 #include <object.h>
+#include <page.h>
 #include <processor.h>
 #include <rand.h>
 #include <slots.h>
@@ -47,6 +48,89 @@ long syscall_invalidate_kso(struct kso_invl_args *invl, size_t count)
 		}
 	}
 	return suc;
+}
+
+#include <lib/iter.h>
+#include <lib/list.h>
+
+long syscall_ostat(uint64_t idlo, uint64_t idhi, int stat_type, uint64_t arg, void *p)
+{
+	objid_t id = MKID(idhi, idlo);
+
+	struct object *obj = obj_lookup(id, OBJ_LOOKUP_HIDDEN);
+	if(!obj) {
+		return -ENOENT;
+	}
+	int ret = 0;
+	switch(stat_type) {
+		case OS_TYPE_OBJ: {
+			struct kernel_ostat *os = p;
+			if(!verify_user_pointer(os, sizeof(*os))) {
+				ret = -EINVAL;
+				break;
+			}
+			os->flags = 0;
+			os->flags |= (obj->flags & OF_PINNED) ? OS_FLAGS_PIN : 0;
+			os->flags |= (obj->flags & OF_KERNEL) ? OS_FLAGS_KERNEL : 0;
+			os->flags |= (obj->flags & OF_PERSIST) ? OS_FLAGS_PERSIST : 0;
+			os->flags |= (obj->flags & OF_HIDDEN) ? OS_FLAGS_HIDDEN : 0;
+			os->flags |= (obj->flags & OF_PAGER) ? OS_FLAGS_PAGER : 0;
+			os->flags |= (obj->flags & OF_ALLOC) ? OS_FLAGS_ALLOC : 0;
+			if(obj->sourced_from) {
+				os->flags = OS_FLAGS_SOURCED;
+			}
+
+			os->cache_mode = obj->cache_mode;
+			os->kso_type = obj->kso_type;
+			spinlock_acquire_save(&obj->sleepers_lock);
+			size_t c = 0;
+			foreach(e, list, &obj->sleepers) {
+				c++;
+			}
+			spinlock_release_restore(&obj->sleepers_lock);
+			os->nr_sleepers = c;
+			c = 0;
+			spinlock_acquire_save(&obj->lock);
+			foreach(e, list, &obj->derivations) {
+				c++;
+			}
+			spinlock_release_restore(&obj->lock);
+			os->nr_derivations = c;
+			if(obj->preg) {
+				os->nvreg = obj->preg->mono_id;
+			} else {
+				os->nvreg = 0;
+			}
+		} break;
+		case OS_TYPE_PAGE: {
+			struct kernel_ostat_page *os = p;
+			if(!verify_user_pointer(os, sizeof(*os))) {
+				ret = -EINVAL;
+				break;
+			}
+
+			struct objpage *opage = NULL;
+			enum obj_get_page_result gpr =
+			  obj_get_page(obj, (arg * mm_page_size(0)) % OBJ_MAXSIZE, &opage, OBJ_GET_PAGE_TEST);
+			assert(gpr == GETPAGE_OK || gpr == GETPAGE_NOENT);
+			if(gpr == GETPAGE_OK) {
+				os->flags = OS_PAGE_EXIST;
+				os->flags |= (opage->flags & OBJPAGE_MAPPED) ? OS_PAGE_MAPPED : 0;
+				os->flags |= (opage->flags & OBJPAGE_COW) ? OS_PAGE_COW : 0;
+				os->pgnr = opage->idx;
+				if(opage->page) {
+					os->level = opage->page->level;
+					os->cowcount = opage->page->cowcount;
+				}
+				objpage_release(opage, 0);
+			} else if(gpr == GETPAGE_NOENT) {
+				os->flags = 0;
+			}
+		} break;
+	}
+	obj_put(obj);
+
+	return ret;
 }
 
 long syscall_ocopy(objid_t *destid,

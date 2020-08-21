@@ -1,4 +1,4 @@
-TWZUTILS=login nls tst kls lscpu bench kvdr lsmem init_bootstrap
+TWZUTILS=login nls tst kls lscpu bench kvdr lsmem init_bootstrap ostat
 # TWZUTILS+=sqb
 
 LIBS_tst=-lncurses

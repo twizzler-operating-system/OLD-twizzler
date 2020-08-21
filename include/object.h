@@ -186,6 +186,7 @@ enum obj_get_page_result {
 
 #define OBJ_GET_PAGE_PAGEROK 1
 #define OBJ_GET_PAGE_ALLOC 2
+#define OBJ_GET_PAGE_TEST 4
 
 enum obj_get_page_result obj_get_page(struct object *obj, size_t idx, struct objpage **, int);
 void obj_put(struct object *o);
