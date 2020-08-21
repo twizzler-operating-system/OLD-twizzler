@@ -12,56 +12,18 @@
  * 2nd byte: continuation bit, source(2 bits), length, checksum, don't fragment, reserved bit
  * 3rd byte: continuation bit, fragment offset, last fragment, 5 bits of reserved bits*/
 
-#pragma pack(push,1)
-
-typedef struct flip_esp_14_bit_data
-{
-    unsigned char data;
-}flip_esp_14_bit_data;
-
-typedef struct flip_l3_hdr3_
-{
-    uint16_t fragment_offset; //indicates fragment offset with respect to original packet
-    //payload must be added
-}flip_l3_hdr3_t;
-
-typedef struct flip_l3_hdr2_
-{
-    uint32_t source; //right now set for 32 bits (ipv4 addres) FUTURE WORK: this must vary based on metaheader specification
-    uint16_t length; //max packet size if 64KBytes
-    uint16_t checksum; //check correctness of packet payload... calculated simular to IP Checksum
-    flip_l3_hdr3_t next_hdr;
-    //payload must be added
-}flip_l3_hdr2_t;
-
-typedef struct flip_l3_hdr1_
-{
-    uint8_t version; //1 byte, higher 4 bits are version, lower 4 bits are priority. 0 assumed for both
-    uint32_t destination; //right now set for 32 bits (ipv4 addres) FUTURE WORK: this must vary based on metaheader specification
-    uint8_t type; //protocol type
-    uint8_t ttl;
-    uint32_t flow; //flow identification for QoS
-    flip_l3_hdr2_t next_hdr;
-    flip_esp_14_bit_data esp_data;
-    
-    
-}flip_l3_hdr1_t;
-
-typedef struct flip_l3_metahdr_
-{
-    //again, memory must be able to be dynamically allocated
-    uint8_t meta_hdr1;
-    uint8_t meta_hdr2;
-    uint8_t meta_hdr3;
-    flip_l3_hdr1_t next_hdr;
-    //eventually add pointer to 14-bit esp
-}flip_l3_metahdr_t;
-
-//!! THESE DATA STRUCTURES NEED TO BE MODIFIED TO ALLOCATE MEMORY
-
-#pragma pack (pop)
-
-
+//FLIP constants
+#define META_HDR_SIZE 1
+#define VERSIZON_SIZE 1
+#define ADDR_SIZE_2_BYTES 2
+#define ADDR_SIZE_4_BYTES 4
+#define ADDR_SIZE_16_BYTES 16
+#define TYPE_SIZE 1
+#define TTL_SIZE 1
+#define FLOW_SIZE 4
+#define LENGTH_SIZE 2
+#define CHECKSUM_SIZE 2
+#define CURRENT_VERSION 0
 
 /*Type should not be 0x2020 but a different type, for ESP packets*/
 void flip_send_esp_14bit_data();

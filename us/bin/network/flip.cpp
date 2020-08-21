@@ -390,6 +390,7 @@ void flip_recv(twzobj *interface_obj, void *pkt_ptr)
         {
             //Source IPv4 address is set
             //How do we want to store this so we can reply?
+            //!!!! Add the IP & MAC address mapping to the ARP table!! (reason to do it in FLIP layer vs MAC layer is that we will not always have a source MAC address)
             flip_ptr += ADDR_SIZE_4_BYTES;
         }
         
@@ -414,7 +415,8 @@ void flip_recv(twzobj *interface_obj, void *pkt_ptr)
         
     }
     
+    //FUTURE WORK: Pass this to above layer
     char *payload = (char *)flip_ptr;
-    fprintf(stderr, "Got data: %s", payload);
+    fprintf(stderr, "Got data: %s\n", payload);
 
 }
