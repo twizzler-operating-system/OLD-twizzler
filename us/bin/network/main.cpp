@@ -7,7 +7,6 @@ int main(int argc, char *argv[])
 {
     
     //initialize interface and create object to store inferface info under /dev/e1000
-    //FUTURE WORK: having multiple NICs
     twzobj interface_obj;
     init_interface("/dev/e1000", "/dev/e1000-info", &interface_obj);
 

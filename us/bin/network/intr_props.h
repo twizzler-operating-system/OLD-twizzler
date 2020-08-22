@@ -1,5 +1,6 @@
 #include "eth.h"
 #include "ipv4.h"
+#include "arp.h"
 
 //typedef struct ipv4_addr ipv4_addr_t;
 

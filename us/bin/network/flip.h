@@ -36,5 +36,5 @@ void flip_recv_esp_6bit_data();
 /*this function will need to be modified
  for ex destination MAC will need to be discovered with ARP protocol*/
 void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data, twzobj *interface_obj, twzobj *tx_queue_obj);
-void flip_recv(twzobj *interface_obj, void *pkt_ptr);
+void flip_recv(twzobj *interface_obj, void *pkt_ptr, mac_addr_t src_mac);
 

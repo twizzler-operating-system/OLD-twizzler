@@ -76,8 +76,9 @@ void l2_recv(twzobj *queue_obj, twzobj *interface_obj)
         if(pkt_ptr->type == FLIP_TYPE)
         {
             void *p_ptr = (pkt_ptr);
+            mac_addr_t src_mac = pkt_ptr->src_mac;
             p_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-            flip_recv(interface_obj, p_ptr);
+            flip_recv(interface_obj,p_ptr, src_mac);
         }
         
         //if its ARP type

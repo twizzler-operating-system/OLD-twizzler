@@ -44,6 +44,7 @@ void ipv4_int_to_char(uint32_t ip_addr, char *ip_addr_str)
     
     uint32_t forth_octet = 0x000000FF & ip_addr;
     
+    memset(ip_addr_str, 0, MAX_IPV4_CHAR_SIZE);
     
     char t[4];
     memset(t, 0, 4);
@@ -290,7 +291,7 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
 }
 
 
-void flip_recv(twzobj *interface_obj, void *pkt_ptr)
+void flip_recv(twzobj *interface_obj, void *pkt_ptr, mac_addr_t src_mac)
 {
     uint8_t *meta_ptr = (uint8_t *)(pkt_ptr);
     
@@ -389,8 +390,18 @@ void flip_recv(twzobj *interface_obj, void *pkt_ptr)
         if(*meta_ptr & 0b01000000)
         {
             //Source IPv4 address is set
-            //How do we want to store this so we can reply?
-            //!!!! Add the IP & MAC address mapping to the ARP table!! (reason to do it in FLIP layer vs MAC layer is that we will not always have a source MAC address)
+            //Pass this value to to a function if it needs it to reply to message
+            
+            uint32_t *packet_src_ip = (uint32_t *)flip_ptr;
+            uint32_t src_ip_int = *packet_src_ip;
+            
+            ipv4_addr_t src_ip;
+            ipv4_int_to_char(src_ip_int, src_ip.addr);
+            
+            add_arp_entry(src_ip, src_mac);
+            print_arp_table();
+            
+         
             flip_ptr += ADDR_SIZE_4_BYTES;
         }
         
