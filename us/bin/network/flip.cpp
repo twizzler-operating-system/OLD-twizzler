@@ -70,6 +70,7 @@ int total_pkt_size(uint8_t meta1, uint8_t meta2, uint8_t meta3, int payload_size
 {
     int total_size = 0;
     total_size += payload_size;
+    
     total_size += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
     
     if(meta1)
@@ -159,11 +160,16 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
 {
     /*Calculate size of packet buffer*/
     int buff_size = total_pkt_size(meta1, meta2, meta3, strlen(data));
+    if(buff_size >PACKET_BUFFER_MAX)
+    {
+        fprintf(stderr, "Error in flip_send: sending packet bigger then allowed paylod size for ethernet standard\n");
+        return;
+    }
     
     /*Create packet buffer object to store packet that will the transfered*/
     twzobj pkt_buffer_obj;
     if(twz_object_new(&pkt_buffer_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0)
-        fprintf(stderr, "error");
+        fprintf(stderr, "error creating packet buffer object");
     //prep object to allocate data
     twz_object_build_alloc(&pkt_buffer_obj, 0);
     void *p = twz_object_alloc(&pkt_buffer_obj, buff_size);
@@ -285,8 +291,17 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     
     /*Pass packet buffer down to Ethernet Layer*/
     mac_addr_t dest_mac;
-    memset((void*)dest_mac.mac, 0xff, MAC_ADDR_SIZE*(sizeof(char)));
-    l2_send(&dest_mac, tx_queue_obj, interface_obj, pkt_ptr, FLIP_TYPE, buff_size);
+    
+    //BELOW EXAMPLE FOR SENDING L2 BRAODCAST MESSAGE
+    //memset((void*)dest_mac.mac, BROAD_MAC_BIT, MAC_ADDR_SIZE*(sizeof(char)));
+    
+    dest_mac = arp_lookup(dst_ip);
+    if(dest_mac.mac[0] == NULL)
+        fprintf(stderr, "ARP failed, drop packet");
+    else
+        fprintf(stderr, "ARP Worked NOT");
+
+    l2_send(dest_mac, tx_queue_obj, interface_obj, pkt_ptr, FLIP_TYPE, buff_size);
     
 }
 
@@ -399,8 +414,6 @@ void flip_recv(twzobj *interface_obj, void *pkt_ptr, mac_addr_t src_mac)
             ipv4_int_to_char(src_ip_int, src_ip.addr);
             
             add_arp_entry(src_ip, src_mac);
-            print_arp_table();
-            
          
             flip_ptr += ADDR_SIZE_4_BYTES;
         }

@@ -6,12 +6,7 @@
 
 static std::map<std::string, std::string> arp_lookup_table;
 
-/*helper functions*/
-std::string convert_ipv4_to_string(ipv4_addr_t addr)
-{
-    std::string ip_string = addr.addr;
-    return ip_string;
-}
+/*Helper functions*/
 std::string convert_mac_to_string(mac_addr_t addr)
 {
     char mac_char_ptr[MAX_MAC_CHAR_SIZE];
@@ -32,12 +27,43 @@ std::string convert_mac_to_string(mac_addr_t addr)
 }
 
 
+mac_addr_t convert_string_to_mac(std::string string_addr)
+{
+    mac_addr_t mac_addr;
+    return mac_addr;
+}
+
+
+
+
+
+/*AddressResolutionProtocol APIs*/
 void add_arp_entry(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
 {
-    std::string ip_string = convert_ipv4_to_string(ip_addr);
+    std::string ip_string = ip_addr.addr;
     std::string mac_string = convert_mac_to_string(mac_addr);
 
     arp_lookup_table.insert({ip_string, mac_string});
+}
+
+mac_addr_t arp_lookup(char* ip_addr)
+{
+    mac_addr_t resolved_mac;
+    memset(resolved_mac.mac, 0, MAC_ADDR_SIZE);
+    
+    if(arp_lookup_table.find(ip_addr) == arp_lookup_table.end())
+    {
+        fprintf(stderr, "MAC NOT found in ARP table!");
+        //send request, check again
+    }
+    else
+    {
+        fprintf(stderr, "Found MAC in ARP table\n");
+        resolved_mac.mac[0] = NULL;
+        //convert_string_to_mac(arp_lookup_table[ip_addr]);
+    }
+    
+    return resolved_mac;
 }
 
 

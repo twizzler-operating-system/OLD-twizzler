@@ -20,7 +20,7 @@ static void release_info(uint32_t info)
 }
 
 
-static void *new_eth_frame_with_payload(mac_addr_t *dest_mac, twzobj *interface_obj, void *eth_ptr, uint16_t type)
+static void *new_eth_frame_with_payload(mac_addr_t dest_mac, twzobj *interface_obj, void *eth_ptr, uint16_t type)
 {
     eth_hdr_t *eth_hdr = (eth_hdr_t *)eth_ptr;
     interface_t *interface = (interface_t *)twz_object_base(interface_obj);
@@ -29,7 +29,7 @@ static void *new_eth_frame_with_payload(mac_addr_t *dest_mac, twzobj *interface_
     memcpy(eth_hdr->src_mac.mac, interface->mac.mac, MAC_ADDR_SIZE);
 
     /*Destination MAC*/
-    memcpy(eth_hdr->dst_mac.mac, dest_mac->mac, MAC_ADDR_SIZE);
+    memcpy(eth_hdr->dst_mac.mac, dest_mac.mac, MAC_ADDR_SIZE);
 
     /*Payload Type*/
     eth_hdr->type = type;
@@ -39,7 +39,7 @@ static void *new_eth_frame_with_payload(mac_addr_t *dest_mac, twzobj *interface_
 
 
 
-void l2_send(mac_addr_t *dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len)
+void l2_send(mac_addr_t dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len)
 {
     struct packet_queue_entry pqe;
     

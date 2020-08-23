@@ -9,6 +9,8 @@
 #define MAX_L2_PAYLOAD 1500
 #define MIN_L2_PAYLOAD 46
 
+#define BROAD_MAC_BIT 0xff
+
 
 //L2 types
 #define FLIP_TYPE 0x2020

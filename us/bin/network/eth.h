@@ -39,6 +39,6 @@ typedef struct eth_hdr
 
 
 /*network APIs*/
-void l2_send(mac_addr_t *dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len);
+void l2_send(mac_addr_t dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len);
 void l2_recv(twzobj *queue_obj, twzobj *interface_obj);
 
