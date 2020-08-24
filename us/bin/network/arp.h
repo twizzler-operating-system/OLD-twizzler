@@ -15,11 +15,11 @@
 /*AddressResolutionProtocol APIs*/
 void add_arp_entry(ipv4_addr_t ip_addr, mac_addr_t mac_addr);
 //void remove_arp_entry(ipv4_addr_t *addr); //when should we delete, how do we know entry is expired and obj_id has moved?
-mac_addr_t arp_lookup(char* ip_addr);
+mac_addr_t arp_lookup(char* ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
 void print_arp_table();
 
-///*ARP Protocol Implementation*/
-//void send_arp_request(ipv4_addr_t *addr);
+/*ARP Protocol Implementation*/
+void send_arp_request(char *addr, twzobj *interface_obj, twzobj *tx_queue_obj);
 //void send_arp_reply(eth_hdr_t *eth_hdr);
 //void recv_arp_request(eth_hdr_t *eth_hdr);
 //void recv_arp_reply(eth_hdr_t *eth_hdr);

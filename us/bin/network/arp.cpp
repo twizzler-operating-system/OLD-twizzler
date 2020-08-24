@@ -1,5 +1,6 @@
 #include <map>
 #include <iostream>
+#include <unistd.h>
 
 #include "flip.h"
 
@@ -46,21 +47,36 @@ void add_arp_entry(ipv4_addr_t ip_addr, mac_addr_t mac_addr)
     arp_lookup_table.insert({ip_string, mac_string});
 }
 
-mac_addr_t arp_lookup(char* ip_addr)
+
+/*Returns MAC adder where first index is NULL, if ARP resolution was not successful*/
+mac_addr_t arp_lookup(char* ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj)
 {
     mac_addr_t resolved_mac;
     memset(resolved_mac.mac, 0, MAC_ADDR_SIZE);
     
     if(arp_lookup_table.find(ip_addr) == arp_lookup_table.end())
     {
-        fprintf(stderr, "MAC NOT found in ARP table!");
-        //send request, check again
+        fprintf(stderr, "MAC NOT found in ARP table, sending ARP request!\n");
+        send_arp_request(ip_addr, interface_obj, tx_queue_obj);
+        sleep(1); //wait one second for ARP Reply... FUTURE WORK: use RTT as wait time
+        if(arp_lookup_table.find(ip_addr) == arp_lookup_table.end())
+        {
+            fprintf(stderr, "Could not resolve MAC\n");
+            resolved_mac.mac[0] = NULL;
+        }
+        else
+        {
+            fprintf(stderr, "MAC resolved with ARP\n");
+            resolved_mac.mac[0] = NULL;
+            //must be chanced to convert MAC to string
+            //convert_string_to_mac(arp_lookup_table[ip_addr]);
+        }
     }
     else
     {
         fprintf(stderr, "Found MAC in ARP table\n");
-        resolved_mac.mac[0] = NULL;
         //convert_string_to_mac(arp_lookup_table[ip_addr]);
+        
     }
     
     return resolved_mac;
@@ -75,3 +91,15 @@ void print_arp_table()
                   << t.second << "\n";
 }
 
+
+
+/*ARP Protocol Implementation*/
+void send_arp_request(char *ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj)
+{
+    fprintf(stderr, "In send_arp_request\n");
+    flip_send(arp_meta_1_request, arp_meta_2_request, NULL, ARP_TYPE, true, ip_addr, NULL, interface_obj, tx_queue_obj);
+    
+}
+//void send_arp_reply(eth_hdr_t *eth_hdr);
+//void recv_arp_request(eth_hdr_t *eth_hdr);
+//void recv_arp_reply(eth_hdr_t *eth_hdr);

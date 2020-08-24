@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     uint8_t meta2 = 0b01000000;
     char destination[MAX_IPV4_CHAR_SIZE] = "2.2.2.2";
     
-    flip_send(meta1, meta2, NULL, 0x2020, destination, test_data, &interface_obj, &tx_queue_obj);
+    flip_send(meta1, meta2, NULL, FLIP_TYPE, false, destination, test_data, &interface_obj, &tx_queue_obj);
     
     fprintf(stderr, "@main: SENT!\n");
     

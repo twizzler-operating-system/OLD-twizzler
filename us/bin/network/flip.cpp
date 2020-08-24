@@ -96,7 +96,7 @@ int total_pkt_size(uint8_t meta1, uint8_t meta2, uint8_t meta3, int payload_size
             total_size += ADDR_SIZE_4_BYTES;
         
         if(meta1 & 0b00000100)
-            //type: 1 byte
+            //type: 2 bytes
             total_size += TYPE_SIZE;
         if(meta1 & 0b00000010)
         {
@@ -155,11 +155,16 @@ int total_pkt_size(uint8_t meta1, uint8_t meta2, uint8_t meta3, int payload_size
 void flip_send_esp_14bit_data();
 void flip_send_esp_6bit_data();
 
-
-void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *dst_ip, char *data, twzobj *interface_obj, twzobj *tx_queue_obj)
+/*NOTE:
+ If destination address is IPV4 addres, ARP lookup will happen, unless this is a broadcast pkt
+ type is L2 type + FLIP layer type.. currently the same*/
+void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint16_t type, bool broadcast_pkt, char *dst_ip, char *data, twzobj *interface_obj, twzobj *tx_queue_obj)
 {
     /*Calculate size of packet buffer*/
-    int buff_size = total_pkt_size(meta1, meta2, meta3, strlen(data));
+    uint16_t len_data = 0;
+    if(data)
+        len_data =strlen(data);
+    int buff_size = total_pkt_size(meta1, meta2, meta3, len_data);
     if(buff_size >PACKET_BUFFER_MAX)
     {
         fprintf(stderr, "Error in flip_send: sending packet bigger then allowed paylod size for ethernet standard\n");
@@ -177,9 +182,12 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     
     
     /*Store Payload Data*/
-    char *payload = (char *)pkt_ptr;
-    payload += (buff_size - strlen(data));
-    strcpy(payload, data);
+    if(data)
+    {
+        char *payload = (char *)pkt_ptr;
+        payload += (buff_size - len_data);
+        strcpy(payload, data);
+    }
     
     
     /*Create FLIP Metaheader Header*/
@@ -239,7 +247,7 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     
     if(meta1 & 0b00000100)
     {
-        uint8_t *type_ptr = (uint8_t *)flip_ptr;
+        uint16_t *type_ptr = (uint16_t *)flip_ptr;
         *type_ptr = type;
         flip_ptr += TYPE_SIZE;
     }
@@ -273,9 +281,8 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
                
         if(meta2 & 0b00010000)
         {
-            uint16_t len = strlen(data);
             uint16_t *len_ptr = (uint16_t *)flip_ptr;
-            *len_ptr = len;
+            *len_ptr = len_data;
             fprintf(stderr, "len %d\n", *len_ptr);
             flip_ptr += LENGTH_SIZE;
         }
@@ -292,17 +299,19 @@ void flip_send(uint8_t meta1, uint8_t meta2, uint8_t meta3, uint8_t type, char *
     /*Pass packet buffer down to Ethernet Layer*/
     mac_addr_t dest_mac;
     
-    //BELOW EXAMPLE FOR SENDING L2 BRAODCAST MESSAGE
-    //memset((void*)dest_mac.mac, BROAD_MAC_BIT, MAC_ADDR_SIZE*(sizeof(char)));
-    
-    dest_mac = arp_lookup(dst_ip);
-    if(dest_mac.mac[0] == NULL)
-        fprintf(stderr, "ARP failed, drop packet");
+    if(broadcast_pkt)
+    {
+        memset((void*)dest_mac.mac, BROAD_MAC_BIT, MAC_ADDR_SIZE*(sizeof(char)));
+        l2_send(dest_mac, tx_queue_obj, interface_obj, pkt_ptr, type, buff_size);
+    }
     else
-        fprintf(stderr, "ARP Worked NOT");
-
-    l2_send(dest_mac, tx_queue_obj, interface_obj, pkt_ptr, FLIP_TYPE, buff_size);
-    
+    {
+        dest_mac = arp_lookup(dst_ip, interface_obj, tx_queue_obj);
+        if(dest_mac.mac[0] == NULL) //first bit set to NULL if ARP failed
+            fprintf(stderr, "Could not resolve IP Address, packet dropped.");
+        else
+            l2_send(dest_mac, tx_queue_obj, interface_obj, pkt_ptr, type, buff_size);
+    }
 }
 
 
@@ -370,8 +379,8 @@ void flip_recv(twzobj *interface_obj, void *pkt_ptr, mac_addr_t src_mac)
     
     if(*meta_ptr & 0b00000100)
     {
-        uint8_t *type_ptr = (uint8_t *)flip_ptr;
-        uint8_t type = *type_ptr;
+        uint16_t *type_ptr = (uint16_t *)flip_ptr;
+        uint16_t type = *type_ptr;
         flip_ptr += TYPE_SIZE;
         fprintf(stderr, "WARNING: Got packet with type set. This condition needs to still be implemented to send packet to correct function based on the type. Right now having a type set in the FLIP header does not do anything. Packet is NOT dropped, but continues to be decapsulated.\n");
     }

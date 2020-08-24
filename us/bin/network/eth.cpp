@@ -82,6 +82,11 @@ void l2_recv(twzobj *queue_obj, twzobj *interface_obj)
         }
         
         //if its ARP type
+        else if(pkt_ptr->type == ARP_TYPE)
+            fprintf(stderr, "Received ARP type MESSAGE\n");
+        else
+            fprintf(stderr, "Received pkt unrecognize type, pkt dropped.\n");
+            
 
         queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
     }
