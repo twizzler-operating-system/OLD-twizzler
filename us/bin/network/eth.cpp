@@ -59,36 +59,36 @@ void l2_send(mac_addr_t dest_mac, twzobj *queue_obj, twzobj *interface_obj, void
 
 
 
-void l2_recv(twzobj *queue_obj, twzobj *interface_obj)
+void l2_recv(twzobj *rx_queue_obj, twzobj *tx_queue_obj, twzobj *interface_obj)
 {
     while(1)
     {
         struct packet_queue_entry pqe;
-        queue_receive(queue_obj, (struct queue_entry *)&pqe, 0);
+        queue_receive(rx_queue_obj, (struct queue_entry *)&pqe, 0);
 
         /* packet structure from the nic starts with a packet_header struct that contains information followed by the actual packet data. */
-        struct packet_header *ph = (struct packet_header *)twz_object_lea(queue_obj, pqe.ptr);
+        struct packet_header *ph = (struct packet_header *)twz_object_lea(rx_queue_obj, pqe.ptr);
         
         /*Decapsulate then send to higher layers*/
         eth_hdr_t *pkt_ptr = (eth_hdr_t *)(ph + 1);
+        void *p_ptr = (pkt_ptr);
+        mac_addr_t src_mac = pkt_ptr->src_mac;
+        p_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
         
-        //if its FLIP type
         if(pkt_ptr->type == FLIP_TYPE)
         {
-            void *p_ptr = (pkt_ptr);
-            mac_addr_t src_mac = pkt_ptr->src_mac;
-            p_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-            flip_recv(interface_obj,p_ptr, src_mac);
+            fprintf(stderr, "Recieved FLIP pkt type\n");
+            flip_recv(interface_obj, p_ptr, src_mac);
         }
-        
-        //if its ARP type
         else if(pkt_ptr->type == ARP_TYPE)
-            fprintf(stderr, "Received ARP type MESSAGE\n");
+        {
+            fprintf(stderr, "Recieved ARP pkt type\n");
+            arp_recv(interface_obj, tx_queue_obj, p_ptr, src_mac);
+        }
         else
             fprintf(stderr, "Received pkt unrecognize type, pkt dropped.\n");
-            
 
-        queue_complete(queue_obj, (struct queue_entry *)&pqe, 0);
+        queue_complete(rx_queue_obj, (struct queue_entry *)&pqe, 0);
     }
 }
 

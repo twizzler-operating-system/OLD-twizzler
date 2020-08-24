@@ -25,6 +25,10 @@
 #define CHECKSUM_SIZE 2
 #define CURRENT_VERSION 0
 
+/*Functions for Manipulating IP address*/
+uint32_t ipv4_char_to_int(char *ip_addr);
+void ipv4_int_to_char(uint32_t ip_addr, char *ip_addr_str);
+
 /*Type should not be 0x2020 but a different type, for ESP packets*/
 void flip_send_esp_14bit_data();
 void flip_send_esp_6bit_data();

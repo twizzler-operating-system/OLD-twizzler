@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
     }
     
     //start reciever thread
-    std::thread thr(l2_recv, &rx_queue_obj, &interface_obj);
+    std::thread thr(l2_recv, &rx_queue_obj, &tx_queue_obj, &interface_obj);
     
 
     
@@ -52,8 +52,6 @@ int main(int argc, char *argv[])
     char destination[MAX_IPV4_CHAR_SIZE] = "2.2.2.2";
     
     flip_send(meta1, meta2, NULL, FLIP_TYPE, false, destination, test_data, &interface_obj, &tx_queue_obj);
-    
-    fprintf(stderr, "@main: SENT!\n");
     
     for(;;)
         usleep(100000);

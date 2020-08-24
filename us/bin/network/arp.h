@@ -19,7 +19,6 @@ mac_addr_t arp_lookup(char* ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj
 void print_arp_table();
 
 /*ARP Protocol Implementation*/
-void send_arp_request(char *addr, twzobj *interface_obj, twzobj *tx_queue_obj);
-//void send_arp_reply(eth_hdr_t *eth_hdr);
-//void recv_arp_request(eth_hdr_t *eth_hdr);
-//void recv_arp_reply(eth_hdr_t *eth_hdr);
+void arp_send_request(char *dst_ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
+void arp_send_reply(char *dst_ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
+void arp_recv(twzobj *interface_obj, twzobj *tx_queue_obj,  void *pkt_ptr, mac_addr_t src_mac);
