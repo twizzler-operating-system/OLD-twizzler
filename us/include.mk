@@ -92,6 +92,7 @@ SYSROOT_PREP=$(MUSL_HDRS)
 TWZCFLAGS=-Wall -Wextra -O3 -g -march=native -mclflushopt #-mclwb
 
 include us/libtwz/include.mk
+include us/libtwzsec/include.mk
 include us/twix/include.mk
 
 all_progs: $(addsuffix _all,$(PROGS))
@@ -101,6 +102,10 @@ $(BUILDDIR)/us/sysroot/usr/lib/libtwz.a: $(BUILDDIR)/us/libtwz/libtwz.a
 	@cp $< $@
 
 $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so: $(BUILDDIR)/us/libtwz/libtwz.so
+	@mkdir -p $(BUILDDIR)/us/sysroot/usr/lib
+	@cp $< $@
+
+$(BUILDDIR)/us/sysroot/usr/lib/libtwzsec.so: $(BUILDDIR)/us/libtwzsec/libtwzsec.so
 	@mkdir -p $(BUILDDIR)/us/sysroot/usr/lib
 	@cp $< $@
 
@@ -119,7 +124,7 @@ $(BUILDDIR)/us/sysroot/usr/lib/libc.so: $(BUILDDIR)/us/twix/libtwix.a $(BUILDDIR
 	@touch $(BUILDDIR)/us/sysroot/usr/lib/libc.so
 
 
-SYSLIBS=$(BUILDDIR)/us/sysroot/usr/lib/libtwz.a $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so $(BUILDDIR)/us/sysroot/usr/lib/libtwix.a $(BUILDDIR)/us/sysroot/usr/lib/libc.a $(BUILDDIR)/us/sysroot/usr/lib/libc.so
+SYSLIBS=$(BUILDDIR)/us/sysroot/usr/lib/libtwz.a $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so $(BUILDDIR)/us/sysroot/usr/lib/libtwix.a $(BUILDDIR)/us/sysroot/usr/lib/libc.a $(BUILDDIR)/us/sysroot/usr/lib/libc.so $(BUILDDIR)/us/sysroot/usr/lib/libtwzsec.so
 
 -include $(BUILDDIR)/us/*/*.d
 
