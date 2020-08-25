@@ -161,7 +161,8 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 			return -ENOENT;
 		}
 		int r;
-		if((r = obj_check_permission(target_view, SCP_WRITE))) {
+		/* TODO: call check_fault directly, use IP target */
+		if((r = obj_check_permission(target_view, SCP_USE))) {
 			obj_put(target_view);
 			return r;
 		}

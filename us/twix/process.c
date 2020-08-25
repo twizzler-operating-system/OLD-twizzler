@@ -392,7 +392,7 @@ static long __internal_execve_view_interp(twzobj *view,
 static int __twz_exec_create_view(twzobj *view, objid_t id, objid_t *vid)
 {
 	int r;
-	if((r = twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, vid))) {
+	if((r = twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE, 0, 0, vid))) {
 		return r;
 	}
 	if((r = twz_object_init_guid(view, *vid, FE_READ | FE_WRITE))) {
@@ -768,7 +768,8 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	twz_view_object_init(&cur_view);
 
 	// debug_printf("== creating view\n");
-	if((r = twz_object_new(&view, &cur_view, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
+	if((r = twz_object_new(
+	      &view, &cur_view, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE))) {
 		return r;
 	}
 

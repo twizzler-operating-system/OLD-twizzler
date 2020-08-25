@@ -320,13 +320,18 @@ void call_the_gate(twzobj *lib)
 }
 
 #include <twz/debug.h>
-int test_fn()
+int test_fn(int arg)
 {
-	debug_printf("HELLO FROM TEST FN\n");
+	debug_printf("HELLO FROM TEST FN: %d\n", arg);
 	return 1234;
 }
 
 TWZ_GATE_SHARED(test_fn, 1);
+
+int do_the_thing(struct secure_api_header *hdr, int arg)
+{
+	twz_secure_api_call1(hdr, 1, arg);
+}
 
 void child(twzobj *context, twzobj *data, twzobj *lib)
 {
@@ -436,33 +441,59 @@ int main()
 		.align = 4,
 	};
 
-	twzobj view;
-	twz_view_object_init(&view);
+	twzobj orig_view, new_view;
+	twz_view_object_init(&orig_view);
+
+	twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE);
 
 	twz_cap_create(&cap,
-	  twz_object_guid(&view),
+	  twz_object_guid(&new_view),
 	  twz_object_guid(&context),
-	  SCP_EXEC | SCP_READ,
+	  SCP_WRITE | SCP_READ | SCP_USE,
 	  NULL,
 	  NULL,
 	  SCHASH_SHA1,
 	  SCENC_DSA,
 	  &pri);
 
+	twz_sctx_set_gmask(&context, SCP_EXEC);
+
+	twzobj exec = twz_object_from_ptr(main);
+	printf("\n\nREGRANT EXEC ON " IDFMT "\n", IDPR(twz_object_guid(&exec)));
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr(libtwz_gate_return);
+	printf("\n\nREGRANT EXEC ON " IDFMT "\n", IDPR(twz_object_guid(&exec)));
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr((void *)0x4000C0069697);
+	printf("\n\nREGRANT EXEC ON " IDFMT "\n", IDPR(twz_object_guid(&exec)));
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
 	printf("\n\nAdding cap for lib  " IDFMT " to " IDFMT "\n",
-	  IDPR(twz_object_guid(&view)),
+	  IDPR(twz_object_guid(&new_view)),
 	  IDPR(twz_object_guid(&context)));
 	/* probably get the length from some other function? */
-	twz_sctx_add(&context, twz_object_guid(&view), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+	twz_sctx_add(&context, twz_object_guid(&new_view), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+
+	struct secure_api_header sah = {
+		.view = twz_object_guid(&new_view),
+		.sctx = 0,
+	};
 
 	if(!fork()) {
-		debug_printf("DOING BECOME :: " IDFMT " :: %p\n", IDPR(twz_object_guid(&view)), test_fn);
+		debug_printf(
+		  "DOING BECOME :: " IDFMT " :: %p\n", IDPR(twz_object_guid(&new_view)), test_fn);
+		int r = sys_attach(0, twz_object_guid(&context), 0, KSO_SECCTX);
+		fprintf(stderr, "ATTACH: %d\n", r);
+		/*
 		struct sys_become_args args = {
-			.target_view = twz_object_guid(&view),
-			.target_rip = TWZ_GATE_CALL(NULL, 1),
-			.rsp = (void *)(TWZSLOT_STACK * OBJ_MAXSIZE - 0x8000),
+		    .target_view = twz_object_guid(&view),
+		    .target_rip = TWZ_GATE_CALL(NULL, 1),
+		    .rsp = (void *)(TWZSLOT_STACK * OBJ_MAXSIZE - 0x8000),
 		};
-		int r = sys_become(&args, 0, 0);
+		int r = sys_become(&args, 0, 0);*/
+		r = do_the_thing(&sah, 5678);
 		fprintf(stderr, "ret: become: %d\n", r);
 		// child(&context, &dataobj, &libobj);
 		exit(0);

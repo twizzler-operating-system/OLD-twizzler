@@ -1,3 +1,5 @@
+#include <stdlib.h>
+#include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/view.h>
 
@@ -10,19 +12,15 @@ void twz_secure_api_create(twzobj *obj)
 	hdr->view = twz_object_guid(&view);
 }
 
-int do_the_thing(struct secure_api_header *hdr, int arg)
+void twz_secure_api_setup_tmp_stack(void)
 {
-	twz_secure_api_call1(hdr, DOTHETHING_GATE, arg);
+	uint32_t fl;
+	twz_view_get(NULL, TWZSLOT_TMPSTACK, NULL, &fl);
+	if(!(fl & VE_VALID)) {
+		objid_t id;
+		if(twz_object_create(TWZ_OC_VOLATILE | TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &id) < 0) {
+			abort();
+		}
+		twz_view_fixedset(NULL, TWZSLOT_TMPSTACK, id, VE_VALID | VE_WRITE | VE_READ);
+	}
 }
-
-#define twz_secure_api_call(hdr, gate, ...)                                                        \
-	({                                                                                             \
-		twz_secure_api_setup_tmp_stack();                                                          \
-		struct sys_become_args args = {                                                            \
-			.target_view = hdr->view,                                                              \
-			.target_rip = TWZ_GATE_CALL(NULL, gate),                                               \
-			.rsp = (void *)(TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                            \
-		};                                                                                         \
-		long r = sys_become(&args, 0, 0);                                                          \
-		r;                                                                                         \
-	})

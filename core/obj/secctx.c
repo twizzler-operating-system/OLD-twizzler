@@ -484,6 +484,9 @@ static void __lookup_perms(struct sctx *sc,
 				EPRINTK("    - __in_gate: %d\n", __in_gate(&scce->gates[i], ipoff));
 				*ingate = *ingate || __in_gate(&scce->gates[i], ipoff);
 			}
+			if(scce->gate_count == 0 && (scce->perms & SCP_EXEC)) {
+				*ingate = true;
+			}
 		}
 		spinlock_release_restore(&sc->cache_lock);
 		return;
@@ -507,13 +510,14 @@ static void __lookup_perms(struct sctx *sc,
 		}
 
 		if(b->target == target->id) {
-			EPRINTK("    - lookup_perms: found!\n");
+			EPRINTK("    - lookup_perms: found!: %x %lx\n", b->pmask, b->flags);
 			struct scgates gs = { .offset = 0, .length = ~0, .align = 0 };
 			/* get this entry's perm, masked with this buckets mask. Then, if we're gating,
 			 * check the gates. */
 			if(b->data) {
 				perms |= __lookup_perm_bucket(sc->obj, b, &gs, target) & b->pmask;
 			} else {
+				EPRINTK("    - DFL mask: %x %lx\n", b->pmask, b->flags);
 				if(b->flags & SCF_TYPE_REGRANT_MASK) {
 					dfl_remask |= b->pmask;
 				} else {
@@ -524,6 +528,8 @@ static void __lookup_perms(struct sctx *sc,
 			//		printk("have gate: %x %x %x\n", gs.offset, gs.length, gs.align);
 			if(b->flags & SCF_GATE) {
 				__limit_gates(&gs, &b->gatemask);
+			} else if(b->pmask & SCP_EXEC) {
+				gatesok = true;
 			}
 			//		printk("Setting gate: %x %x %x\n", gs.offset, gs.length, gs.align);
 			__append_gatelist(&gatelist, &gatecount, &gatepos, &gs);
@@ -546,8 +552,13 @@ static void __lookup_perms(struct sctx *sc,
 	dfl |= (p_flags & MIP_DFL_READ) ? SCP_READ : 0;
 	dfl |= (p_flags & MIP_DFL_WRITE) ? SCP_WRITE : 0;
 	dfl |= (p_flags & MIP_DFL_EXEC) ? SCP_EXEC : 0;
+	dfl |= (p_flags & MIP_DFL_USE) ? SCP_USE : 0;
 
 	dfl = ((dfl & ~ctx->gmask) | (dfl & dfl_remask)) & ~dfl_mask;
+	EPRINTK("    - DFL: %x\n", dfl);
+	if(dfl & MIP_DFL_EXEC) {
+		gatesok = true;
+	}
 
 	if(p) {
 		*p = perms | dfl;
@@ -618,6 +629,7 @@ static int check_if_valid(struct sctx *sc,
 	__lookup_perms(sc, eo, 0, &ep, NULL);
 	obj_put(eo);
 	if(!(ep & SCP_EXEC)) {
+		EPRINTK("    - executable lookup_perms fail: " IDFMT "\n", IDPR(eo->id));
 		return -1;
 	}
 
@@ -673,7 +685,7 @@ int secctx_fault_resolve(void *ip,
 	if(current_thread->active_sc->superuser) {
 		spinlock_release_restore(&current_thread->sc_lock);
 		if(perms)
-			*perms = SCP_READ | SCP_WRITE | SCP_EXEC;
+			*perms = SCP_READ | SCP_WRITE | SCP_EXEC | SCP_USE;
 		return 0;
 	}
 
@@ -686,6 +698,7 @@ int secctx_fault_resolve(void *ip,
 		dfl |= (p_flags & MIP_DFL_READ) ? SCP_READ : 0;
 		dfl |= (p_flags & MIP_DFL_WRITE) ? SCP_WRITE : 0;
 		dfl |= (p_flags & MIP_DFL_EXEC) ? SCP_EXEC : 0;
+		dfl |= (p_flags & MIP_DFL_USE) ? SCP_USE : 0;
 
 		if((dfl & needed) == needed) {
 			if(perms)

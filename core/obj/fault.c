@@ -14,15 +14,25 @@ int obj_check_permission(struct object *obj, uint64_t flags)
 		return -EINVAL;
 	}
 
+	/*
 	uint32_t p_flags;
 	if(!obj_get_pflags(obj, &p_flags))
-		return 0;
+	    return 0;
 	uint32_t dfl = p_flags & (MIP_DFL_READ | MIP_DFL_WRITE | MIP_DFL_EXEC | MIP_DFL_USE);
 
 	if((dfl & flags) == flags) {
+	    //	return 0;
+	}
+	*/
+	if(!current_thread) {
 		return 0;
 	}
-	return secctx_check_permissions((void *)arch_thread_instruction_pointer(), obj, flags);
+	int r = secctx_check_permissions((void *)arch_thread_instruction_pointer(), obj, flags);
+	if(r) {
+		debug_print_backtrace();
+		printk("R = %d :: %lx\n", r, flags);
+	}
+	return r;
 }
 
 #include <twz/_sctx.h>

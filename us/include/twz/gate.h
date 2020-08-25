@@ -70,3 +70,17 @@ struct secure_api_header {
 	objid_t sctx;
 	objid_t view;
 };
+
+void twz_secure_api_setup_tmp_stack(void);
+#define twz_secure_api_call1(hdr, gate, arg)                                                       \
+	({                                                                                             \
+		twz_secure_api_setup_tmp_stack();                                                          \
+		struct sys_become_args args = {                                                            \
+			.target_view = hdr->view,                                                              \
+			.target_rip = TWZ_GATE_CALL(NULL, gate),                                               \
+			.rsp = (void *)(TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                            \
+			.rdi = (long)arg,                                                                      \
+		};                                                                                         \
+		long r = sys_become(&args, 0, 0);                                                          \
+		r;                                                                                         \
+	})

@@ -37,7 +37,7 @@ enum SC_ENC_FNS {
 #define SCP_DEL MIP_DFL_DEL
 #define SCP_CD 0x1000
 
-#define SCF_TYPE_REGRANT_MASK 2
+#define SCF_TYPE_REGRANT_MASK 1
 #define SCF_GATE 2
 #define SCF_REV 4
 
