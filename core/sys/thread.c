@@ -1,3 +1,4 @@
+#include <kalloc.h>
 #include <limits.h>
 #include <object.h>
 #include <processor.h>
@@ -132,8 +133,24 @@ long syscall_thrd_ctl(int op, long arg)
 	return ret;
 }
 
-long syscall_become(struct arch_syscall_become_args *_ba)
+static long __syscall_become_return(long a0, long a1)
 {
+	struct list *entry = list_pop(&current_thread->become_stack);
+	if(!entry) {
+		return -EINVAL;
+	}
+
+	struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
+	arch_thread_become_restore(frame);
+	kfree(frame);
+	return a0;
+}
+
+long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
+{
+	if(_ba == NULL) {
+		return __syscall_become_return(a0, a1);
+	}
 	if(!verify_user_pointer(_ba, sizeof(*_ba)))
 		return -EINVAL;
 	struct arch_syscall_become_args ba;
@@ -154,6 +171,10 @@ long syscall_become(struct arch_syscall_become_args *_ba)
 		arch_mm_switch_context(current_thread->ctx);
 		obj_put(target_view);
 	}
-	arch_thread_become(&ba);
+	struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
+	arch_thread_become(&ba, oldframe);
+	struct object *obj = kso_get_obj(current_thread->ctx->view, view);
+	oldframe->view = obj;
+	list_insert(&current_thread->become_stack, &oldframe->entry);
 	return 0;
 }

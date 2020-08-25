@@ -319,6 +319,15 @@ void call_the_gate(twzobj *lib)
 	fprintf(stderr, "returned from gate fn\n");
 }
 
+#include <twz/debug.h>
+int test_fn()
+{
+	debug_printf("HELLO FROM TEST FN\n");
+	return 1234;
+}
+
+TWZ_GATE_SHARED(test_fn, 1);
+
 void child(twzobj *context, twzobj *data, twzobj *lib)
 {
 	(void)data;
@@ -346,8 +355,10 @@ void child(twzobj *context, twzobj *data, twzobj *lib)
 }
 
 #include <dlfcn.h>
+#include <twz/view.h>
 int main()
 {
+#if 0
 	void *dl = dlopen("/usr/lib/stdl.so", RTLD_LAZY | RTLD_GLOBAL);
 
 	if(!dl) {
@@ -366,6 +377,7 @@ int main()
 	fn();
 
 	return 0;
+#endif
 	twzobj context, pri, pub, dataobj;
 
 	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
@@ -410,14 +422,13 @@ int main()
 	/* probably get the length from some other function? */
 	twz_sctx_add(&context, twz_object_guid(&dataobj), cap, sizeof(*cap) + cap->slen, ~0, NULL);
 
-	twzobj libobj_orig, libobj;
-	if(twz_object_init_name(&libobj_orig, "/usr/bin/st-lib", FE_READ | FE_EXEC)) {
-		abort();
-	}
+	// if(twz_object_init_name(&libobj_orig, "/usr/bin/st-lib", FE_READ | FE_EXEC)) {
+	//	abort();
+	//}
 
-	if(twz_object_new(&libobj, &libobj_orig, &pub, 0)) {
-		errx(1, "failed to make new lib obj\n");
-	}
+	// if(twz_object_new(&libobj, &libobj_orig, &pub, 0)) {
+	//	errx(1, "failed to make new lib obj\n");
+	//}
 
 	struct scgates gate = {
 		.offset = 0x1200,
@@ -425,24 +436,35 @@ int main()
 		.align = 4,
 	};
 
+	twzobj view;
+	twz_view_object_init(&view);
+
 	twz_cap_create(&cap,
-	  twz_object_guid(&libobj),
+	  twz_object_guid(&view),
 	  twz_object_guid(&context),
 	  SCP_EXEC | SCP_READ,
 	  NULL,
-	  &gate,
+	  NULL,
 	  SCHASH_SHA1,
 	  SCENC_DSA,
 	  &pri);
 
 	printf("\n\nAdding cap for lib  " IDFMT " to " IDFMT "\n",
-	  IDPR(twz_object_guid(&libobj)),
+	  IDPR(twz_object_guid(&view)),
 	  IDPR(twz_object_guid(&context)));
 	/* probably get the length from some other function? */
-	twz_sctx_add(&context, twz_object_guid(&libobj), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+	twz_sctx_add(&context, twz_object_guid(&view), cap, sizeof(*cap) + cap->slen, ~0, NULL);
 
 	if(!fork()) {
-		child(&context, &dataobj, &libobj);
+		debug_printf("DOING BECOME :: " IDFMT " :: %p\n", IDPR(twz_object_guid(&view)), test_fn);
+		struct sys_become_args args = {
+			.target_view = twz_object_guid(&view),
+			.target_rip = TWZ_GATE_CALL(NULL, 1),
+			.rsp = (void *)(TWZSLOT_STACK * OBJ_MAXSIZE - 0x8000),
+		};
+		int r = sys_become(&args, 0, 0);
+		fprintf(stderr, "ret: become: %d\n", r);
+		// child(&context, &dataobj, &libobj);
 		exit(0);
 	}
 

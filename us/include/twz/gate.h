@@ -25,6 +25,7 @@ __asm__(".section .gates, \"ax\", @progbits\n"
         ".previous");
 */
 
+extern void libtwz_gate_return(long);
 #define __TWZ_GATE_SHARED(fn, g)                                                                   \
 	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
 	        ".global __twz_gate_" #fn "\n"                                                         \
@@ -32,7 +33,9 @@ __asm__(".section .gates, \"ax\", @progbits\n"
 	        ".org " #g "*32, 0x90\n"                                                               \
 	        "__twz_gate_" #fn ":\n"                                                                \
 	        "movabs $" #fn ", %rax\n"                                                              \
-	        "jmp *%rax\n"                                                                          \
+	        "call *%rax\n"                                                                         \
+	        "movq %rax, %rdi\n"                                                                    \
+	        "jmp libtwz_gate_return\n"                                                             \
 	        "retq\n"                                                                               \
 	        ".balign 32, 0x90\n"                                                                   \
 	        ".previous");
@@ -62,3 +65,8 @@ __asm__(".section .gates, \"ax\", @progbits\n"
 		(void *)((obj ? (uintptr_t)twz_object_base(obj) - OBJ_NULLPAGE_SIZE : 0ull)                \
 		         + g * TWZ_GATE_SIZE + TWZ_GATE_OFFSET);                                           \
 	})
+
+struct secure_api_header {
+	objid_t sctx;
+	objid_t view;
+};

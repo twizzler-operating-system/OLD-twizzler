@@ -11,20 +11,14 @@ $(BUILDDIR)/us/sysroot/usr/bin/st: $(SECTEST_OBJS) $(SYSROOT_READY) $(SYSLIBS) $
 	@echo "[LD]      $@"
 	@$(TWZCC) $(TWZLDFLAGS) -g -o $@ -MD $< $(SECTEST_LIBS)
 
-$(BUILDDIR)/us/sysroot/usr/lib/stdl.so: $(SECTEST2_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
+$(BUILDDIR)/us/sysroot/usr/lib/libsectest.so: $(SECTEST2_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
 	@echo "[LDSO]      $@"
-	@$(TWZCC) -shared $(TWZLDFLAGS) -g -o $@ -MD $< $(SECTEST_LIBS)
-
-
-$(BUILDDIR)/us/sysroot/usr/bin/st-lib: $(SECTEST2_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
-	@echo "[LD]      $@"
-	@$(TWZCC) $(TWZLDFLAGS) -fPIC -fpie -fPIE -g -o $@ -MD $< $(SECTEST_LIBS)
-
+	@$(TWZCC) $(TWZLDFLAGS) -g -o $@ -MD $< $(SECTEST_LIBS)
 
 $(BUILDDIR)/us/bin/sectest/%.o: us/bin/sectest/%.c $(MUSL_HDRS)
 	@mkdir -p $(dir $@)
 	@echo "[CC]      $@"
 	@$(TWZCC) $(TWZCFLAGS) $(SECTEST_CFLAGS) -o $@ -c -MD $< -fPIC
 
-SYSROOT_FILES+=$(BUILDDIR)/us/sysroot/usr/bin/st $(BUILDDIR)/us/sysroot/usr/bin/st-lib $(BUILDDIR)/us/sysroot/usr/lib/stdl.so
+SYSROOT_FILES+=$(BUILDDIR)/us/sysroot/usr/bin/st $(BUILDDIR)/us/sysroot/usr/lib/libsectest.so
 #

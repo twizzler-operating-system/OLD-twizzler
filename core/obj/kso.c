@@ -29,7 +29,7 @@ int kso_root_attach(struct object *obj, uint64_t flags, int type)
 
 	spinlock_release_restore(&lock);
 	obj_put(root);
-	return i;
+	return i - 1;
 }
 
 void kso_root_detach(int i)

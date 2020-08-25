@@ -22,6 +22,12 @@ enum thread_state {
 
 #define MAX_SC TWZ_THRD_MAX_SCS
 
+struct thread_become_frame {
+	struct arch_become_frame frame;
+	struct list entry;
+	struct object *view;
+};
+
 struct sleep_entry {
 	struct thread *thr;
 	struct syncpoint *sp;
@@ -70,10 +76,13 @@ struct thread {
 	int pending_fault;
 	size_t pending_fault_infolen;
 	struct timer sleep_timer;
+
+	struct list become_stack;
 };
 
 struct arch_syscall_become_args;
-void arch_thread_become(struct arch_syscall_become_args *ba);
+void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_become_frame *);
+void arch_thread_become_restore(struct thread_become_frame *frame);
 void thread_sleep(struct thread *t, int flags);
 void thread_wake(struct thread *t);
 void thread_exit(void);

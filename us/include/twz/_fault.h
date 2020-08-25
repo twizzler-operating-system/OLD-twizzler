@@ -78,6 +78,7 @@ struct fault_exception_info {
 	void *ip;
 	uint64_t code; /* architecture specific */
 	uint64_t arg0; /* architecture specific */
+	uint64_t pad;
 } __attribute__((packed));
 
 static inline struct fault_exception_info twz_fault_build_exception_info(void *ip,

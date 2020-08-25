@@ -21,9 +21,52 @@ uintptr_t arch_thread_instruction_pointer(void)
 	}
 }
 
-void arch_thread_become(struct arch_syscall_become_args *ba)
+void arch_thread_become_restore(struct thread_become_frame *frame)
+{
+	current_thread->arch.syscall.rax = frame->frame.rax;
+	current_thread->arch.syscall.rbx = frame->frame.rbx;
+	current_thread->arch.syscall.rcx = frame->frame.rcx;
+	current_thread->arch.syscall.rdx = frame->frame.rdx;
+	current_thread->arch.syscall.rdi = frame->frame.rdi;
+	current_thread->arch.syscall.rsi = frame->frame.rsi;
+	current_thread->arch.syscall.rbp = frame->frame.rbp;
+	current_thread->arch.syscall.rsp = frame->frame.rsp;
+	current_thread->arch.syscall.r8 = frame->frame.r8;
+	current_thread->arch.syscall.r9 = frame->frame.r9;
+	current_thread->arch.syscall.r10 = frame->frame.r10;
+	current_thread->arch.syscall.r11 = frame->frame.r11;
+	current_thread->arch.syscall.r12 = frame->frame.r12;
+	current_thread->arch.syscall.r13 = frame->frame.r13;
+	current_thread->arch.syscall.r14 = frame->frame.r14;
+	current_thread->arch.syscall.r15 = frame->frame.r15;
+	current_thread->arch.fs = frame->frame.fs;
+	current_thread->arch.gs = frame->frame.gs;
+}
+
+void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_become_frame *frame)
 {
 	if(current_thread->arch.was_syscall) {
+		if(frame) {
+			frame->frame.rax = current_thread->arch.syscall.rax;
+			frame->frame.rbx = current_thread->arch.syscall.rbx;
+			frame->frame.rcx = current_thread->arch.syscall.rcx;
+			frame->frame.rdx = current_thread->arch.syscall.rdx;
+			frame->frame.rdi = current_thread->arch.syscall.rdi;
+			frame->frame.rsi = current_thread->arch.syscall.rsi;
+			frame->frame.rbp = current_thread->arch.syscall.rbp;
+			frame->frame.rsp = current_thread->arch.syscall.rsp;
+			frame->frame.r8 = current_thread->arch.syscall.r8;
+			frame->frame.r9 = current_thread->arch.syscall.r9;
+			frame->frame.r10 = current_thread->arch.syscall.r10;
+			frame->frame.r11 = current_thread->arch.syscall.r11;
+			frame->frame.r12 = current_thread->arch.syscall.r12;
+			frame->frame.r13 = current_thread->arch.syscall.r13;
+			frame->frame.r14 = current_thread->arch.syscall.r14;
+			frame->frame.r15 = current_thread->arch.syscall.r15;
+			frame->frame.fs = current_thread->arch.fs;
+			frame->frame.gs = current_thread->arch.gs;
+		}
+
 		current_thread->arch.syscall.rax = ba->rax;
 		current_thread->arch.syscall.rbx = ba->rbx;
 		/* note: rcx holds return RIP, so don't set it */
@@ -43,6 +86,9 @@ void arch_thread_become(struct arch_syscall_become_args *ba)
 
 		current_thread->arch.syscall.rcx = ba->target_rip;
 	} else {
+		if(frame) {
+			panic("NI - frame backup for become due to exception");
+		}
 		current_thread->arch.exception.rax = ba->rax;
 		current_thread->arch.exception.rbx = ba->rbx;
 		current_thread->arch.exception.rcx = ba->rcx;

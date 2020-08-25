@@ -52,7 +52,7 @@ __attribute__((used)) static int __do_exec(uint64_t entry,
 		.rdi = (long)vector,
 		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_STACK) + 0x200000,
 	};
-	int r = sys_become(&ba);
+	int r = sys_become(&ba, 0, 0);
 	twz_thread_exit(r);
 	return 0;
 }

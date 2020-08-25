@@ -10,6 +10,11 @@ struct __attribute__((packed)) x86_64_syscall_frame {
 	uint64_t r15, r14, r13, r12, r10, r9, r8, rdx, rsi, rdi, rbx, rax, r11, rcx, rbp, rsp, cs;
 };
 
+struct __attribute__((packed)) arch_become_frame {
+	uint64_t r15, r14, r13, r12, r10, r9, r8, rdx, rsi, rdi, rbx, rax, r11, rcx, rbp, rsp;
+	uint64_t fs, gs;
+};
+
 struct arch_thread {
 	_Alignas(16) struct x86_64_syscall_frame syscall;
 	_Alignas(16) struct x86_64_exception_frame exception;

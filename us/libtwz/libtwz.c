@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <twz/sys.h>
 static bool disable_backtrace = false;
 
 __attribute__((noreturn)) void libtwz_panic(const char *s, ...)
@@ -16,6 +17,14 @@ __attribute__((noreturn)) void libtwz_panic(const char *s, ...)
 	va_end(va);
 	libtwz_do_backtrace();
 	disable_backtrace = true;
+	abort();
+}
+
+#include <twz/debug.h>
+__attribute__((used, noreturn)) void libtwz_gate_return(long a0)
+{
+	int r = sys_become(NULL, a0, 0);
+	(void)r;
 	abort();
 }
 

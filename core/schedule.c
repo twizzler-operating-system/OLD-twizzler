@@ -180,6 +180,7 @@ static void _thread_ctor(void *_u __unused, void *ptr)
 	thr->sc_lock = SPINLOCK_INIT;
 	thr->lock = SPINLOCK_INIT;
 	thr->state = THREADSTATE_INITING;
+	list_init(&thr->become_stack);
 	if(!thr->sctx_entries) {
 		thr->sctx_entries = kcalloc(MAX_SC, sizeof(struct thread_sctx_entry));
 	} else {
@@ -265,6 +266,13 @@ void thread_exit(void)
 	spinlock_acquire_save(&allthreads_lock);
 	list_remove(&current_thread->all_entry);
 	spinlock_release_restore(&allthreads_lock);
+
+	struct list *entry;
+	while((entry = list_pop(&current_thread->become_stack))) {
+		struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
+		obj_put(frame->view);
+		kfree(frame);
+	}
 
 	kso_root_detach(current_thread->kso_attachment_num);
 
