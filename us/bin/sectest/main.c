@@ -13,16 +13,9 @@
 #include <twz/gate.h>
 #include <twz/twztry.h>
 
-void call_the_gate(twzobj *lib)
-{
-	void (*gfn)() = TWZ_GATE_CALL(lib, 0);
-
-	fprintf(stderr, "calling gate fn: %p\n", gfn);
-	gfn();
-	fprintf(stderr, "returned from gate fn\n");
-}
-
+#include <dlfcn.h>
 #include <twz/debug.h>
+#include <twz/view.h>
 int test_fn(int arg)
 {
 	debug_printf("HELLO FROM TEST FN: %d\n", arg);
@@ -36,34 +29,6 @@ int do_the_thing(struct secure_api_header *hdr, int arg)
 	twz_secure_api_call1(hdr, 1, arg);
 }
 
-void child(twzobj *context, twzobj *data, twzobj *lib)
-{
-	(void)data;
-	printf("Hello from child!\n");
-
-	int r;
-	r = sys_attach(0, twz_object_guid(context), 0, KSO_SECCTX);
-	printf("ATTACH:  %d\n", r);
-
-#if 0
-	int *x = twz_object_base(data);
-	printf(":: %d\n", *x);
-	twztry
-	{
-		*x = 12;
-	}
-	twzcatch(FAULT_SCTX)
-	{
-		printf("CATCH!\n");
-	}
-	twztry_end;
-	printf(":: %d\n", *x);
-#endif
-	call_the_gate(lib);
-}
-
-#include <dlfcn.h>
-#include <twz/view.h>
 int main()
 {
 #if 0
