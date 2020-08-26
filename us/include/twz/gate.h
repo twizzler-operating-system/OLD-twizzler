@@ -81,6 +81,9 @@ void twz_secure_api_setup_tmp_stack(void);
 			.rsp = (void *)(TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                            \
 			.rdi = (long)arg,                                                                      \
 		};                                                                                         \
-		long r = sys_become(&args, 0, 0);                                                          \
+		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
+		printf(":::: %ld :: " IDFMT "\n", r, IDPR(hdr->sctx));                                     \
+		if(r == 0)                                                                                 \
+			r = sys_become(&args, 0, 0);                                                           \
 		r;                                                                                         \
 	})

@@ -33,5 +33,14 @@ int twz_sctx_add(twzobj *obj,
   struct scgates *);
 ssize_t twz_sctx_lookup(twzobj *obj, objid_t target);
 ssize_t twz_sctx_next(twzobj *obj, objid_t target, ssize_t bucket);
+void twz_sctx_set_gmask(twzobj *obj, uint32_t gmask);
+int twz_sctx_add_dfl(twzobj *obj,
+  objid_t target,
+  uint32_t mask,
+  struct scgates *gatemask,
+  uint64_t flags);
+int twz_key_new(twzobj *pri, twzobj *pub);
+
+void twz_secure_api_create(twzobj *obj, const char *name);
 // int twz_sctx_read(twzobj *obj, objid_t target, void *data, size_t *datalen);
 // int twz_sctx_del(twzobj *obj, objid_t target, ssize_t bucketnum);

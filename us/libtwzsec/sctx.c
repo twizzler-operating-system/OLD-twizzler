@@ -1,8 +1,77 @@
 #include <errno.h>
 #include <string.h>
 #include <twz/alloc.h>
+#include <twz/debug.h>
+#include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/security.h>
+
+extern int main();
+
+void twz_secure_api_create(twzobj *obj, const char *name)
+{
+	struct secure_api_header *hdr = twz_object_base(obj);
+
+	twzobj pub, pri, context;
+	twzobj orig_view, new_view;
+
+	/* TODO: perms */
+	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+		errx(1, "failed to make new object");
+	}
+
+	twz_sctx_init(&context, name);
+	if(twz_object_new(&pri, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+		errx(1, "failed to make new object");
+	}
+
+	if(twz_object_new(&pub, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+		errx(1, "failed to make new object");
+	}
+
+	twz_key_new(&pri, &pub);
+
+	twz_view_object_init(&orig_view);
+
+	twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE);
+	debug_printf("cloned view " IDFMT " -> " IDFMT "\n",
+	  IDPR(twz_object_guid(&orig_view)),
+	  IDPR(twz_object_guid(&new_view)));
+
+	struct sccap *cap;
+	twz_cap_create(&cap,
+	  twz_object_guid(&new_view),
+	  twz_object_guid(&context),
+	  SCP_WRITE | SCP_READ | SCP_USE,
+	  NULL,
+	  NULL,
+	  SCHASH_SHA1,
+	  SCENC_DSA,
+	  &pri);
+
+	/* probably get the length from some other function? */
+	twz_sctx_add(&context, twz_object_guid(&new_view), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+
+	twz_sctx_set_gmask(&context, SCP_EXEC);
+
+	twzobj exec = twz_object_from_ptr(main);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr(libtwz_gate_return);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr((void *)0x4000C0069697);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	// printf("\n\nAdding cap for lib  " IDFMT " to " IDFMT "\n",
+	// IDPR(twz_object_guid(&new_view)),
+	// IDPR(twz_object_guid(&context)));
+
+	// twzobj view;
+	// twz_view_object_init(&view);
+	hdr->view = twz_object_guid(&new_view);
+	hdr->sctx = twz_object_guid(&context);
+}
 
 #define align_up(x, a) ({ ((x) + (a)-1) & ~(a - 1); })
 
@@ -133,9 +202,9 @@ static void sign_dsa(unsigned char *hash,
 	size_t kdlen = b64len;
 	unsigned char *kd = malloc(b64len);
 	int e;
-	for(size_t i = 0; i < b64len; i++) {
-		printf("%c", b64data[i]);
-	}
+	// for(size_t i = 0; i < b64len; i++) {
+	//	printf("%c", b64data[i]);
+	//}
 	if((e = base64_decode(b64data, b64len, kd, &kdlen)) != CRYPT_OK) {
 		errx(1, "b64_decode: %s", error_to_string(e));
 	}
@@ -213,9 +282,11 @@ int twz_key_new(twzobj *pri, twzobj *pub)
 	strcpy((char *)kdstart + kh->keydatalen, pri_line_end);
 	kh->keydata = twz_ptr_local(kdstart);
 
+#if 0
 	for(size_t i = 0; i < kh->keydatalen + 128; i++) {
 		printf("%c ", ((unsigned char *)(kh + 1))[i]);
 	}
+#endif
 	kh = twz_object_base(pub);
 	kh->type = SCENC_DSA;
 	kh->flags = 0;
@@ -234,12 +305,13 @@ int twz_key_new(twzobj *pri, twzobj *pub)
 	strcpy((char *)kdstart + kh->keydatalen, pub_line_end);
 	kh->keydata = twz_ptr_local(kdstart);
 
+#if 0
 	printf("\n");
 	for(size_t i = 0; i < kh->keydatalen + 128; i++) {
 		printf("%c ", ((unsigned char *)(kh + 1))[i]);
 	}
 	printf("\n");
-
+#endif
 	return 0;
 }
 
@@ -277,7 +349,7 @@ int twz_cap_create(struct sccap **cap,
 	size_t keylen;
 	unsigned char *keystart;
 
-	fprintf(stderr, "gate off = %x\n", (*cap)->gates.offset);
+	// fprintf(stderr, "gate off = %x\n", (*cap)->gates.offset);
 
 	struct key_hdr *kh = twz_object_base(pri_key);
 	keystart = twz_object_lea(pri_key, kh->keydata);

@@ -141,7 +141,14 @@ static long __syscall_become_return(long a0, long a1)
 	}
 
 	struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
+
 	arch_thread_become_restore(frame);
+	if(frame->view) {
+		vm_setview(current_thread, frame->view);
+		arch_mm_switch_context(current_thread->ctx);
+		obj_put(frame->view);
+	}
+
 	kfree(frame);
 	return a0;
 }
@@ -155,27 +162,31 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 		return -EINVAL;
 	struct arch_syscall_become_args ba;
 	memcpy(&ba, _ba, sizeof(ba));
+	struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
+	oldframe->view = NULL;
 	if(ba.target_view) {
 		struct object *target_view = obj_lookup(ba.target_view, 0);
 		if(!target_view) {
+			kfree(oldframe);
 			return -ENOENT;
 		}
 		int r;
 		/* TODO: call check_fault directly, use IP target */
 		if((r = obj_check_permission(target_view, SCP_USE))) {
+			kfree(oldframe);
 			obj_put(target_view);
 			return r;
 		}
+
+		struct object *obj = kso_get_obj(current_thread->ctx->view, view);
+		oldframe->view = obj;
 
 		vm_setview(current_thread, target_view);
 
 		arch_mm_switch_context(current_thread->ctx);
 		obj_put(target_view);
 	}
-	struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
 	arch_thread_become(&ba, oldframe);
-	struct object *obj = kso_get_obj(current_thread->ctx->view, view);
-	oldframe->view = obj;
 	list_insert(&current_thread->become_stack, &oldframe->entry);
 	return 0;
 }

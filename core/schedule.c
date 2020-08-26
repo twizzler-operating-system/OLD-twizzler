@@ -270,7 +270,9 @@ void thread_exit(void)
 	struct list *entry;
 	while((entry = list_pop(&current_thread->become_stack))) {
 		struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
-		obj_put(frame->view);
+		if(frame->view) {
+			obj_put(frame->view);
+		}
 		kfree(frame);
 	}
 
