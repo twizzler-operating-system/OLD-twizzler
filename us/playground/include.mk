@@ -1,8 +1,8 @@
-PLAYGROUND_PROGS=example queue net
+PLAYGROUND_PROGS=example queue net logtest
 
 PLAYGROUND_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 
-PLAYGROUND_CFLAGS=-g -fno-omit-frame-pointer -O3
+PLAYGROUND_CFLAGS=-g -fno-omit-frame-pointer -O3 -Ius/include
 
 $(BUILDDIR)/us/sysroot/usr/bin/%: $(BUILDDIR)/us/playground/%.o $(SYSROOT_READY) $(SYSLIBS) $(UTILS) $(ALL_EXTRAS)
 	@echo "[LD]      $@"
@@ -15,7 +15,7 @@ $(BUILDDIR)/us/sysroot/usr/bin/%: $(BUILDDIR)/us/playground/%.opp $(SYSROOT_READ
 $(BUILDDIR)/us/playground/%.o: us/playground/%.c $(MUSL_HDRS)
 	@mkdir -p $(dir $@)
 	@echo "[CC]      $@"
-	@$(TWZCC) $(TWZCFLAGS) $(PLAYGROUND_CFLAGS) -o $@ $(CFLAGS_$(basename $(notdir $@))) -c -MD $<
+	$(TWZCC) $(TWZCFLAGS) $(PLAYGROUND_CFLAGS) -o $@ $(CFLAGS_$(basename $(notdir $@))) -c -MD $<
 
 $(BUILDDIR)/us/playground/%.opp: us/playground/%.cpp $(MUSL_HDRS)
 	@mkdir -p $(dir $@)

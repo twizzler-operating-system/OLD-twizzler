@@ -6,6 +6,31 @@
 #include <thread.h>
 #include <tmpmap.h>
 
+int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip)
+{
+	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));
+	bool w = (flags & MIP_DFL_WRITE);
+	if(!obj_verify_id(obj, !w, w)) {
+		return -EINVAL;
+	}
+
+	/*
+	uint32_t p_flags;
+	if(!obj_get_pflags(obj, &p_flags))
+	    return 0;
+	uint32_t dfl = p_flags & (MIP_DFL_READ | MIP_DFL_WRITE | MIP_DFL_EXEC | MIP_DFL_USE);
+
+	if((dfl & flags) == flags) {
+	    //	return 0;
+	}
+	*/
+	if(!current_thread) {
+		return 0;
+	}
+	int r = secctx_check_permissions((void *)ip, obj, flags);
+	return r;
+}
+
 int obj_check_permission(struct object *obj, uint64_t flags)
 {
 	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));
@@ -28,10 +53,6 @@ int obj_check_permission(struct object *obj, uint64_t flags)
 		return 0;
 	}
 	int r = secctx_check_permissions((void *)arch_thread_instruction_pointer(), obj, flags);
-	if(r) {
-		debug_print_backtrace();
-		printk("R = %d :: %lx\n", r, flags);
-	}
 	return r;
 }
 

@@ -164,29 +164,36 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 	memcpy(&ba, _ba, sizeof(ba));
 	struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
 	oldframe->view = NULL;
+	struct object *target_view = NULL;
 	if(ba.target_view) {
-		struct object *target_view = obj_lookup(ba.target_view, 0);
+		target_view = obj_lookup(ba.target_view, 0);
 		if(!target_view) {
 			kfree(oldframe);
 			return -ENOENT;
 		}
-		int r;
-		/* TODO: call check_fault directly, use IP target */
-		if((r = obj_check_permission(target_view, SCP_USE))) {
-			kfree(oldframe);
-			obj_put(target_view);
-			return r;
-		}
-
 		struct object *obj = kso_get_obj(current_thread->ctx->view, view);
 		oldframe->view = obj;
 
 		vm_setview(current_thread, target_view);
 
 		arch_mm_switch_context(current_thread->ctx);
-		obj_put(target_view);
 	}
 	arch_thread_become(&ba, oldframe);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
+
+	/* TODO: call check_fault directly, use IP target */
+	int r;
+	if((r = obj_check_permission_ip(target_view, SCP_USE, ba.target_rip))) {
+		if(target_view) {
+			obj_put(target_view);
+		}
+		__syscall_become_return(0, 0);
+		return r;
+	}
+
+	if(target_view) {
+		obj_put(target_view);
+	}
+
 	return 0;
 }

@@ -6,3 +6,4 @@ include us/bin/term/include.mk
 include us/bin/pager/include.mk
 include us/bin/twzdev/include.mk
 include us/bin/network/include.mk
+include us/bin/logboi/include.mk

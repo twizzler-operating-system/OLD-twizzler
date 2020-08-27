@@ -16,13 +16,12 @@
 #include <dlfcn.h>
 #include <twz/debug.h>
 #include <twz/view.h>
-int test_fn(int arg)
+
+DECLARE_SAPI_ENTRY(test_fn, 1, int, int arg)
 {
-	debug_printf("HELLO FROM TEST FN: %d\n", arg);
+	debug_printf("Hello from test fn: %d\n", arg);
 	return 1234;
 }
-
-TWZ_GATE_SHARED(test_fn, 1);
 
 int do_the_thing(struct secure_api_header *hdr, int arg)
 {
@@ -32,87 +31,6 @@ int do_the_thing(struct secure_api_header *hdr, int arg)
 
 int main()
 {
-#if 0
-	void *dl = dlopen("/usr/lib/stdl.so", RTLD_LAZY | RTLD_GLOBAL);
-
-	if(!dl) {
-		errx(1, "dlopen");
-	}
-
-	void *sym = dlsym(dl, "__twz_gate_gate_fn");
-	void *sym2 = dlsym(dl, "gate_fn");
-	if(!sym) {
-		errx(1, "dlsym");
-	}
-
-	fprintf(stderr, "::::: %p %p\n", sym2, sym);
-
-	void (*fn)(void) = sym;
-	fn();
-
-	return 0;
-	twzobj context, pri, pub, dataobj;
-
-	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
-		errx(1, "failed to make new object");
-	}
-
-	twz_sctx_init(&context, "test-context");
-
-	struct sccap *cap;
-
-	if(twz_object_new(&pri, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
-		errx(1, "failed to make new object");
-	}
-
-	if(twz_object_new(&pub, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
-		errx(1, "failed to make new object");
-	}
-
-	twz_key_new(&pri, &pub);
-
-	if(twz_object_new(&dataobj, NULL, &pub, 0)) {
-		errx(1, "failed to make new object");
-	}
-	printf("Created object " IDFMT " with KUID " IDFMT "\n",
-	  IDPR(twz_object_guid(&dataobj)),
-	  IDPR(twz_object_guid(&pub)));
-
-	twz_cap_create(&cap,
-	  twz_object_guid(&dataobj),
-	  twz_object_guid(&context),
-	  SCP_READ,
-	  NULL,
-	  NULL,
-	  SCHASH_SHA1,
-	  SCENC_DSA,
-	  &pri);
-
-	printf("\n\nAdding cap for data " IDFMT " to " IDFMT "\n",
-	  IDPR(twz_object_guid(&dataobj)),
-	  IDPR(twz_object_guid(&context)));
-
-	/* probably get the length from some other function? */
-	twz_sctx_add(&context, twz_object_guid(&dataobj), cap, sizeof(*cap) + cap->slen, ~0, NULL);
-
-	// if(twz_object_init_name(&libobj_orig, "/usr/bin/st-lib", FE_READ | FE_EXEC)) {
-	//	abort();
-	//}
-
-	// if(twz_object_new(&libobj, &libobj_orig, &pub, 0)) {
-	//	errx(1, "failed to make new lib obj\n");
-	//}
-
-	struct scgates gate = {
-		.offset = 0x1200,
-		.length = 4,
-		.align = 4,
-	};
-#endif
-	//	struct secure_api_header sah = {
-	//		.view = twz_object_guid(&new_view),
-	//		.sctx = ,
-	//	};
 	twzobj api_obj;
 	twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	twz_secure_api_create(&api_obj, "test");

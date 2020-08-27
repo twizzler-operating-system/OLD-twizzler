@@ -1,4 +1,11 @@
 #pragma once
+#include <twz/obj.h>
+#include <twz/sys.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TWZ_GATE_SIZE 32
 /*
 #define __TWZ_GATE(fn, g)                                                                          \
@@ -58,7 +65,6 @@ extern void libtwz_gate_return(long);
 #define TWZ_GATE_SHARED(fn, g) __TWZ_GATE_SHARED(fn, g)
 #define TWZ_GATE_OFFSET (OBJ_NULLPAGE_SIZE + 0x200)
 
-#include <twz/obj.h>
 #define TWZ_GATE_CALL(_obj, g)                                                                     \
 	({                                                                                             \
 		twzobj *obj = _obj;                                                                        \
@@ -77,13 +83,20 @@ void twz_secure_api_setup_tmp_stack(void);
 		twz_secure_api_setup_tmp_stack();                                                          \
 		struct sys_become_args args = {                                                            \
 			.target_view = hdr->view,                                                              \
-			.target_rip = TWZ_GATE_CALL(NULL, gate),                                               \
-			.rsp = (void *)(TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                            \
+			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rdi = (long)arg,                                                                      \
+			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
 		};                                                                                         \
 		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-		printf(":::: %ld :: " IDFMT "\n", r, IDPR(hdr->sctx));                                     \
 		if(r == 0)                                                                                 \
 			r = sys_become(&args, 0, 0);                                                           \
 		r;                                                                                         \
 	})
+
+#define DECLARE_SAPI_ENTRY(name, gate, ret_type, ...)                                              \
+	TWZ_GATE_SHARED(__sapi_entry_##name, gate);                                                    \
+	ret_type __sapi_entry_##name(__VA_ARGS__)
+
+#ifdef __cplusplus
+}
+#endif

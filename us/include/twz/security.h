@@ -2,7 +2,11 @@
 
 #include <twz/_key.h>
 #include <twz/_sctx.h>
+#include <twz/_types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int twz_cap_create(struct sccap **cap,
   objid_t target,
   objid_t accessor,
@@ -23,7 +27,6 @@ int twz_dlg_create(struct scdlg **dlg,
   uint16_t htype,
   uint16_t etype);
 
-twzobj;
 int twz_sctx_init(twzobj *obj, const char *name);
 int twz_sctx_add(twzobj *obj,
   objid_t target,
@@ -42,5 +45,8 @@ int twz_sctx_add_dfl(twzobj *obj,
 int twz_key_new(twzobj *pri, twzobj *pub);
 
 void twz_secure_api_create(twzobj *obj, const char *name);
+#ifdef __cplusplus
+}
+#endif
 // int twz_sctx_read(twzobj *obj, objid_t target, void *data, size_t *datalen);
 // int twz_sctx_del(twzobj *obj, objid_t target, ssize_t bucketnum);

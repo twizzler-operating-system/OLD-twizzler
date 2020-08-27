@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stddef.h>
+#include <twz/__twz.h>
 #include <twz/_kso.h>
 #include <twz/_obj.h>
 #include <twz/_objid.h>
@@ -89,10 +90,10 @@ struct scdlg {
 	char data[];
 } __attribute__((packed));
 
-_Static_assert(sizeof(struct scdlg) == sizeof(struct sccap),
+static_assert(sizeof(struct scdlg) == sizeof(struct sccap),
   "CAP and DLG struct size must be the same");
 
-_Static_assert(offsetof(struct scdlg, magic) == offsetof(struct sccap, magic),
+static_assert(offsetof(struct scdlg, magic) == offsetof(struct sccap, magic),
   "CAP and DLG struct magic offset must be the same");
 
 struct scbucket {

@@ -213,6 +213,7 @@ void obj_write_data_atomic64(struct object *obj, size_t off, uint64_t val);
 void objpage_do_cow_write(struct objpage *p);
 bool obj_get_pflags(struct object *obj, uint32_t *pf);
 int obj_check_permission(struct object *obj, uint64_t flags);
+int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip);
 void obj_free_kaddr(struct object *obj);
 
 struct slot;
