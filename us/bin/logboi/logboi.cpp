@@ -6,9 +6,11 @@
 #include <unistd.h>
 
 extern "C" {
-DECLARE_SAPI_ENTRY(open_connection, LOGBOI_GATE_OPEN, int, int arg)
+DECLARE_SAPI_ENTRY(open_connection, LOGBOI_GATE_OPEN, int, objid_t *arg)
 {
-	printf("Hello from logboi open: %d\n", arg);
+	printf("Hello from logboi open: %p\n", arg);
+	*arg = 0x12345678;
+	printf("LB:: ID:::  = " IDFMT "\n", IDPR(*arg));
 	return 1234;
 }
 }

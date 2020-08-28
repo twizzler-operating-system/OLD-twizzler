@@ -78,6 +78,17 @@ struct secure_api_header {
 };
 
 void twz_secure_api_setup_tmp_stack(void);
+static inline void *twz_secure_api_alloc_stackarg(size_t size, size_t *ctx)
+{
+	/* TODO: alignment */
+	twz_secure_api_setup_tmp_stack();
+	if(*ctx == 0) {
+		*ctx = 0x400000;
+	}
+	*ctx -= size;
+	return (void *)((TWZSLOT_TMPSTACK * OBJ_MAXSIZE) + *ctx);
+}
+
 #define twz_secure_api_call1(hdr, gate, arg)                                                       \
 	({                                                                                             \
 		twz_secure_api_setup_tmp_stack();                                                          \

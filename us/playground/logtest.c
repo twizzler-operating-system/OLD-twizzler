@@ -13,6 +13,7 @@ int main()
 
 	struct secure_api_header *hdr = twz_object_base(&api_obj);
 	printf("calling logboi:: " IDFMT "     " IDFMT "\n", IDPR(hdr->view), IDPR(hdr->sctx));
-	r = logboi_open_connection(hdr, NULL);
-	printf("::: %d\n", r);
+	objid_t id = 0;
+	r = logboi_open_connection(hdr, &id);
+	printf("::: %d : " IDFMT "\n", r, IDPR(id));
 }
