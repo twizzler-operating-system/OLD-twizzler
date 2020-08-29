@@ -171,10 +171,8 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 				panic("NI - non-zero return code from syscall epilogue");
 			}
 		}
-		frame->rdx = 0;
 	} else {
 		frame->rax = -EINVAL;
-		frame->rdx = 0;
 	}
 
 	/* TODO: do this somewhere better */

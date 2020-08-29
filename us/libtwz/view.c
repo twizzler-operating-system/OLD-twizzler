@@ -27,6 +27,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	}
 	struct viewentry *ves = obj ? ((struct twzview_repr *)twz_object_base(obj))->ves
 	                            : ((struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW))->ves;
+
 	uint32_t old = atomic_fetch_and(&ves[slot].flags, ~VE_VALID);
 	ves[slot].id = target;
 	ves[slot].res0 = 0;

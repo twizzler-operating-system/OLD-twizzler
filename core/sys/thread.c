@@ -133,7 +133,7 @@ long syscall_thrd_ctl(int op, long arg)
 	return ret;
 }
 
-static long __syscall_become_return(long a0, long a1)
+static long __syscall_become_return(long a0)
 {
 	struct list *entry = list_pop(&current_thread->become_stack);
 	if(!entry) {
@@ -156,7 +156,7 @@ static long __syscall_become_return(long a0, long a1)
 long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 {
 	if(_ba == NULL) {
-		return __syscall_become_return(a0, a1);
+		return __syscall_become_return(a0);
 	}
 	if(!verify_user_pointer(_ba, sizeof(*_ba)))
 		return -EINVAL;
@@ -166,6 +166,7 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 	oldframe->view = NULL;
 	struct object *target_view = NULL;
 	if(ba.target_view) {
+		//	printk("become: switch to " IDFMT "\n", IDPR(ba.target_view));
 		target_view = obj_lookup(ba.target_view, 0);
 		if(!target_view) {
 			kfree(oldframe);
@@ -178,16 +179,17 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 
 		arch_mm_switch_context(current_thread->ctx);
 	}
-	arch_thread_become(&ba, oldframe);
+	arch_thread_become(&ba, oldframe, a1 & SYS_BECOME_INPLACE);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
 
 	/* TODO: call check_fault directly, use IP target */
 	int r;
+	/* TODO (sec): use current IP if INPLACE. */
 	if((r = obj_check_permission_ip(target_view, SCP_USE, ba.target_rip))) {
 		if(target_view) {
 			obj_put(target_view);
 		}
-		__syscall_become_return(0, 0);
+		__syscall_become_return(0);
 		return r;
 	}
 

@@ -20,11 +20,11 @@ struct iovec {
 
 static ssize_t __do_write(twzobj *o, size_t off, void *base, size_t len, int flags)
 {
+	// twix_log("__do_write %ld %ld\n", off, len);
 	/* TODO: more general cases */
 	ssize_t r = twzio_write(o, base, len, off, (flags & DW_NONBLOCK) ? TWZIO_NONBLOCK : 0);
 	// ssize_t r = bstream_write(o, base, len, 0);
 	if(r == -ENOTSUP) {
-		// twix_log("__do_write %ld %ld\n", off, len);
 		/* TODO: bounds check */
 		memcpy((char *)twz_object_base(o) + off, base, len);
 		_clwb_len((char *)twz_object_base(o) + off, len);

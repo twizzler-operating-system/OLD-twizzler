@@ -43,7 +43,9 @@ void arch_thread_become_restore(struct thread_become_frame *frame)
 	current_thread->arch.gs = frame->frame.gs;
 }
 
-void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_become_frame *frame)
+void arch_thread_become(struct arch_syscall_become_args *ba,
+  struct thread_become_frame *frame,
+  bool noupdate)
 {
 	if(current_thread->arch.was_syscall) {
 		if(frame) {
@@ -67,6 +69,9 @@ void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_becom
 			frame->frame.gs = current_thread->arch.gs;
 		}
 
+		if(noupdate)
+			return;
+
 		current_thread->arch.syscall.rax = ba->rax;
 		current_thread->arch.syscall.rbx = ba->rbx;
 		/* note: rcx holds return RIP, so don't set it */
@@ -89,6 +94,8 @@ void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_becom
 		if(frame) {
 			panic("NI - frame backup for become due to exception");
 		}
+		if(noupdate)
+			return;
 		current_thread->arch.exception.rax = ba->rax;
 		current_thread->arch.exception.rbx = ba->rbx;
 		current_thread->arch.exception.rcx = ba->rcx;

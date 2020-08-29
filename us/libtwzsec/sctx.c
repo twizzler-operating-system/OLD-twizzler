@@ -1,15 +1,21 @@
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <twz/alloc.h>
 #include <twz/debug.h>
 #include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/security.h>
+#include <twz/view.h>
 
 extern int main();
 
+void *__twz_secapi_nextstack = NULL;
+
 void twz_secure_api_create(twzobj *obj, const char *name)
 {
+	objid_t id;
+	__twz_secapi_nextstack = (char *)malloc(0x2000) + 0x2000;
 	struct secure_api_header *hdr = twz_object_base(obj);
 
 	twzobj pub, pri, context;
@@ -34,9 +40,6 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	twz_view_object_init(&orig_view);
 
 	twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE);
-	debug_printf("cloned view " IDFMT " -> " IDFMT "\n",
-	  IDPR(twz_object_guid(&orig_view)),
-	  IDPR(twz_object_guid(&new_view)));
 
 	struct sccap *cap;
 	twz_cap_create(&cap,
@@ -54,6 +57,7 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 
 	twz_sctx_set_gmask(&context, SCP_EXEC);
 
+	/* TODO: get these in a better way */
 	twzobj exec = twz_object_from_ptr(main);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
@@ -71,6 +75,21 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	// twz_view_object_init(&view);
 	hdr->view = twz_object_guid(&new_view);
 	hdr->sctx = twz_object_guid(&context);
+	if(sys_attach(0, hdr->sctx, 0, KSO_SECCTX)) {
+		abort();
+		/* TODO: abort */
+	}
+
+	twz_view_set(&new_view, TWZSLOT_CVIEW, twz_object_guid(&new_view), VE_READ | VE_WRITE);
+
+	struct sys_become_args ba = {
+		.target_view = hdr->view,
+	};
+	if(sys_become(&ba, 0, SYS_BECOME_INPLACE)) {
+		abort();
+	}
+	twzobj __v;
+	twz_object_init_guid(&__v, hdr->view, FE_READ | FE_WRITE);
 }
 
 #define align_up(x, a) ({ ((x) + (a)-1) & ~(a - 1); })

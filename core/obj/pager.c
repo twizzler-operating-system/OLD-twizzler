@@ -23,6 +23,8 @@ struct pager_request {
 	struct objpage *objpage;
 	struct thread *thread;
 	struct list entry;
+	void *addr;
+	void *ip;
 };
 
 static struct rbroot root;
@@ -182,7 +184,7 @@ static void __complete_object(struct pager_request *pr, struct queue_entry_pager
 		}
 	} else {
 		struct fault_object_info info =
-		  twz_fault_build_object_info(pr->pqe.id, NULL /* TODO */, NULL, FAULT_OBJECT_EXIST);
+		  twz_fault_build_object_info(pr->pqe.id, pr->ip, NULL, FAULT_OBJECT_EXIST);
 		thread_queue_fault(pr->thread, FAULT_OBJECT, &info, sizeof(info));
 	}
 
@@ -330,6 +332,10 @@ static int __kernel_queue_pager_request_page(struct object *obj, size_t pg, bool
 
 	pr->pqe.id = obj->id;
 	pr->pqe.page = pg;
+
+	/* TODO: verify that we can always do this */
+	pr->ip = (void *)arch_thread_instruction_pointer();
+
 	pr->pqe.reqthread = current_thread->thrid;
 	pr->pqe.cmd = PAGER_CMD_OBJECT_PAGE;
 	pr->pqe.result = 0;

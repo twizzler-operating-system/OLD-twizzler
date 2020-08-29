@@ -5,6 +5,10 @@
 
 #include <twz/_types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct event;
 struct twzio_hdr {
 	ssize_t (*read)(twzobj *, void *, size_t len, size_t off, unsigned flags);
@@ -25,3 +29,7 @@ ssize_t twzio_ioctl(twzobj *obj, int req, ...);
 int twzio_poll(twzobj *, uint64_t, struct event *);
 
 #define TWZIO_NONBLOCK 1
+
+#ifdef __cplusplus
+}
+#endif

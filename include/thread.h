@@ -81,7 +81,7 @@ struct thread {
 };
 
 struct arch_syscall_become_args;
-void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_become_frame *);
+void arch_thread_become(struct arch_syscall_become_args *ba, struct thread_become_frame *, bool);
 void arch_thread_become_restore(struct thread_become_frame *frame);
 void thread_sleep(struct thread *t, int flags);
 void thread_wake(struct thread *t);

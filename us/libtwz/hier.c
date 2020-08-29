@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <twz/debug.h>
 #include <twz/hier.h>
 #include <twz/obj.h>
 

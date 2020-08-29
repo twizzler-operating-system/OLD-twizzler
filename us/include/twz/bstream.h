@@ -2,17 +2,25 @@
 
 #include <twz/__twz.h>
 
+#include <stddef.h>
 #include <stdint.h>
 #include <twz/event.h>
 #include <twz/io.h>
 #include <twz/mutex.h>
+#ifdef __cplusplus
+#include <atomic>
+using std::atomic_uint_least32_t;
+extern "C" {
+#else /* not __cplusplus */
+#include <stdatomic.h>
+#endif /* __cplusplus */
 
 struct bstream_hdr {
 	// struct mutex rlock, wlock;
 	struct mutex lock;
 	uint32_t flags;
-	_Atomic uint32_t head;
-	_Atomic uint32_t tail;
+	atomic_uint_least32_t head;
+	atomic_uint_least32_t tail;
 	uint32_t nbits;
 	struct evhdr ev;
 	struct twzio_hdr io;
@@ -48,3 +56,7 @@ int bstream_poll(twzobj *obj, uint64_t type, struct event *event);
 int bstream_hdr_poll(twzobj *obj, struct bstream_hdr *hdr, uint64_t type, struct event *event);
 
 __must_check int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits);
+
+#ifdef __cplusplus
+}
+#endif

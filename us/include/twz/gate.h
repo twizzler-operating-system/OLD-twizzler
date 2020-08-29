@@ -33,12 +33,17 @@ __asm__(".section .gates, \"ax\", @progbits\n"
 */
 
 extern void libtwz_gate_return(long);
+extern void *__twz_secapi_nextstack;
 #define __TWZ_GATE_SHARED(fn, g)                                                                   \
 	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
 	        ".global __twz_gate_" #fn "\n"                                                         \
 	        ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
 	        ".org " #g "*32, 0x90\n"                                                               \
 	        "__twz_gate_" #fn ":\n"                                                                \
+	        "mov $0, %rsp\n"                                                                       \
+	        "lock xchgq __twz_secapi_nextstack, %rsp;"                                             \
+	        "test %rsp, %rsp;\n"                                                                   \
+	        "jz __twz_gate_" #fn "\n"                                                              \
 	        "movabs $" #fn ", %rax\n"                                                              \
 	        "call *%rax\n"                                                                         \
 	        "movq %rax, %rdi\n"                                                                    \
@@ -96,6 +101,23 @@ static inline void *twz_secure_api_alloc_stackarg(size_t size, size_t *ctx)
 			.target_view = hdr->view,                                                              \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rdi = (long)arg,                                                                      \
+			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+		};                                                                                         \
+		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
+		if(r == 0)                                                                                 \
+			r = sys_become(&args, 0, 0);                                                           \
+		r;                                                                                         \
+	})
+
+#define twz_secure_api_call3(hdr, gate, arg1, arg2, arg3)                                          \
+	({                                                                                             \
+		twz_secure_api_setup_tmp_stack();                                                          \
+		struct sys_become_args args = {                                                            \
+			.target_view = hdr->view,                                                              \
+			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
+			.rdx = (long)arg3,                                                                     \
+			.rdi = (long)arg1,                                                                     \
+			.rsi = (long)arg2,                                                                     \
 			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
 		};                                                                                         \
 		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \

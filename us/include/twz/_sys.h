@@ -76,6 +76,8 @@ struct sys_thread_sync_args {
 	uint32_t flags;
 };
 
+#define SYS_BECOME_INPLACE 1
+
 /* TODO: arch-dep */
 struct sys_become_args {
 	objid_t target_view;
