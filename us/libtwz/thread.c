@@ -81,10 +81,6 @@ int twz_thread_create(struct thread *thrd)
 	//	newrepr->faults[i] = currepr->faults[i];
 	//}
 
-	newrepr->fixed_points[TWZSLOT_THRD] = (struct viewentry){
-		.id = thrd->tid,
-		.flags = VE_READ | VE_WRITE | VE_VALID,
-	};
 	return 0;
 
 error:
@@ -137,10 +133,6 @@ int twz_thread_spawn(struct thread *thrd, struct thrd_spawn_args *args)
 			libtwz_panic("failed to delete stack object during thread spawn");
 		}
 
-		newrepr->fixed_points[TWZSLOT_STACK] = (struct viewentry){
-			.id = twz_object_guid(&stack),
-			.flags = VE_READ | VE_WRITE | VE_VALID,
-		};
 		sa.stack_base = (char *)SLOT_TO_VADDR(TWZSLOT_STACK) + OBJ_NULLPAGE_SIZE;
 		sa.stack_size = TWZ_THREAD_STACK_SIZE;
 		sa.tls_base =
@@ -153,11 +145,6 @@ int twz_thread_spawn(struct thread *thrd, struct thrd_spawn_args *args)
 			twz_thread_release(thrd);
 			return r;
 		}
-	} else {
-		newrepr->fixed_points[TWZSLOT_STACK] = (struct viewentry){
-			.id = currepr->fixed_points[TWZSLOT_STACK].id,
-			.flags = VE_READ | VE_WRITE | VE_VALID,
-		};
 	}
 
 	if((r = sys_thrd_spawn(thrd->tid, &sa, 0, &thrd->ctrlid) < 0)) {

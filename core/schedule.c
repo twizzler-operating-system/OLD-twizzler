@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <kalloc.h>
 #include <lib/iter.h>
+#include <limits.h>
 #include <object.h>
 #include <page.h>
 #include <pager.h>
@@ -210,6 +211,13 @@ void thread_sleep(struct thread *t, int flags)
 		t->processor->stats.running--;
 	}
 	spinlock_release_restore(&t->processor->sched_lock);
+
+	struct object *obj = kso_get_obj(t->throbj, thr);
+	obj_write_data_atomic64(
+	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
+	thread_wake_object(
+	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE, INT_MAX);
+	obj_put(obj);
 }
 
 void thread_wake(struct thread *t)
@@ -217,6 +225,14 @@ void thread_wake(struct thread *t)
 	spinlock_acquire_save(&t->processor->sched_lock);
 	int old = atomic_exchange(&t->state, THREADSTATE_RUNNING);
 	if(old == THREADSTATE_BLOCKED) {
+		struct object *obj = kso_get_obj(t->throbj, thr);
+		obj_write_data_atomic64(
+		  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
+		thread_wake_object(obj,
+		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
+		  INT_MAX);
+		obj_put(obj);
+
 		list_insert(&t->processor->runqueue, &t->rq_entry);
 		t->processor->stats.running++;
 		t->processor->flags |= PROCESSOR_HASWORK;
@@ -284,6 +300,9 @@ void thread_exit(void)
 	}
 
 	struct object *obj = kso_get_obj(current_thread->throbj, thr);
+	obj_write_data_atomic64(obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);
+	thread_wake_object(
+	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE, INT_MAX);
 	obj_free_kaddr(obj);
 	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
 	obj_put(obj);

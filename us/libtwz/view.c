@@ -98,7 +98,7 @@ void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags)
 	if(obj) {
 		ves = &(((struct twzview_repr *)twz_object_base(obj))->ves[slot]);
 	} else {
-		struct twzthread_repr *tr = twz_thread_repr_base();
+		struct twzthread_ctrl_repr *tr = twz_thread_ctrl_repr_base();
 		ves = &tr->fixed_points[slot];
 		extra_flags |= VE_FIXED;
 		if(!(ves->flags & VE_VALID)) {
