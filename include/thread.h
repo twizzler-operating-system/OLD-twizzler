@@ -78,6 +78,7 @@ struct thread {
 	struct timer sleep_timer;
 
 	struct list become_stack;
+	struct object *thrctrl;
 };
 
 struct arch_syscall_become_args;

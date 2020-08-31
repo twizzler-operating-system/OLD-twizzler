@@ -7,14 +7,20 @@
 #include <thread.h>
 
 #include <twz/_sctx.h>
+#include <twz/_slots.h>
 #include <twz/_thrd.h>
+#include <twz/_view.h>
 
 long syscall_thread_spawn(uint64_t tidlo,
   uint64_t tidhi,
   struct sys_thrd_spawn_args *tsa,
-  int flags)
+  int flags,
+  objid_t *tctrl)
 {
 	if(current_thread && !verify_user_pointer(tsa, sizeof(*tsa))) {
+		return -EINVAL;
+	}
+	if(current_thread && (!verify_user_pointer(tctrl, sizeof(objid_t)) && tctrl != NULL)) {
 		return -EINVAL;
 	}
 	void *start = tsa->start_func;
@@ -46,6 +52,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 		obj_put(repr);
 		return -EINVAL;
 	}
+
 	if(repr->kso_type == KSO_NONE) {
 		obj_kso_init(repr, KSO_THREAD);
 	}
@@ -77,6 +84,26 @@ long syscall_thread_spawn(uint64_t tidlo,
 	vm_setview(t, view);
 
 	obj_put(view);
+
+	objid_t ctrlid;
+	r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &ctrlid);
+	assert(r == 0); // TODO
+
+	t->thrctrl = obj_lookup(ctrlid, 0);
+
+	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
+	ctrl_repr->reprid = tid;
+	ctrl_repr->ctrl_reprid = ctrlid;
+	ctrl_repr->fixed_points[TWZSLOT_TCTRL] = (struct viewentry){
+		.id = ctrlid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+	ctrl_repr->fixed_points[TWZSLOT_THRD] = (struct viewentry){
+		.id = tid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+
+	t->thrctrl->flags |= OF_DELETE;
 
 	t->kso_attachment_num = kso_root_attach(repr, 0, KSO_THREAD);
 

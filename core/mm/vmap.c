@@ -170,12 +170,12 @@ static bool lookup_by_slot(size_t slot, objid_t *id, uint64_t *flags)
 		struct object *obj;
 		struct viewentry ve;
 		default:
-			obj = kso_get_obj(current_thread->throbj, thr);
-			obj_read_data(obj,
-			  slot * sizeof(struct viewentry) + sizeof(struct twzthread_repr),
+			// obj = kso_get_obj(current_thread->throbj, thr);
+			obj_read_data(current_thread->thrctrl,
+			  slot * sizeof(struct viewentry) + sizeof(struct twzthread_ctrl_repr),
 			  sizeof(struct viewentry),
 			  &ve);
-			obj_put(obj);
+			//		obj_put(obj);
 			if(ve.res0 == 0 && ve.res1 == 0 && ve.flags & VE_VALID) {
 				//			printk("Slot %lx is fixed-point " IDFMT " %x\n", slot, IDPR(ve.id),
 				// ve.flags);

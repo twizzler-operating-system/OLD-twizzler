@@ -356,11 +356,13 @@ int twz_fault_set(int fault, void (*fn)(int, void *, void *), void *userdata)
 {
 	_fault_table[fault].fn = fn;
 	_fault_table[fault].userdata = userdata;
+	/*
 	struct twzthread_repr *repr = twz_thread_repr_base();
 
 	repr->faults[fault] = (struct faultinfo){
-		.addr = fn ? (void *)__twz_fault_entry : NULL,
+	    .addr = fn ? (void *)__twz_fault_entry : NULL,
 	};
+	*/
 	return 0;
 }
 

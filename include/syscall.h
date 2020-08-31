@@ -9,7 +9,8 @@
 long syscall_thread_spawn(uint64_t tidlo,
   uint64_t tidhi,
   struct sys_thrd_spawn_args *tsa,
-  int flags);
+  int flags,
+  objid_t *);
 
 long syscall_become(struct arch_syscall_become_args *ba, long, long);
 long syscall_epilogue(int num);

@@ -25,7 +25,13 @@ struct twzthread_repr {
 	objid_t reprid;
 	atomic_uint_least64_t syncs[THRD_SYNCPOINTS];
 	uint64_t syncinfos[THRD_SYNCPOINTS];
-	struct faultinfo faults[NUM_FAULTS];
+	// struct faultinfo faults[NUM_FAULTS];
 	struct kso_attachment attached[TWZ_THRD_MAX_SCS];
+	struct viewentry fixed_points[];
+};
+
+struct twzthread_ctrl_repr {
+	struct kso_hdr hdr;
+	objid_t reprid, ctrl_reprid;
 	struct viewentry fixed_points[];
 };

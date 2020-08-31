@@ -60,8 +60,8 @@ void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 		libtwz_panic("slot number too large: %ld", slot);
 	}
 	flags &= ~VE_FIXED;
-	struct viewentry *ves = obj ? ((struct twzthread_repr *)twz_object_base(obj))->fixed_points
-	                            : (struct viewentry *)twz_thread_repr_base()->fixed_points;
+	struct viewentry *ves = obj ? ((struct twzthread_ctrl_repr *)twz_object_base(obj))->fixed_points
+	                            : (struct viewentry *)twz_thread_ctrl_repr_base()->fixed_points;
 	uint32_t old = atomic_fetch_and(&ves[slot].flags, ~VE_VALID);
 	ves[slot].id = target;
 	ves[slot].res0 = 0;

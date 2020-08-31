@@ -288,6 +288,8 @@ void thread_exit(void)
 	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
 	obj_put(obj);
 
+	obj_put(current_thread->thrctrl);
+
 	workqueue_insert(
 	  &current_processor->wq, &current_thread->free_task, __thread_finish_cleanup, current_thread);
 }
@@ -407,7 +409,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	}
 	void *handler;
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
-	__print_fault_info(t, fault, info);
+	//__print_fault_info(t, fault, info);
 	if(handler) {
 		obj_put(to);
 		if(__failed_addr(fault, info) == handler) {

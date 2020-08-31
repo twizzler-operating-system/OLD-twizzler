@@ -13,6 +13,17 @@
 
 void *__copy_tls(char *);
 
+void twz_thread_set_name(const char *name)
+{
+	kso_set_name(NULL, name);
+}
+
+struct twzthread_ctrl_repr *twz_thread_ctrl_repr_base(void)
+{
+	return (
+	  struct twzthread_ctrl_repr *)((char *)(TWZSLOT_TCTRL * OBJ_MAXSIZE) + OBJ_NULLPAGE_SIZE);
+}
+
 struct twzthread_repr *twz_thread_repr_base(void)
 {
 	uint64_t a;
@@ -66,9 +77,9 @@ int twz_thread_create(struct thread *thrd)
 	struct twzthread_repr *newrepr = twz_object_base(&thrd->obj);
 
 	newrepr->reprid = thrd->tid = twz_object_guid(&thrd->obj);
-	for(size_t i = 0; i < NUM_FAULTS; i++) {
-		newrepr->faults[i] = currepr->faults[i];
-	}
+	// for(size_t i = 0; i < NUM_FAULTS; i++) {
+	//	newrepr->faults[i] = currepr->faults[i];
+	//}
 
 	newrepr->fixed_points[TWZSLOT_THRD] = (struct viewentry){
 		.id = thrd->tid,
@@ -149,7 +160,7 @@ int twz_thread_spawn(struct thread *thrd, struct thrd_spawn_args *args)
 		};
 	}
 
-	if((r = sys_thrd_spawn(thrd->tid, &sa, 0) < 0)) {
+	if((r = sys_thrd_spawn(thrd->tid, &sa, 0, &thrd->ctrlid) < 0)) {
 		twz_thread_release(thrd);
 	}
 

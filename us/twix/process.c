@@ -164,13 +164,9 @@ static int __internal_do_exec(twzobj *view,
 	vector[v++] = 0;
 
 	/* TODO: we should really do this in assembly */
-	struct twzthread_repr *repr = twz_thread_repr_base();
-	repr->fixed_points[TWZSLOT_STACK] = (struct viewentry){
-		.id = sid,
-		.flags = VE_READ | VE_WRITE | VE_VALID,
-	};
+	twz_view_set(view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
 
-	memset(repr->faults, 0, sizeof(repr->faults));
+	// memset(repr->faults, 0, sizeof(repr->faults));
 	objid_t vid = twz_object_guid(view);
 
 	/* TODO: copy-in everything for the vector */
@@ -817,7 +813,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	if(twz_object_tie(&pds[pid].thrd.obj, &stack, 0) < 0)
 		abort();
 	sid = twz_object_guid(&stack);
-	twz_view_fixedset(&pds[pid].thrd.obj, TWZSLOT_STACK, sid, VE_READ | VE_WRITE | VE_FIXED);
+	twz_view_set(&view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
 	// twz_object_wire_guid(&view, sid);
 
 	// twix_log("FORK view = " IDFMT ", stack = " IDFMT "\n",
@@ -862,8 +858,9 @@ long linux_sys_fork(struct twix_register_frame *frame)
 			return r;
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED)
-			twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
+		if(flags & VE_FIXED) {
+		}
+		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
 		else
 			twz_view_set(&view, i, nid, flags);
 		if(twz_object_wire_guid(&view, nid) < 0)
@@ -895,8 +892,9 @@ long linux_sys_fork(struct twix_register_frame *frame)
 			return r;
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED)
-			twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
+		if(flags & VE_FIXED) {
+		}
+		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
 		else
 			twz_view_set(&view, i, nid, flags);
 		if(twz_object_wire_guid(&view, nid) < 0)
@@ -927,7 +925,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	};
 
 	//	debug_printf("== spawning\n");
-	if((r = sys_thrd_spawn(pds[pid].thrd.tid, &sa, 0))) {
+	if((r = sys_thrd_spawn(pds[pid].thrd.tid, &sa, 0, NULL))) {
 		return r;
 	}
 

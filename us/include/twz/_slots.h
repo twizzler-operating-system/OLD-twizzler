@@ -3,6 +3,7 @@
 #include <twz/_obj.h>
 
 #define TWZSLOT_CVIEW 0x1fff0ul
+#define TWZSLOT_TCTRL 0x1fff1ul
 #define TWZSLOT_MAX_SLOT 0x1fffful
 
 #define TWZSLOT_THRD 0x10000

@@ -98,9 +98,10 @@ __must_check static inline long sys_thread_sync(size_t count,
 
 __must_check static inline long sys_thrd_spawn(objid_t tid,
   struct sys_thrd_spawn_args *tsa,
-  int flags)
+  int flags,
+  objid_t *tctrl)
 {
-	return __syscall6(SYS_THRD_SPAWN, ID_LO(tid), ID_HI(tid), (long)tsa, flags, 0, 0);
+	return __syscall6(SYS_THRD_SPAWN, ID_LO(tid), ID_HI(tid), (long)tsa, flags, (long)tctrl, 0);
 }
 
 __must_check static inline long sys_become(struct sys_become_args *ba, long arg0, long arg1)

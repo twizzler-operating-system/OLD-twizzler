@@ -7,6 +7,7 @@
 #include <twz/io.h>
 #include <twz/name.h>
 #include <twz/security.h>
+#include <twz/thread.h>
 #include <unistd.h>
 
 #include <twz/debug.h>
@@ -19,12 +20,15 @@ struct client {
 	twzobj obj;
 	int flags;
 	std::thread *thread;
+	size_t id;
 };
 
+std::atomic<size_t> next_client_id(0);
 std::vector<client *> clients;
 
 void client_loop(client *client)
 {
+	twz_thread_set_name("log-client");
 	printf("logboi started client :: " IDFMT "\n", IDPR(twz_object_guid(&client->obj)));
 
 	char buf[1024];
@@ -47,7 +51,7 @@ DECLARE_SAPI_ENTRY(open_connection,
   int flags,
   objid_t *arg)
 {
-	printf("Hello from logboi open: %p: %s\n", arg, name);
+	// printf("Hello from logboi open: %p: %s\n", arg, name);
 	struct client *client = (struct client *)malloc(sizeof(struct client));
 	twz_object_new(&client->obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	struct bstream_hdr *hdr = (struct bstream_hdr *)twz_object_base(&client->obj);
@@ -56,6 +60,7 @@ DECLARE_SAPI_ENTRY(open_connection,
 	client->flags = flags;
 	*arg = twz_object_guid(&client->obj);
 	client->thread = new std::thread(client_loop, client);
+	client->id = ++next_client_id;
 	clients.push_back(client);
 	return 0;
 }

@@ -304,6 +304,7 @@ void kernel_main(struct processor *proc)
 		};
 
 		kso_view_write(bv, 0, &v_i);
+		kso_view_write(bv, TWZSLOT_STACK, &v_s);
 
 		char *init_argv0 = "___init";
 		obj_write_data(bstck, off, strlen(init_argv0) + 1, init_argv0);
@@ -329,17 +330,13 @@ void kernel_main(struct processor *proc)
 
 		// obj_write_data(bthr, off + tmp, sizeof(char *) * 4, argv);
 
-		obj_write_data(bthr,
-		  sizeof(struct twzthread_repr)
+		/*
+		obj_write_data(bv,
+		  __VE_OFFSET
 		    + ((uintptr_t)thrd_obj / mm_page_size(MAX_PGLEVEL)) * sizeof(struct viewentry),
 		  sizeof(struct viewentry),
 		  &v_t);
-
-		obj_write_data(bthr,
-		  sizeof(struct twzthread_repr)
-		    + ((uintptr_t)stck_obj / mm_page_size(MAX_PGLEVEL)) * sizeof(struct viewentry),
-		  sizeof(struct viewentry),
-		  &v_s);
+		  */
 
 		struct sys_thrd_spawn_args tsa = {
 			.start_func = (void *)elf.e_entry,
@@ -356,7 +353,7 @@ void kernel_main(struct processor *proc)
 				(long)tsa.tls_base, (long)tsa.arg);
 #endif
 		printk("[kernel] spawning init thread\n");
-		r = syscall_thread_spawn(ID_LO(bthrid), ID_HI(bthrid), &tsa, 0);
+		r = syscall_thread_spawn(ID_LO(bthrid), ID_HI(bthrid), &tsa, 0, NULL);
 		if(r < 0) {
 			panic("thread_spawn: %d\n", r);
 		}

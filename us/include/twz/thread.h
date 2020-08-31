@@ -18,7 +18,7 @@ extern "C" {
 
 #define TWZ_THREAD_STACK_SIZE 0x200000
 struct thread {
-	objid_t tid;
+	objid_t tid, ctrlid;
 	twzobj obj;
 };
 
@@ -32,6 +32,7 @@ struct thrd_spawn_args {
 };
 
 __attribute__((non_null, const)) struct twzthread_repr *twz_thread_repr_base(void);
+__attribute__((non_null, const)) struct twzthread_ctrl_repr *twz_thread_ctrl_repr_base(void);
 __attribute__((non_null, const)) twzobj *__twz_get_stdstack_obj(void);
 #define twz_stdstack ({ __twz_get_stdstack_obj(); })
 
@@ -68,6 +69,8 @@ int twz_thread_sync32(int op, atomic_uint_least32_t *addr, uint32_t val, struct 
 __must_check int twz_thread_sync_multiple(size_t count,
   struct sys_thread_sync_args *,
   struct timespec *);
+
+void twz_thread_set_name(const char *name);
 
 #ifndef __KERNEL__
 void twz_thread_cword_wake(atomic_uint_least64_t *w, uint64_t val);
