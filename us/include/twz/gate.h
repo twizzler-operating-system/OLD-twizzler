@@ -82,6 +82,12 @@ struct secure_api_header {
 	objid_t view;
 };
 
+struct secure_api {
+	struct secure_api_header *hdr;
+	twzobj obj;
+	const char *name;
+};
+
 void twz_secure_api_setup_tmp_stack(void);
 static inline void *twz_secure_api_alloc_stackarg(size_t size, size_t *ctx)
 {
@@ -92,6 +98,27 @@ static inline void *twz_secure_api_alloc_stackarg(size_t size, size_t *ctx)
 	}
 	*ctx -= size;
 	return (void *)((TWZSLOT_TMPSTACK * OBJ_MAXSIZE) + *ctx);
+}
+
+static inline int twz_secure_api_open_name(const char *name, struct secure_api *api)
+{
+	api->hdr = NULL;
+	int r = twz_object_init_name(&api->obj, name, FE_READ);
+	if(r) {
+		return r;
+	}
+	api->hdr = (struct secure_api_header *)twz_object_base(&api->obj);
+	api->name = strdup(name);
+	return 0;
+}
+
+static inline void twz_secure_api_close(struct secure_api *api)
+{
+	if(api->hdr) {
+		free((void *)api->name);
+		twz_object_release(&api->obj);
+		api->hdr = NULL;
+	}
 }
 
 #define twz_secure_api_call1(hdr, gate, arg)                                                       \
