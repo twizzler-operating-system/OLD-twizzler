@@ -5,11 +5,12 @@
 #include <logboi/logboi.h>
 
 #include <twz/io.h>
+#include <twz/thread.h>
 
 int main()
 {
 	twzobj api_obj;
-	int r = twz_object_init_name(&api_obj, "/lb", FE_READ);
+	int r = twz_object_init_name(&api_obj, "/dev/logboi", FE_READ);
 	if(r)
 		abort();
 
@@ -19,8 +20,12 @@ int main()
 	r = logboi_open_connection(hdr, "test-program", 0, &id);
 	printf("::: %d : " IDFMT "\n", r, IDPR(id));
 
+	printf("logtest thr id : " IDFMT "\n", IDPR(twz_thread_repr_base()->reprid));
 	twzobj logbuf;
 	twz_object_init_guid(&logbuf, id, FE_READ | FE_WRITE);
 	ssize_t rr = twzio_write(&logbuf, "logging test!\n", 14, 0, 0);
 	printf("wrote stuff: %ld\n", rr);
+	sleep(1);
+	rr = twzio_write(&logbuf, "another logging test!\n", 22, 0, 0);
+	// sleep(1);
 }

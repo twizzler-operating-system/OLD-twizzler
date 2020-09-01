@@ -28,7 +28,7 @@ ssize_t bstream_hdr_read(twzobj *obj,
 	unsigned char *data = ptr;
 	while(count < len) {
 		if(hdr->head == hdr->tail) {
-			if(count == 0) {
+			if(count == 0 && !(flags & TWZIO_NONBLOCK)) {
 				if(event_clear(&hdr->ev, TWZIO_EVENT_READ)) {
 					continue;
 				}
@@ -52,7 +52,7 @@ ssize_t bstream_hdr_read(twzobj *obj,
 
 	event_wake(&hdr->ev, TWZIO_EVENT_WRITE, -1);
 	mutex_release(&hdr->lock);
-	return count;
+	return (count == 0 && (flags & TWZIO_NONBLOCK)) ? -EAGAIN : (ssize_t)count;
 }
 
 ssize_t bstream_hdr_write(twzobj *obj,
@@ -69,7 +69,7 @@ ssize_t bstream_hdr_write(twzobj *obj,
 	const unsigned char *data = ptr;
 	while(count < len) {
 		if(free_space(hdr->head, hdr->tail, 1 << hdr->nbits) <= 1) {
-			if(count == 0) {
+			if(count == 0 && !(flags & TWZIO_NONBLOCK)) {
 				if(event_clear(&hdr->ev, TWZIO_EVENT_WRITE)) {
 					continue;
 				}
@@ -92,7 +92,7 @@ ssize_t bstream_hdr_write(twzobj *obj,
 
 	event_wake(&hdr->ev, TWZIO_EVENT_READ, -1);
 	mutex_release(&hdr->lock);
-	return count;
+	return (count == 0 && (flags & TWZIO_NONBLOCK)) ? -EAGAIN : (ssize_t)count;
 }
 
 int bstream_hdr_poll(twzobj *obj, struct bstream_hdr *hdr, uint64_t type, struct event *event)
@@ -122,6 +122,16 @@ int bstream_poll(twzobj *obj, uint64_t type, struct event *event)
 	return bstream_hdr_poll(obj, twz_object_base(obj), type, event);
 }
 
+ssize_t bstream_ioread(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags)
+{
+	return bstream_hdr_read(obj, twz_object_base(obj), ptr, len, flags);
+}
+
+ssize_t bstream_iowrite(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags)
+{
+	return bstream_hdr_write(obj, twz_object_base(obj), ptr, len, flags);
+}
+
 ssize_t bstream_read(twzobj *obj, void *ptr, size_t len, unsigned flags)
 {
 	return bstream_hdr_read(obj, twz_object_base(obj), ptr, len, flags);
@@ -145,7 +155,7 @@ int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits)
 	event_obj_init(obj, &hdr->ev);
 
 	struct fotentry fe;
-	strcpy(hdr->coname1, "/usr/lib/libtwz.so::bstream_read");
+	strcpy(hdr->coname1, "/usr/lib/libtwz.so::bstream_ioread");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname1),
 	  TWZ_NAME_RESOLVER_SOFN,
@@ -154,7 +164,7 @@ int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits)
 		goto cleanup;
 	}
 
-	strcpy(hdr->coname2, "/usr/lib/libtwz.so::bstream_write");
+	strcpy(hdr->coname2, "/usr/lib/libtwz.so::bstream_iowrite");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname2),
 	  TWZ_NAME_RESOLVER_SOFN,

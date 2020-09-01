@@ -12,35 +12,74 @@
 
 #include <twz/debug.h>
 
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 #include <vector>
 
 struct client {
 	const char *name;
-	twzobj obj;
+	twzobj obj, thrdobj;
 	int flags;
 	std::thread *thread;
 	size_t id;
 };
 
 std::atomic<size_t> next_client_id(0);
-std::vector<client *> clients;
+
+std::mutex m;
+std::condition_variable cv;
+std::vector<client *> clients_to_cleanup;
+
+static bool drain_log(client *client)
+{
+	char buf[1024];
+	ssize_t r;
+	while((r = twzio_read(&client->obj, buf, sizeof(buf) - 2, 0, TWZIO_NONBLOCK)) > 0) {
+		if(buf[r - 1] != '\n') {
+			buf[r++] = '\n';
+		}
+		buf[r] = 0;
+		printf("[%s]: %s", client->name, buf);
+	}
+	if(r == -EAGAIN) {
+		r = 0;
+	}
+	if(r < 0) {
+		fprintf(stdout, "[logboi] error reading log for %s: %ld\n", client->name, r);
+	}
+	return r >= 0;
+}
 
 void client_loop(client *client)
 {
-	twz_thread_set_name("log-client");
-	printf("logboi started client :: " IDFMT "\n", IDPR(twz_object_guid(&client->obj)));
+	char *name = NULL;
+	asprintf(&name, "logboi-client: %s", client->name);
+	twz_thread_set_name(name);
+	free(name);
 
-	char buf[1024];
+	struct twzthread_repr *repr = (struct twzthread_repr *)twz_object_base(&client->thrdobj);
 	for(;;) {
-		ssize_t r = twzio_read(&client->obj, buf, sizeof(buf), 0, 0);
-		if(r < 0) {
-			fprintf(stdout, "[logboi] error reading %ld\n", r);
+		struct event ev[2];
+		if(twzio_poll(&client->obj, TWZIO_EVENT_READ, &ev[0]) == 1) {
+			if(!drain_log(client))
+				break;
 			continue;
 		}
-		buf[r] = 0;
-		printf("logboi log: %ld: %s\n", r, buf);
+
+		event_init_other(&ev[1], &repr->syncs[THRD_SYNC_EXIT], 1);
+		event_wait(2, ev, NULL);
+		if(ev[1].result) {
+			break;
+		}
 	}
+	drain_log(client);
+
+	{
+		std::lock_guard<std::mutex> _lg(m);
+		clients_to_cleanup.push_back(client);
+	}
+	cv.notify_all();
 }
 
 extern "C" {
@@ -61,32 +100,34 @@ DECLARE_SAPI_ENTRY(open_connection,
 	*arg = twz_object_guid(&client->obj);
 	client->thread = new std::thread(client_loop, client);
 	client->id = ++next_client_id;
-	clients.push_back(client);
-	return 0;
+	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
+	twz_object_wire(NULL, &client->thrdobj);
+	return 12345;
 }
-}
-
-void test()
-{
-	while(1)
-		sleep(1);
 }
 
 int main(int argc, char **argv)
 {
-	printf("Hello \n");
-
 	twzobj api_obj;
 	twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	twz_secure_api_create(&api_obj, "test");
 	struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
 
-	// printf("logboi setup: " IDFMT "    " IDFMT "\n", IDPR(sah->view), IDPR(sah->sctx));
-
-	twz_name_assign(twz_object_guid(&api_obj), "/lb");
+	twz_name_assign(twz_object_guid(&api_obj), "/dev/logboi");
 
 	while(1) {
-		sleep(1);
+		std::unique_lock<std::mutex> _lg(m);
+		if(clients_to_cleanup.size() == 0) {
+			cv.wait(_lg);
+		}
+		client *c = clients_to_cleanup.back();
+		if(c) {
+			clients_to_cleanup.pop_back();
+		}
+		c->thread->join();
+		delete c->thread;
+		free((void *)c->name);
+		free(c);
 	}
 
 	return 0;

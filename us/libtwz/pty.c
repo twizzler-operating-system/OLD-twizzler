@@ -51,6 +51,12 @@ ssize_t pty_read_server(twzobj *obj, void *ptr, size_t len, unsigned flags)
 	return bstream_hdr_read(obj, twz_object_lea(obj, hdr->ctos), ptr, len, flags);
 }
 
+ssize_t pty_ioread_server(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags)
+{
+	(void)off;
+	return pty_read_server(obj, ptr, len, flags);
+}
+
 static void postprocess_char(twzobj *obj, struct pty_hdr *hdr, unsigned char c)
 {
 	if(c == '\n' && (hdr->termios.c_oflag & ONLCR)) {
@@ -146,6 +152,37 @@ ssize_t pty_write_server(twzobj *obj, const void *ptr, size_t len, unsigned flag
 	}
 }
 
+ssize_t pty_iowrite_server(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags)
+{
+	(void)off;
+	return pty_write_server(obj, ptr, len, flags);
+}
+
+ssize_t pty_ioread_client(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags)
+{
+	(void)off;
+	struct pty_client_hdr *hdr = twz_object_base(obj);
+	struct pty_hdr *sh = twz_object_lea(obj, hdr->server);
+	twzobj sh_obj = twz_object_from_ptr(sh);
+	return bstream_hdr_read(&sh_obj, twz_object_lea(&sh_obj, sh->stoc), ptr, len, flags);
+}
+
+ssize_t pty_iowrite_client(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags)
+{
+	(void)off;
+	struct pty_client_hdr *hdr = twz_object_base(obj);
+	struct pty_hdr *sh = twz_object_lea(obj, hdr->server);
+	twzobj sh_obj = twz_object_from_ptr(sh);
+	if(sh->termios.c_oflag & OPOST) {
+		for(size_t i = 0; i < len; i++) {
+			postprocess_char(&sh_obj, sh, ((char *)ptr)[i]);
+		}
+		return len;
+	} else {
+		return bstream_hdr_write(&sh_obj, twz_object_lea(&sh_obj, sh->ctos), ptr, len, flags);
+	}
+}
+
 ssize_t pty_read_client(twzobj *obj, void *ptr, size_t len, unsigned flags)
 {
 	struct pty_client_hdr *hdr = twz_object_base(obj);
@@ -226,7 +263,7 @@ int pty_obj_init_server(twzobj *obj, struct pty_hdr *hdr)
 	hdr->bufpos = 0;
 
 	struct fotentry fe;
-	strcpy(hdr->coname1, "/usr/lib/libtwz.so::pty_read_server");
+	strcpy(hdr->coname1, "/usr/lib/libtwz.so::pty_ioread_server");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname1),
 	  TWZ_NAME_RESOLVER_SOFN,
@@ -235,7 +272,7 @@ int pty_obj_init_server(twzobj *obj, struct pty_hdr *hdr)
 		goto cleanup;
 	}
 
-	strcpy(hdr->coname2, "/usr/lib/libtwz.so::pty_write_server");
+	strcpy(hdr->coname2, "/usr/lib/libtwz.so::pty_iowrite_server");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname2),
 	  TWZ_NAME_RESOLVER_SOFN,
@@ -280,7 +317,7 @@ int pty_obj_init_client(twzobj *obj, struct pty_client_hdr *hdr, struct pty_hdr 
 	}
 
 	struct fotentry fe;
-	strcpy(hdr->coname1, "/usr/lib/libtwz.so::pty_read_client");
+	strcpy(hdr->coname1, "/usr/lib/libtwz.so::pty_ioread_client");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname1),
 	  TWZ_NAME_RESOLVER_SOFN,
@@ -289,7 +326,7 @@ int pty_obj_init_client(twzobj *obj, struct pty_client_hdr *hdr, struct pty_hdr 
 		goto cleanup;
 	}
 
-	strcpy(hdr->coname2, "/usr/lib/libtwz.so::pty_write_client");
+	strcpy(hdr->coname2, "/usr/lib/libtwz.so::pty_iowrite_client");
 	twz_fote_init_name(&fe,
 	  twz_ptr_local((void *)hdr->coname2),
 	  TWZ_NAME_RESOLVER_SOFN,

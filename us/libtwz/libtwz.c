@@ -21,13 +21,6 @@ __attribute__((noreturn)) void libtwz_panic(const char *s, ...)
 }
 
 #include <twz/debug.h>
-__attribute__((used, noreturn)) void libtwz_gate_return(long a0)
-{
-	int r = sys_become(NULL, a0, 0);
-	(void)r;
-	abort();
-}
-
 #if __has_include(<backtrace.h>)
 #include <backtrace-supported.h>
 #include <backtrace.h>

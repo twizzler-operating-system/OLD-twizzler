@@ -47,7 +47,7 @@ extern void *__twz_secapi_nextstack;
 	        "movabs $" #fn ", %rax\n"                                                              \
 	        "call *%rax\n"                                                                         \
 	        "movq %rax, %rdi\n"                                                                    \
-	        "jmp libtwz_gate_return\n"                                                             \
+	        "jmp libtwzsec_gate_return\n"                                                          \
 	        "retq\n"                                                                               \
 	        ".balign 32, 0x90\n"                                                                   \
 	        ".previous");

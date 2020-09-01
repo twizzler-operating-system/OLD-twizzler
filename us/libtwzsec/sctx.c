@@ -8,14 +8,32 @@
 #include <twz/security.h>
 #include <twz/view.h>
 
-extern int main();
+#include <twz/sys.h>
 
 void *__twz_secapi_nextstack = NULL;
+void *__twz_secapi_nextstack_backup = NULL;
+
+__asm__(".global libtwzsec_gate_return;\n"
+        "libtwzsec_gate_return:\n"
+        "movabs __twz_secapi_nextstack_backup, %rax\n"
+        "mfence\n"
+        "movabs %rax, __twz_secapi_nextstack\n"
+        "mfence\n"
+        "movq %rdi, %rsi\n"
+        "xorq %rdx, %rdx\n"
+        "xorq %rdi, %rdi\n"
+        "movq $6, %rax\n"
+        "syscall\nud2");
+
+extern int main();
+extern int libtwz_panic();
+extern int libtwzsec_gate_return();
 
 void twz_secure_api_create(twzobj *obj, const char *name)
 {
 	objid_t id;
 	__twz_secapi_nextstack = (char *)malloc(0x2000) + 0x2000;
+	__twz_secapi_nextstack_backup = __twz_secapi_nextstack;
 	struct secure_api_header *hdr = twz_object_base(obj);
 
 	twzobj pub, pri, context;
@@ -61,7 +79,10 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	twzobj exec = twz_object_from_ptr(main);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr(libtwz_gate_return);
+	exec = twz_object_from_ptr(libtwzsec_gate_return);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr(libtwz_panic);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
 	exec = twz_object_from_ptr((void *)0x4000C0069697);
