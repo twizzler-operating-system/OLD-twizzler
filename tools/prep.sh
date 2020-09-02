@@ -31,4 +31,6 @@ $PROJECT. The toolchains will be installed to \`$(pwd)/.tc'. You can change this
 projects/$PROJECT/config.mk. Press enter to continue."
 read
 
+git update-index --assume-unchanged projects/x86_64/config.mk
 sed -i "s|TOOLCHAIN_PATH=.*|TOOLCHAIN_PATH=$(pwd)/.tc|g" projects/$PROJECT/config.mk
+
