@@ -133,3 +133,26 @@ libraries won't carry into already-compiled software. You probably don't need to
 all the time, but if (e.g.) bash stops working after an update, give an ol' recompile and see if
 that fixes it.
 
+Testing Multiple Instances of Twizzler (for networking)
+-------------------------------------------------------
+By default, the 'test' make target will start 1 instance of Twizzler. You can also, optionally, specify
+an "INSTANCES" variable on the command line to start more than one instance of Twizzler:
+
+PROJECT=x86_64 QEMU_FLAGS='-display none' make all test INSTANCES=<instance command line>
+
+where the <instance command line> is a space-separated list of instance commands that look like this:
+<net-type>,<arg>,<arg>...
+
+<net-type> is either 's' or 't' (for "socket" or "tap" respectively).
+
+For socket net-types, the first arg is "l" or "c" for "listener" or "client". The second arg is the port
+number for the socket netdev. The third (optional) argument is the mac address for the card. The listener
+has to be first.
+
+For tap net-types, the first arg is the interface name to use (eg vport_twz1), and the second (optional) arg is the mac.
+
+EXAMPLES:
+to create two twizzler instances that connect to each other (via socket netdev): INSTANCES="s,l,1234,11:22:33:44:55:66 s,c,1234,22:33:44:55:66:77"
+to create two twizzler instances that connect to tap interfaces: INSTANCES="t,vport_twz1,<mac> t,vport_twz2,<mac>"
+
+Each instance will send serial output to twz_serial_<instance #>.txt, and packet capture to twz_packetdump_<instance #>.dat.
