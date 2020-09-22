@@ -11,6 +11,8 @@
 
 #include "../us/include/twz/_obj.h"
 
+#include "common.h"
+
 struct ustar_header {
 	char name[100];
 	char mode[8];
@@ -98,7 +100,7 @@ static void usage(void)
 	fprintf(stderr, "example: -f 2:RWN:foo,400000001af3\n");
 }
 
-objid_t str_to_objid(char *s)
+objid_t __str_to_objid(char *s)
 {
 	if(!s)
 		return 0;
@@ -350,7 +352,7 @@ int main(int argc, char **argv)
 	if(zero_nonce) {
 		memset(&mi.nonce, 0, sizeof(mi.nonce));
 	} else {
-		if(getrandom(&mi.nonce, sizeof(mi.nonce), 0) < 0) {
+		if(__getrandom(&mi.nonce, sizeof(mi.nonce), 0) < 0) {
 			perror("getrandom");
 			return 1;
 		}

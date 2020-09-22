@@ -1,7 +1,22 @@
 #pragma once
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <twz/_objid.h>
+#include <unistd.h>
+
+ssize_t __getrandom(void *buf, size_t len, unsigned int flags)
+{
+	(void)flags;
+	int fd = open("/dev/urandom", O_RDONLY);
+	if(fd == -1) {
+		return -1;
+	}
+	ssize_t ret = read(fd, buf, len);
+	close(fd);
+	return ret;
+}
+
 objid_t str_to_objid(char *s)
 {
 	if(!s)
