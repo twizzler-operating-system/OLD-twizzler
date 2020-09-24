@@ -14,6 +14,9 @@ ssize_t __copy_file_range(int infd,
   size_t length,
   unsigned int flags)
 {
+#ifndef __NR_copy_file_range
+#define __NR_copy_file_range 326
+#endif
 	ssize_t ret = syscall(__NR_copy_file_range, infd, ino, outfd, outo, length, flags);
 	if(ret == -1 && errno == ENOSYS) {
 		abort();
