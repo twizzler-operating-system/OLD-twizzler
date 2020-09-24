@@ -1,9 +1,26 @@
 #pragma once
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/syscall.h>
 #include <twz/_objid.h>
 #include <unistd.h>
+
+ssize_t __copy_file_range(int infd,
+  off_t *ino,
+  int outfd,
+  off_t *outo,
+  size_t length,
+  unsigned int flags)
+{
+	ssize_t ret = syscall(__NR_copy_file_range, infd, ino, outfd, outo, length, flags);
+	if(ret == -1 && errno == ENOSYS) {
+		abort();
+	}
+
+	return ret;
+}
 
 ssize_t __getrandom(void *buf, size_t len, unsigned int flags)
 {

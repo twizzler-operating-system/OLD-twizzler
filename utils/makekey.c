@@ -12,6 +12,7 @@
 #include <twz/_sctx.h>
 #include <unistd.h>
 
+#include "common.h"
 void usage(void)
 {
 	fprintf(stderr, "makekey -i private-key-pem-in -r privkey-out -u pubkey-out -t type\n");
@@ -124,7 +125,7 @@ int main(int argc, char **argv)
 	if(fstat(prfd, &st) == -1)
 		err(1, "fstat");
 	off_t l = sizeof(h);
-	if(copy_file_range(prfd, NULL, fd, &l, st.st_size, 0) != st.st_size)
+	if(__copy_file_range(prfd, NULL, fd, &l, st.st_size, 0) != st.st_size)
 		err(1, "copy_file_range");
 	close(fd);
 
