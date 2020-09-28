@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/random.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -322,7 +321,7 @@ int main(int argc, char **argv)
 	size_t nameln = 0;
 	for(struct list *l = fotlist; l; l = l->next) {
 		struct fotentry fe = { 0 };
-		char *name;
+		char *name = NULL;
 		int e = parse_fotentry(&fe, strdup(l->d), &name);
 		if(e > max_fote)
 			max_fote = e;

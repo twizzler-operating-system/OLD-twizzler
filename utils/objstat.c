@@ -6,13 +6,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/random.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
 #include "../us/include/twz/_obj.h"
 #include "blake2.h"
 
+#include "common.h"
 bool show_only_id = false;
 
 struct ustar_header {

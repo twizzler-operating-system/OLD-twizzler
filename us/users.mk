@@ -11,12 +11,12 @@ USEROBJS+=init.sctx.obj init-key.pub.obj init-key.pri.obj
 $(BUILDDIR)/us/data/dsaparam.pem:
 	@echo "[DSAp]    $@"
 	@mkdir -p $(BUILDDIR)/us/data
-	@openssl dsaparam -out $@ 2048
+	@LD_LIBRARY_PATH=/home/dbittman /home/dbittman/openssl dsaparam -out $@ 2048
 
 $(BUILDDIR)/us/data/%-rk.pem: $(BUILDDIR)/us/data/dsaparam.pem
 	@echo "[DSA]     $@"
 	@mkdir -p $(BUILDDIR)/us/data
-	@openssl gendsa -out $@ $<
+	@LD_LIBRARY_PATH=/home/dbittman /home/dbittman/openssl gendsa -out $@ $<
 
 $(BUILDDIR)/us/data/%.kring $(BUILDDIR)/us/data/%.user: $(BUILDDIR)/utils/mkuser $(BUILDDIR)/us/data/%.sctx.obj
 	@echo "[MKUSER]  $*"

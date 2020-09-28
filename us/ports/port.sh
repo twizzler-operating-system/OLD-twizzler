@@ -98,14 +98,14 @@ status_print "starting install(): " $NAME
 ( install ) > ../$NAME-install.stdout
 
 )
-status_print "post-processing executables: " $NAME
-for i in "${SPLITS[@]}"; do
-	echo " " $i
-	./projects/$PROJECT/build/utils/elfsplit $SYSROOT/$i
-	#rm $SYSROOT/$i
-	rm $SYSROOT/$i.text
-	#mv $SYSROOT/$i.text $SYSROOT/$i
-done
+#status_print "post-processing executables: " $NAME
+#for i in "${SPLITS[@]}"; do
+#	echo " " $i
+#	./projects/$PROJECT/build/utils/elfsplit $SYSROOT/$i
+#	#rm $SYSROOT/$i
+#	rm $SYSROOT/$i.text
+#	#mv $SYSROOT/$i.text $SYSROOT/$i
+#done
 
 trap - 0
 
