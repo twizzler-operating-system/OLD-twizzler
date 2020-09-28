@@ -25,5 +25,4 @@ CONFIG_DEBUG_LOCKS=y
 TOOLCHAIN_PATH=
 #/home/dbittman/code/twizzler/.tc
 
-QEMU_FLAGS+="-enable-kvm"
 
