@@ -9,7 +9,8 @@ if [ ! -f $BUILDDIR/pmem.img ]; then
 fi
 
 if [[ "$INSTANCES" == "" ]]; then
-	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial stdio -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
+	echo $QEMU
+	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial mon:stdio -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
 	exit
 fi
 

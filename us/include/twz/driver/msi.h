@@ -25,7 +25,7 @@ static void msix_configure(twzobj *co, struct pcie_msix_capability *m, int nrvec
 	  (volatile struct pcie_msix_table_entry *)twz_object_lea(
 	    co, (void *)((long)hdr->bars[bir] + off));
 	for(int i = 0; i < nrvecs; i++, tbl++) {
-		tbl->data = device_msi_data(repr->interrupts[i].vec, MSI_LEVEL);
+		tbl->data = device_msi_data(repr->interrupts[i].vec, MSI_EDGE);
 		tbl->addr = device_msi_addr(0);
 		tbl->ctl = 0;
 	}

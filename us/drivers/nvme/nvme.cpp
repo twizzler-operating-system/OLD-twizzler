@@ -653,6 +653,7 @@ void nvme_wait_for_event(nvme_controller *nc)
 	for(int i = 1; i <= nc->nrvec; i++) {
 		twz_thread_sync_init(&sa[i], THREAD_SYNC_SLEEP, &repr->interrupts[i - 1].sp, 0);
 	}
+int x=0;
 	for(;;) {
 		uint64_t iovf = atomic_exchange(&repr->syncs[DEVICE_SYNC_IOV_FAULT], 0);
 		if(iovf & 1) {

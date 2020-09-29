@@ -51,19 +51,34 @@ __noinstrument static inline void x2apic_write(uint32_t reg, uint64_t data)
 {
 	uint32_t lo = (uint32_t)data;
 	uint32_t hi = (uint32_t)(data >> 32);
+	asm volatile("mfence;lfence");
 	x86_64_wrmsr(reg, lo, hi);
+	asm volatile("mfence;sfence");
 }
 
 __noinstrument static inline uint64_t x2apic_read(uint32_t reg)
 {
 	uint32_t lo, hi;
+	asm volatile("mfence;sfence");
 	x86_64_rdmsr(reg, &lo, &hi);
+	asm volatile("mfence;lfence");
 	return ((uint64_t)hi << 32) | (uint64_t)lo;
 }
 
 __noinstrument void x86_64_signal_eoi(void)
 {
 	x2apic_write(LAPIC_EOI, 0x0);
+#if 0
+	if(current_thread && !current_thread->arch.was_syscall && current_thread->arch.exception.int_no == 66) {
+for(int i=0;i<8;i++) {
+	uint64_t irr = x2apic_read(LAPIC_IRR_BASE + i);
+	uint64_t esr = x2apic_read(LAPIC_ESR);
+	uint64_t isr = x2apic_read(LAPIC_ISR_BASE + i);
+	uint64_t tmr = x2apic_read(LAPIC_TMR_BASE + i);
+	printk("::%d %lx %lx %lx :: %lx : %lx\n", i, irr, isr, tmr, current_thread->arch.exception.rip, esr);
+}
+}
+#endif
 }
 
 __noinstrument unsigned int arch_processor_current_id(void)
@@ -71,6 +86,7 @@ __noinstrument unsigned int arch_processor_current_id(void)
 	/* TODO: is this right? */
 	// return x2apic_read(LAPIC_LDR);
 	return x2apic_read(LAPIC_ID);
+	//return 0;
 }
 
 __noinstrument static void _apic_set_counter(struct clksrc *c __unused, uint64_t val, bool per)
@@ -236,17 +252,17 @@ static void lapic_configure(int bsp)
 	/* if we accept the extint stuff (the boot processor) we need to not
 	 * mask, and set the proper flags for these entries.
 	 * LVT1: NMI
-	 * LVT0: extINT, level triggered
+	 * LVT0: extINT
 	 */
 	x2apic_write(LAPIC_LVT1, 0x400 | (bsp ? 0 : LAPIC_DISABLE));  // NMI
-	x2apic_write(LAPIC_LVT0, 0x8700 | (bsp ? 0 : LAPIC_DISABLE)); // external interrupts
+	x2apic_write(LAPIC_LVT0, 0x700 | (bsp ? 0 : LAPIC_DISABLE) | LAPIC_DISABLE); // external interrupts
 	/* disable errors (can trigger while messing with masking) and performance
 	 * counter, but also set a non-zero vector */
 	x2apic_write(LAPIC_LVTE, 0xFF | LAPIC_DISABLE);
 	x2apic_write(LAPIC_LVTPC, 0xFF | LAPIC_DISABLE);
 
 	/* accept all priority levels */
-	x2apic_write(LAPIC_TPR, 0);
+	x2apic_write(LAPIC_TPR, 0x10);
 	/* finally write to the spurious interrupt register to enable
 	 * the interrupts */
 	x2apic_write(LAPIC_ESR, 0);
@@ -258,6 +274,7 @@ static void lapic_configure(int bsp)
 	x2apic_write(LAPIC_TDCR, div);
 	x2apic_write(LAPIC_LVTT, 32);
 	x2apic_write(LAPIC_TICR, 0);
+	x2apic_write(LAPIC_LVTE, 0xFE);
 }
 
 void x86_64_lapic_init_percpu(void)

@@ -51,6 +51,8 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
   bool was_userspace,
   bool ignored)
 {
+//if(frame->int_no != 32)
+//printk(":: e: %ld\n", frame->int_no);
 	if(!ignored) {
 		if(was_userspace) {
 			current_thread->arch.was_syscall = false;
@@ -140,6 +142,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 	} else if(current_thread && current_thread->processor) {
 		current_thread->processor->stats.int_intr++;
 	}
+//printk(":: %ld %d %d :: %lx\n", frame->int_no, was_userspace, ignored, frame->rip);
 	if(was_userspace) {
 		thread_schedule_resume();
 	}
