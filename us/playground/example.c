@@ -167,5 +167,6 @@ int main(int argc, char **argv)
 	(void)argc;
 	(void)argv;
 	printf("Hello, World!\n");
+	example_allocate_from_object();
 	return 0;
 }

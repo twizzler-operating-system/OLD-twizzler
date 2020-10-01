@@ -155,4 +155,12 @@ EXAMPLES:
 to create two twizzler instances that connect to each other (via socket netdev): INSTANCES="s,l,1234,11:22:33:44:55:66 s,c,1234,22:33:44:55:66:77"
 to create two twizzler instances that connect to tap interfaces: INSTANCES="t,vport_twz1,<mac> t,vport_twz2,<mac>"
 
-Each instance will send serial output to twz_serial_<instance #>.txt, and packet capture to twz_packetdump_<instance #>.dat.
+IMPORTANT: These MUST have a serial unix socket ready and waiting before you start this command. To
+do this, run:
+	socat UNIX-LISTEN:twz_serial_<N>.sock,fork -,rawer
+for each instance that will be created (replacing <N> with each instance ID). So if you want to
+create two twizzler instances, you'll need to also have running in the background:
+	socat UNIX-LISTEN:twz_serial_1.sock,fork -,rawer
+	socat UNIX-LISTEN:twz_serial_2.sock,fork -,rawer
+
+Each instance will write packet capture from the NIC to twz_packetdump_<instance #>.dat.

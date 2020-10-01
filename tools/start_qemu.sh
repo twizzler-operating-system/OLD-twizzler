@@ -19,12 +19,10 @@ pids=""
 instance=0
 for i in $INSTANCES; do 
 	instance=$((instance + 1))
-	echo $instance $i
 	IFS=',' read -a cmd <<< "$i"
 	waittime="0"
 	NET=""
 	mac=""
-	echo $cmd
 	case ${cmd[0]} in 
 		's')
 			mac=${cmd[3]}
@@ -50,7 +48,7 @@ for i in $INSTANCES; do
 	#echo $QEMU
 	#echo $QEMU_FLAGS
 
-	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial file:twz_serial_$instance.txt -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $NETFLAGS $QEMU_FLAGS &
+	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial mon:unix:twz_serial_$instance.sock -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $NETFLAGS $QEMU_FLAGS &
 	pids+=" $!"
 	sleep $waittime
 done
