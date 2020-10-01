@@ -157,10 +157,10 @@ to create two twizzler instances that connect to tap interfaces: INSTANCES="t,vp
 
 IMPORTANT: These MUST have a serial unix socket ready and waiting before you start this command. To
 do this, run:
-	socat UNIX-LISTEN:twz_serial_<N>.sock,fork -,rawer
+	socat UNIX-LISTEN:twz_serial_<N>.sock,fork -,cfmakeraw
 for each instance that will be created (replacing <N> with each instance ID). So if you want to
 create two twizzler instances, you'll need to also have running in the background:
-	socat UNIX-LISTEN:twz_serial_1.sock,fork -,rawer
-	socat UNIX-LISTEN:twz_serial_2.sock,fork -,rawer
+	socat UNIX-LISTEN:twz_serial_1.sock,fork -,cfmakeraw
+	socat UNIX-LISTEN:twz_serial_2.sock,fork -,cfmakeraw
 
 Each instance will write packet capture from the NIC to twz_packetdump_<instance #>.dat.
