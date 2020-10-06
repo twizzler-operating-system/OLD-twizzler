@@ -70,6 +70,10 @@ hardware. This also means you'll need to test on an Intel system.
 Building Twizzer the First Time
 -------------------------------
 
+0) cp projects/x86_64/template_config.mk projects/x86_64/config.mk
+
+This will copy the template config file for the build over to the actual one the system will use.
+
 1) PROJECT=x86_64 make tools-prep
 
 This will first ask a couple questions to get you started (largely just acking that this can take

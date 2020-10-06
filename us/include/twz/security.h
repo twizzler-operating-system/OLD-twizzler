@@ -45,6 +45,10 @@ int twz_sctx_add_dfl(twzobj *obj,
 int twz_key_new(twzobj *pri, twzobj *pub);
 
 void twz_secure_api_create(twzobj *obj, const char *name);
+
+int twz_object_set_user_perms(twzobj *obj, uint64_t perms);
+int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms);
+
 #ifdef __cplusplus
 }
 #endif

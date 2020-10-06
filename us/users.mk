@@ -11,12 +11,12 @@ USEROBJS+=init.sctx.obj init-key.pub.obj init-key.pri.obj
 $(BUILDDIR)/us/data/dsaparam.pem:
 	@echo "[DSAp]    $@"
 	@mkdir -p $(BUILDDIR)/us/data
-	@LD_LIBRARY_PATH=/home/dbittman /home/dbittman/openssl dsaparam -out $@ 2048
+	@openssl dsaparam -out $@ 2048
 
 $(BUILDDIR)/us/data/%-rk.pem: $(BUILDDIR)/us/data/dsaparam.pem
 	@echo "[DSA]     $@"
 	@mkdir -p $(BUILDDIR)/us/data
-	@LD_LIBRARY_PATH=/home/dbittman /home/dbittman/openssl gendsa -out $@ $<
+	@openssl gendsa -out $@ $<
 
 $(BUILDDIR)/us/data/%.kring $(BUILDDIR)/us/data/%.user: $(BUILDDIR)/utils/mkuser $(BUILDDIR)/us/data/%.sctx.obj
 	@echo "[MKUSER]  $*"
@@ -50,11 +50,14 @@ $(BUILDDIR)/us/data/%.sctx.tmp: $(BUILDDIR)/utils/file2obj $(BUILDDIR)/us/keyroo
 	@mkdir -p $(BUILDDIR)/us/data
 	@$(BUILDDIR)/utils/file2obj -i /dev/null -o $@ -p R -k $$($(BUILDDIR)/utils/objstat -i $(BUILDDIR)/us/keyroot/$*.pubkey.obj)
 
-$(BUILDDIR)/us/data/bob.sctx: $(BUILDDIR)/us/data/bob.sctx.tmp $(BUILDDIR)/utils/sctx $(BUILDDIR)/utils/mkcap $(BUILDDIR)/utils/appendobj $(BUILDDIR)/us/data/bob-rk.pem
+$(BUILDDIR)/us/data/bob.sctx: $(BUILDDIR)/us/data/bob.sctx.tmp $(BUILDDIR)/utils/sctx $(BUILDDIR)/utils/mkcap $(BUILDDIR)/utils/appendobj $(BUILDDIR)/us/data/bob-rk.pem $(BUILDDIR)/us/keyroot/bob.prikey.obj
 	@echo "[SCTX]    $@"
 	@mkdir -p $(BUILDDIR)/us/data
 	@LID=$$($(BUILDDIR)/utils/objstat -i $(BUILDDIR)/us/data/bob.sctx.tmp);\
-	$(BUILDDIR)/utils/sctx -n "bob" $@ < /dev/null
+		( \
+		$(BUILDDIR)/utils/mkcap -t $$($(BUILDDIR)/utils/objstat -i $(BUILDDIR)/us/keyroot/bob.prikey.obj) -a $$LID -p RU -h sha1 -s dsa $(BUILDDIR)/us/data/bob-rk.pem && \
+		$(BUILDDIR)/utils/mkcap -t $$LID -a $$LID -p RWU -h sha1 -s dsa $(BUILDDIR)/us/data/bob-rk.pem \
+		) |	$(BUILDDIR)/utils/sctx -n "bob" $@
 
 
 
@@ -87,12 +90,12 @@ $(BUILDDIR)/us/keyroot/%.pubkey.obj: $(BUILDDIR)/us/data/%-key.pub
 	@$(BUILDDIR)/utils/file2obj -i $< -o $@
 	@ln $@ $(BUILDDIR)/us/keyroot/$$($(BUILDDIR)/utils/objstat -i $@)
 
-$(BUILDDIR)/us/keyroot/%.prikey.obj: $(BUILDDIR)/us/data/%-key.pri
+$(BUILDDIR)/us/keyroot/%.prikey.obj: $(BUILDDIR)/us/data/%-key.pri $(BUILDDIR)/us/keyroot/%.pubkey.obj
 	@echo "[OBJ]     $@"
 	@mkdir -p $(BUILDDIR)/us/keyroot
-	@$(BUILDDIR)/utils/file2obj -i $< -o $@
+	@$(BUILDDIR)/utils/file2obj -i $< -o $@ -k $$($(BUILDDIR)/utils/objstat -i $(BUILDDIR)/us/keyroot/$*.pubkey.obj)
 	@ln $@ $(BUILDDIR)/us/keyroot/$$($(BUILDDIR)/utils/objstat -i $@)
 
-KEYOBJS+=$(addprefix $(BUILDDIR)/us/keyroot/,usr_bin_init.pubkey.obj usr_bin_login.pubkey.obj)
+KEYOBJS+=$(addprefix $(BUILDDIR)/us/keyroot/,usr_bin_init.pubkey.obj usr_bin_login.pubkey.obj bob.pubkey.obj bob.prikey.obj)
 
 CTXOBJS+=$(addprefix $(BUILDDIR)/us/data/,usr_bin_login.sctx.obj usr_bin_init.sctx.obj bob.sctx.obj bob.user.obj bob.kring.obj)

@@ -86,8 +86,14 @@ int main(int argc, char **argv)
 		exit(r);
 	}
 
+	char *nl = strchr(pubdata, '\n');
+	size_t ex = 0;
+	if(nl) {
+		ex = nl - pubdata;
+	}
+
 	struct key_hdr h = {
-		.keydata = (unsigned char *)((long)OBJ_NULLPAGE_SIZE + sizeof(struct key_hdr)),
+		.keydata = (unsigned char *)((long)OBJ_NULLPAGE_SIZE + sizeof(struct key_hdr) + ex),
 		.keydatalen = dp,
 		.flags = 0,
 		.type = t,
@@ -113,7 +119,9 @@ int main(int argc, char **argv)
 	}
 
 	h = (struct key_hdr){
-		.keydata = (unsigned char *)((long)OBJ_NULLPAGE_SIZE + sizeof(struct key_hdr)),
+		.keydata = (unsigned char
+		    *)((long)OBJ_NULLPAGE_SIZE + sizeof(struct key_hdr)
+		       + 32 /* this is the length of the "--- BEGIN" header. this is fragile */),
 		.keydatalen = dp,
 		.flags = TWZ_KEY_PRI,
 		.type = t,

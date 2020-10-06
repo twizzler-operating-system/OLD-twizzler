@@ -41,6 +41,7 @@ static bool drain_log(client *client)
 		}
 		buf[r] = 0;
 		printf("[%s]: %s", client->name, buf);
+		fflush(stdout);
 	}
 	if(r == -EAGAIN) {
 		r = 0;
@@ -90,7 +91,7 @@ DECLARE_SAPI_ENTRY(open_connection,
   int flags,
   objid_t *arg)
 {
-	// printf("Hello from logboi open: %p: %s\n", arg, name);
+	// fprintf(stderr, "Hello from logboi open: %p: %s\n", arg, name);
 	struct client *client = (struct client *)malloc(sizeof(struct client));
 	twz_object_new(&client->obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	struct bstream_hdr *hdr = (struct bstream_hdr *)twz_object_base(&client->obj);

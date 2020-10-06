@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/wait.h>
 #include <twz/_kso.h>
+#include <twz/keyring.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/sys.h>
@@ -50,6 +51,36 @@ void tmain(const char *username)
 			fprintf(stderr, "failed to attach to user context\n");
 			exit(1);
 		}
+		char context[128];
+		sprintf(context, IDFMT, IDPR(uh->dfl_secctx));
+		setenv("TWZUSERSCTX", context, 1);
+	}
+
+	if(uh->kr) {
+		struct keyring_hdr *krh = twz_object_lea(&user, uh->kr);
+
+		if(krh->dfl_pubkey) {
+			twzobj keyring = twz_object_from_ptr(krh);
+			struct key_hdr *key = twz_object_lea(&keyring, krh->dfl_pubkey);
+			twzobj keyobj = twz_object_from_ptr(key);
+			char keystr[128];
+			sprintf(keystr, IDFMT, IDPR(twz_object_guid(&keyobj)));
+			setenv("TWZUSERKU", keystr, 1);
+
+			struct key_hdr *pkey = twz_object_lea(&keyring, krh->dfl_prikey);
+			twzobj pkeyobj = twz_object_from_ptr(pkey);
+			char pkeystr[128];
+			sprintf(pkeystr, IDFMT, IDPR(twz_object_guid(&pkeyobj)));
+			setenv("TWZUSERKEY", pkeystr, 1);
+
+			char keyringstr[128];
+			sprintf(keyringstr, IDFMT, IDPR(twz_object_guid(&keyring)));
+			setenv("TWZUSERKRING", keyringstr, 1);
+		} else {
+			fprintf(stderr, "warning - no default key for user\n");
+		}
+	} else {
+		fprintf(stderr, "warning - no keyring for user\n");
 	}
 
 	kso_set_name(NULL, "[instance] shell [user %s]", username);

@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <twz/alloc.h>
 #include <twz/debug.h>
@@ -28,6 +29,79 @@ __asm__(".global libtwzsec_gate_return;\n"
 extern int main();
 extern int libtwz_panic();
 extern int libtwzsec_gate_return();
+
+int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms)
+{
+	struct sccap *cap;
+	int r = twz_cap_create(&cap,
+	  twz_object_guid(obj),
+	  twz_object_guid(sctx),
+	  perms,
+	  NULL,
+	  NULL,
+	  SCHASH_SHA1,
+	  SCENC_DSA,
+	  key);
+	if(r)
+		return r;
+
+	/* probably get the length from some other function? */
+	r = twz_sctx_add(sctx, twz_object_guid(obj), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+	free(cap);
+	return r;
+}
+
+int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
+{
+	fprintf(stderr, "add perms: " IDFMT "\n", IDPR(twz_object_guid(obj)));
+	const char *k = getenv("TWZUSERKEY");
+	if(!k) {
+		return -EINVAL;
+	}
+	objid_t pkeyid;
+	if(!objid_parse(k, strlen(k), &pkeyid)) {
+		return -EINVAL;
+	}
+
+	/* TODO: could try to verify that the public key is right */
+	/*
+	k = getenv("TWZUSERKU");
+	if(!k) {
+	    return -EINVAL;
+	}
+	objid_t ukeyid;
+	if(!objid_parse(k, strlen(k), &ukeyid)) {
+	    return -EINVAL;
+	}
+	*/
+
+	k = getenv("TWZUSERSCTX");
+	if(!k) {
+		return -EINVAL;
+	}
+	objid_t ctxid;
+	if(!objid_parse(k, strlen(k), &ctxid)) {
+		return -EINVAL;
+	}
+
+	fprintf(stderr, ":: " IDFMT " : " IDFMT " ::: %p\n", IDPR(pkeyid), IDPR(ctxid), obj);
+	int r;
+	twzobj obj_kr, obj_ctx;
+	if((r = twz_object_init_guid(&obj_kr, pkeyid, FE_READ))) {
+		return r;
+	}
+
+	if((r = twz_object_init_guid(&obj_ctx, ctxid, FE_READ | FE_WRITE))) {
+		twz_object_release(&obj_kr);
+		return r;
+	}
+	r = twz_context_add_perms(&obj_ctx, &obj_kr, obj, perms);
+
+	fprintf(stderr, "done\n");
+	twz_object_release(&obj_kr);
+	twz_object_release(&obj_ctx);
+	return r;
+}
 
 void twz_secure_api_create(twzobj *obj, const char *name)
 {
@@ -394,6 +468,7 @@ int twz_cap_create(struct sccap **cap,
 	struct key_hdr *kh = twz_object_base(pri_key);
 	keystart = twz_object_lea(pri_key, kh->keydata);
 	keylen = kh->keydatalen;
+	printf("::: key data %p %p: %s\n", kh + 1, keystart, keystart);
 
 	while(siglen != (*cap)->slen || siglen == 0) {
 		(*cap)->slen = siglen;

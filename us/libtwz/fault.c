@@ -191,7 +191,7 @@ static void __twz_fault_unhandled_print(int fault_nr, void *data)
 		  si->pneed);
 	} else if(fault_nr == FAULT_EXCEPTION) {
 		struct fault_exception_info *ei = (void *)data;
-		PRINT("  ecode: %ld, info: %lx\n", ei->code, ei->arg0);
+		PRINT("  ecode: %ld, ip: %p, info: %lx\n", ei->code, ei->ip, ei->arg0);
 	} else if(fault_nr == FAULT_OBJECT) {
 		struct fault_object_info *fobj = data;
 		PRINT("  id = " IDFMT "; flags = %lx\n", IDPR(fobj->objid), fobj->flags);
