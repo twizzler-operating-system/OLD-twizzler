@@ -53,7 +53,6 @@ int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms
 
 int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
 {
-	fprintf(stderr, "add perms: " IDFMT "\n", IDPR(twz_object_guid(obj)));
 	const char *k = getenv("TWZUSERKEY");
 	if(!k) {
 		return -EINVAL;
@@ -84,7 +83,6 @@ int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
 		return -EINVAL;
 	}
 
-	fprintf(stderr, ":: " IDFMT " : " IDFMT " ::: %p\n", IDPR(pkeyid), IDPR(ctxid), obj);
 	int r;
 	twzobj obj_kr, obj_ctx;
 	if((r = twz_object_init_guid(&obj_kr, pkeyid, FE_READ))) {
@@ -97,7 +95,6 @@ int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
 	}
 	r = twz_context_add_perms(&obj_ctx, &obj_kr, obj, perms);
 
-	fprintf(stderr, "done\n");
 	twz_object_release(&obj_kr);
 	twz_object_release(&obj_ctx);
 	return r;
@@ -468,7 +465,6 @@ int twz_cap_create(struct sccap **cap,
 	struct key_hdr *kh = twz_object_base(pri_key);
 	keystart = twz_object_lea(pri_key, kh->keydata);
 	keylen = kh->keydatalen;
-	printf("::: key data %p %p: %s\n", kh + 1, keystart, keystart);
 
 	while(siglen != (*cap)->slen || siglen == 0) {
 		(*cap)->slen = siglen;
