@@ -221,6 +221,8 @@ int main(int argc, char **argv)
 		add_hash(ctx, id, NULL, ~m, type == 'r' ? SCF_TYPE_REGRANT_MASK : 0);
 	}
 
+	ctx->alloc.max = (((size_t)end - (size_t)ctx) % OBJ_MAXSIZE) + 0x1000 + OBJ_NULLPAGE_SIZE;
+
 	/* TODO: truncate file to right max len */
 	size_t l = end - (char *)ctx;
 	munmap(ctx, OBJ_MAXSIZE - (OBJ_METAPAGE_SIZE + OBJ_NULLPAGE_SIZE));

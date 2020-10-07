@@ -198,7 +198,9 @@ int twz_sctx_init(twzobj *obj, const char *name)
 	struct twzoa_header *oa = (void *)sc->userdata;
 	oa_hdr_init(obj,
 	  oa,
-	  align_up(sizeof(*sc) + sizeof(struct scbucket) * (sc->nbuckets + sc->nchain), 0x1000),
+	  align_up(
+	    sizeof(*sc) + sizeof(struct scbucket) * (sc->nbuckets + sc->nchain) + OBJ_NULLPAGE_SIZE,
+	    0x1000),
 	  OBJ_TOPDATA);
 
 	return 0;
@@ -264,6 +266,17 @@ int twz_sctx_add(twzobj *obj,
 {
 	struct secctx *sc = twz_object_base(obj);
 	struct twzoa_header *oa = (void *)sc->userdata;
+
+	/* this is a bit of a hack with bootstrapped security contexts (generated outside twizzler).
+	 * TODO: a better solution would be to properly support setting up an OA header from outside
+	 * twizzler.
+	 */
+
+	/* this isn't thread safe, but... it's okay for now (see above TODO) */
+	if(oa->end == 0) {
+		oa_hdr_init(obj, oa, align_up(sc->alloc.max, 0x1000), OBJ_TOPDATA);
+	}
+
 	void *data = oa_hdr_alloc(obj, oa, itemlen);
 	if(!data) {
 		return -ENOMEM;
