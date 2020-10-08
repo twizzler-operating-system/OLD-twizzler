@@ -1,19 +1,71 @@
-#include "flip.h"
+#include "ipv4.h"
 
-bool assign_ipv4_addr_to_intr(ipv4_addr_t *addr, twzobj *interface_obj)
+#include "interface.h"
+
+
+void ip_tx(const char* interface_name,
+          ip_addr_t dst_ip,
+          uint8_t ip_type,
+          void *pkt_ptr,
+          int pkt_size)
 {
-    interface_t *interface = (interface_t *)twz_object_base(interface_obj);
+    interface_t* interface = get_interface_by_name(interface_name);
 
-    if(interface < 0) return false; //how do we know this didn't work?
+    ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
 
-    interface->is_ipv4_addr_set = true;
-    memcpy(interface->ipv4_addr.addr, addr, MAX_IPV4_CHAR_SIZE);
-    return true;
+    /* version and header length
+     * version is 4 for ipv4
+     * header length is assumed to be min ip header len (5 or 20bytes) */
+    ip_hdr->ver_and_ihl = 0x45;
+
+    /* type of service; set to 0 i.e. best effort */
+    ip_hdr->tos = 0;
+
+    /* total packet length */
+    ip_hdr->tot_len = pkt_size;
+
+    /* fragmentation attributes */
+    ip_hdr->identification = 0;
+    ip_hdr->flags_and_offset = 0b010 << 13; //flag:010 (don't fragment); offset:0
+
+    /* time to live */
+    ip_hdr->ttl = 255; //default value
+
+    /* payload protocol */
+    ip_hdr->protocol = ip_type;
+
+    /* header checksum */
+    ip_hdr->hdr_checksum = 0; //is updated at the end
+
+    /* source IP */
+    memcpy(ip_hdr->src_ip.ip, interface->ip.ip, IP_ADDR_SIZE);
+
+    /* destination IP */
+    memcpy(ip_hdr->dst_ip.ip, dst_ip.ip, IP_ADDR_SIZE);
+
+    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
+    ip_hdr->hdr_checksum = checksum((unsigned char *)pkt_ptr, ihl);
 }
 
-void get_intr_ipv4(twzobj *interface_obj, char *ipv4_addr)
+
+void ip_rx(void* pkt_ptr)
 {
-    interface_t *interface = (interface_t *)twz_object_base(interface_obj);
-    if(interface->is_ipv4_addr_set)
-        strncpy(ipv4_addr, interface->ipv4_addr.addr, MAX_IPV4_CHAR_SIZE);
+    ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
+
+    /* verify header checksum */
+    uint16_t recvd_checksum = ip_hdr->hdr_checksum;
+    ip_hdr->hdr_checksum = 0;
+
+    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
+    uint16_t calculated_checksum = checksum((unsigned char *)ip_hdr, ihl);
+    if (recvd_checksum != calculated_checksum) {
+        fprintf(stderr, "Error ip_rx: checksum mismatch; packet dropped\n");
+        return;
+    }
+
+    char* payload = (char *)pkt_ptr;
+    payload += ihl;
+
+    fprintf(stdout, "Rx IP Payload: ");
+    fprintf(stdout, "%s\n", payload);
 }

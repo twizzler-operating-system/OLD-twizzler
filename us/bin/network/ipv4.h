@@ -1,26 +1,32 @@
-#include <twz/obj.h>
+#ifndef __IPV4_H__
+#define __IPV4_H__
 
-#include "cons.h"
+#include "common.h"
 
-typedef struct interface interface_t;
+//IP types
+#define ICMP 0x01
+#define TCP 0x06
+#define UDP 0x11
 
-typedef struct ipv4_addr
-{
-    char addr[MAX_IPV4_CHAR_SIZE];
-    //eventually add subnet maks
-}ipv4_addr_t;
+typedef struct __attribute__((__packed__)) ip_hdr {
+    uint8_t ver_and_ihl; //version:4, IHL:4
+    uint8_t tos; //dscp:6, ECN:2
+    uint16_t tot_len;
+    uint16_t identification;
+    uint16_t flags_and_offset; //flags:3, fragment offset:13
+    uint8_t ttl;
+    uint8_t protocol;
+    uint16_t hdr_checksum;
+    ip_addr_t src_ip;
+    ip_addr_t dst_ip;
+} ip_hdr_t;
 
+void ip_tx(const char* interface_name,
+          ip_addr_t dst_ip,
+          uint8_t ip_type,
+          void *pkt_ptr,
+          int pkt_size);
 
-//must eventually set up loopback interface
+void ip_rx(void* pkt_ptr);
 
-//must add subnet mask later
-bool assign_ipv4_addr_to_intr(ipv4_addr_t *addr, twzobj *interface_obj);
-bool clear_intr_ipv4_settings(interface_t interface);
-
-//create method that returns interface based on an incoming IP, return first interface in same network
-
-
-void get_intr_ipv4(twzobj *interface_obj, char *ipv4_addr);
-
-
-//must eventually add dump APIs to display interface settings
+#endif

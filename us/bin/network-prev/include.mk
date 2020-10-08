@@ -1,8 +1,8 @@
-NETWORK_SRCS=$(addprefix us/bin/network/,network.cpp common.cpp interface.cpp eth.cpp arp.cpp ipv4.cpp send.cpp loopback_link.cpp)
+NETWORK_SRCS=$(addprefix us/bin/network/,main.cpp flip.cpp intr_props.cpp ipv4.cpp arp.cpp eth.cpp)
 NETWORK_OBJS=$(addprefix $(BUILDDIR)/,$(NETWORK_SRCS:.cpp=.o))
 
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
-NETWORK_CFLAGS=-DLOOPBACK_TESTING
+#NETWORK_CFLAGS=-fsanitize=undefined
 
 $(BUILDDIR)/us/sysroot/usr/bin/network: $(NETWORK_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
 	@mkdir -p $(dir $@)

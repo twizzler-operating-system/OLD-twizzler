@@ -1,44 +1,28 @@
-#include <cstdlib>
-#include <cstdio>
-#include <vector>
-#include <iostream>
-#include <map>
-#include <thread>
+#ifndef __ETH_H__
+#define __ETH_H__
 
-#include <unistd.h>
-#include <string.h>
+#include "common.h"
 
-#include <twz/name.h>
-#include <twz/obj.h>
-#include <twz/queue.h>
-#include <twz/driver/nic.h>
-#include <twz/driver/queue.h>
+#define ETH_HDR_SIZE 14 //bytes
+#define MAX_ETH_PAYLOAD_SIZE 1500 //bytes
+#define MAX_ETH_FRAME_SIZE (ETH_HDR_SIZE + MAX_ETH_PAYLOAD_SIZE)
 
-#include "cons.h"
+//ETH types
+#define IPV4 0x0800
+#define ARP 0x0806
 
-//forward decleration
-typedef struct interface interface_t;
-
-
-#pragma pack(push,1)
-typedef struct mac_addr
-{
-    //unsigned char mac[6];
-    uint8_t mac[6];
-}mac_addr_t;
-
-typedef struct eth_hdr
-{
-    /*preamble (7 bytes) and SFD (1 byte) are used by physical layer, so we don't need to include them*/
-    mac_addr_t dst_mac; //6 bytes
+typedef struct __attribute__((__packed__)) eth_hdr {
+    mac_addr_t dst_mac;
     mac_addr_t src_mac;
-    uint16_t type; //aka type field... 2 bytes
-    /*Payload follows: allowed 46-1500 bytes*/
-}eth_hdr_t;
-#pragma pack(pop)
+    uint16_t type;
+} eth_hdr_t;
 
+void eth_tx(const char* interface_name,
+            mac_addr_t dst_mac,
+            uint16_t eth_type,
+            void *pkt_ptr,
+            int pkt_size);
 
-/*network APIs*/
-void l2_send(mac_addr_t dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len);
-void l2_recv(twzobj *rx_queue_obj, twzobj *tx_queue_obj, twzobj *interface_obj);
+void eth_rx(const char* interface_name);
 
+#endif

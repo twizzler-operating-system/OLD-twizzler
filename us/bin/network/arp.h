@@ -1,24 +1,50 @@
-#include <string>
+#ifndef __ARP_H__
+#define __ARP_H__
 
-#include<twz/obj.h>
+#include "common.h"
 
+#define ARP_HDR_SIZE 28 //bytes
+#define HW_ADDR_SIZE 6 //bytes
+#define PROTO_ADDR_SIZE 4 //bytes
 
+#define ARP_REQUEST 0x0001
+#define ARP_REPLY 0x0002
 
-//ARP constants
-#define arp_meta_1_request 0b10010000
-#define arp_meta_2_request 0b01000110 //first reserved bit set for request message
+typedef struct __attribute__((__packed__)) arp_hdr {
+    uint16_t hw_type;
+    uint16_t proto_type;
+    uint8_t hw_addr_len;
+    uint8_t proto_addr_len;
+    uint16_t opcode;
+    uint8_t sender_hw_addr[HW_ADDR_SIZE];
+    uint8_t sender_proto_addr[PROTO_ADDR_SIZE];
+    uint8_t target_hw_addr[HW_ADDR_SIZE];
+    uint8_t target_proto_addr[PROTO_ADDR_SIZE];
+} arp_hdr_t;
 
-#define arp_meta_1_reply 0b10010000
-#define arp_meta_2_reply 0b01000101 //second reserved bit set for reply message
+void arp_tx(uint16_t hw_type,
+          uint16_t proto_type,
+          uint8_t hw_addr_len,
+          uint8_t proto_addr_len,
+          uint16_t opcode,
+          uint8_t sender_hw_addr[HW_ADDR_SIZE],
+          uint8_t sender_proto_addr[PROTO_ADDR_SIZE],
+          uint8_t target_hw_addr[HW_ADDR_SIZE],
+          uint8_t target_proto_addr[PROTO_ADDR_SIZE],
+          void* pkt_ptr);
 
+void arp_rx(const char* interface_name,
+          void* pkt_ptr);
 
-/*AddressResolutionProtocol APIs*/
-void add_arp_entry(ipv4_addr_t ip_addr, mac_addr_t mac_addr);
-//void remove_arp_entry(ipv4_addr_t *addr); //when should we delete, how do we know entry is expired and obj_id has moved?
-mac_addr_t arp_lookup(char* ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
-void print_arp_table();
+void arp_table_insert(uint8_t* proto_addr,
+                    uint8_t* hw_addr);
 
-/*ARP Protocol Implementation*/
-void arp_send_request(char *dst_ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
-void arp_send_reply(char *dst_ip_addr, twzobj *interface_obj, twzobj *tx_queue_obj);
-void arp_recv(twzobj *interface_obj, twzobj *tx_queue_obj,  void *pkt_ptr, mac_addr_t src_mac);
+uint8_t* arp_table_get(uint8_t* proto_addr);
+
+void arp_table_delete(uint8_t* proto_addr);
+
+void arp_table_view();
+
+void arp_table_clear();
+
+#endif

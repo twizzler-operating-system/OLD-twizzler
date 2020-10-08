@@ -1,115 +1,110 @@
-#include "flip.h"
+#include "eth.h"
 
-/* this code is for ensuring that every packet we send has a unique ID, so that when we get back the
- * completion we know which packet was sent */
-static uint32_t counter = 0;
-static std::vector<uint32_t> info_list;
-static uint32_t get_new_info()
+#include "interface.h"
+#include "ipv4.h"
+#include "arp.h"
+#include "send.h"
+
+
+void eth_tx(const char* interface_name,
+            mac_addr_t dst_mac,
+            uint16_t eth_type,
+            void *pkt_ptr,
+            int pkt_size)
 {
-    if(info_list.size() == 0) {
-        return ++counter;
-    }
-    uint32_t info = info_list.back();
-    info_list.pop_back();
-    return info;
-}
+    interface_t* interface = get_interface_by_name(interface_name);
 
-static void release_info(uint32_t info)
-{
-    info_list.push_back(info);
-}
+    eth_hdr_t* eth_hdr = (eth_hdr_t *)pkt_ptr;
 
-
-static void *new_eth_frame_with_payload(mac_addr_t dest_mac, twzobj *interface_obj, void *eth_ptr, uint16_t type)
-{
-    eth_hdr_t *eth_hdr = (eth_hdr_t *)eth_ptr;
-    interface_t *interface = (interface_t *)twz_object_base(interface_obj);
-
-    /*Source MAC*/
+    /* source MAC */
     memcpy(eth_hdr->src_mac.mac, interface->mac.mac, MAC_ADDR_SIZE);
 
-    /*Destination MAC*/
-    memcpy(eth_hdr->dst_mac.mac, dest_mac.mac, MAC_ADDR_SIZE);
+    /* destination MAC */
+    memcpy(eth_hdr->dst_mac.mac, dst_mac.mac, MAC_ADDR_SIZE);
 
-    /*Payload Type*/
-    eth_hdr->type = type;
+    /* ethernet type */
+    eth_hdr->type = eth_type;
 
-    return eth_hdr;
-}
-
-
-
-void l2_send(mac_addr_t dest_mac, twzobj *queue_obj, twzobj *interface_obj, void *pkt_ptr, uint16_t type, int len)
-{
+    /* create a pointer to the packet */
     struct packet_queue_entry pqe;
-    
-    /* get a unique ID (unique only for outstanding requests; it can be reused) */
-    uint32_t info = get_new_info();
+    pqe.qe.info = get_id();
+    pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, pkt_ptr, FE_READ);
+    pqe.len = pkt_size;
 
-    /* store a pointer to packet data */
-    pqe.qe.info = info;
-    pqe.ptr = twz_ptr_swizzle(queue_obj, new_eth_frame_with_payload(dest_mac, interface_obj, pkt_ptr, type), FE_READ);
-    pqe.len = len;
+    /* enqueue packet (pointer) to primary tx queue */
+    queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
-    /* submit the packet! */
-    queue_submit(queue_obj, (struct queue_entry *)&pqe, 0);
-
-    //release_info(pqe.qe.info);
+    /* for debugging */
+    fprintf(stdout, "[debug] Tx ETH Frame: ");
+    for (int i = 0; i < pkt_size; ++i) {
+        fprintf(stdout, "%02X ", *((uint8_t *)pkt_ptr + i));
+    }
+    fprintf(stdout, "\n");
 }
 
 
-
-void l2_recv(twzobj *rx_queue_obj, twzobj *tx_queue_obj, twzobj *interface_obj)
+void eth_rx(const char* interface_name)
 {
-    while(1)
-    {
+    interface_t* interface = get_interface_by_name(interface_name);
+    twzobj* rx_queue_obj = &interface->rx_queue_obj;
+
+    fprintf(stdout, "Started the packet receive thread for interface %s\n",
+            interface_name);
+
+    while (true) {
+        /* store pointer to received packet */
         struct packet_queue_entry pqe;
+
+        /* dequeue packet (pointer) from primary rx queue */
         queue_receive(rx_queue_obj, (struct queue_entry *)&pqe, 0);
 
-        /* packet structure from the nic starts with a packet_header struct that contains information followed by the actual packet data. */
-        struct packet_header *ph = (struct packet_header *)twz_object_lea(rx_queue_obj, pqe.ptr);
-        
-        /*Decapsulate then send to higher layers*/
-        eth_hdr_t *pkt_ptr = (eth_hdr_t *)(ph + 1);
-        void *p_ptr = (pkt_ptr);
-        mac_addr_t src_mac = pkt_ptr->src_mac;
-        p_ptr += SIZE_OF_ETH_HDR_EXCLUDING_PAYLOAD;
-        
-        if(pkt_ptr->type == FLIP_TYPE)
-        {
-            fprintf(stderr, "Recieved FLIP pkt type\n");
-            flip_recv(interface_obj, p_ptr, src_mac);
-        }
-        else if(pkt_ptr->type == ARP_TYPE)
-        {
-            fprintf(stderr, "Recieved ARP pkt type\n");
-            arp_recv(interface_obj, tx_queue_obj, p_ptr, src_mac);
-        }
-        else
-            fprintf(stderr, "Received pkt unrecognize type, pkt dropped.\n");
+#ifdef LOOPBACK_TESTING
+        char* ph = (char *)twz_object_lea(rx_queue_obj, pqe.ptr);
+#else
+        /* packet structure from the nic starts with a packet_header struct that
+         * contains information followed by the actual packet data. */
+        struct packet_header* ph = (struct packet_header *)
+            twz_object_lea(rx_queue_obj, pqe.ptr);
+        ph += 1;
+#endif
 
+        /* decapsulate then send to higher layers */
+        eth_hdr_t* pkt_ptr = (eth_hdr_t *)ph;
+        mac_addr_t src_mac = pkt_ptr->src_mac;
+        mac_addr_t dst_mac = pkt_ptr->dst_mac;
+
+        if (compare_mac_addr(interface->mac, dst_mac) == false) {
+            fprintf(stderr, "eth_rx: wrong destination; packet dropped\n");
+            fprintf(stderr, "SRC: %02X:%02X:%02X:%02X:%02X:%02X ",
+                    src_mac.mac[0], src_mac.mac[1], src_mac.mac[2], src_mac.mac[3],
+                    src_mac.mac[4], src_mac.mac[5]);
+            fprintf(stderr, "DST: %02X:%02X:%02X:%02X:%02X:%02X ",
+                    dst_mac.mac[0], dst_mac.mac[1], dst_mac.mac[2], dst_mac.mac[3],
+                    dst_mac.mac[4], dst_mac.mac[5]);
+            fprintf(stderr, "TYPE: %04X\n", pkt_ptr->type);
+
+        } else {
+            char* payload = (char *)pkt_ptr;
+            payload += ETH_HDR_SIZE;
+
+            switch (pkt_ptr->type) {
+                case IPV4:
+                    ip_rx(payload);
+                    break;
+
+                case ARP:
+                    arp_rx(interface_name, payload);
+                    break;
+
+                default:
+                    fprintf(stderr,
+                        "eth_rx: unrecognized ethernet type %04X; packet dropped\n",
+                            pkt_ptr->type);
+            }
+        }
+
+        /* enqueue an entry in the completion rx queue to signal rx is complete
+         * so the packet memory can be freed */
         queue_complete(rx_queue_obj, (struct queue_entry *)&pqe, 0);
     }
-}
-
-
-
-
-
-
-
-
-//not sure if we will need this function, not using it at all
-void init_queue(twzobj *qo)
-{
-    if(twz_object_new(qo, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
-        abort();
-
-    /* init the queue object, here we have 32 queue entries */
-    queue_init_hdr(qo, 22, sizeof(struct packet_queue_entry), 8, sizeof(struct packet_queue_entry));
-
-    /* start the consumer... */
-    //if(!fork()) consumer(qo);
-    //this will need to be a thread running on the background, but for now, we'll manually read from buffer
-
 }

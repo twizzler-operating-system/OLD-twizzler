@@ -296,7 +296,7 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		ph->status = 0;
 		ph->len = desc->length;
 
-		fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
+		//fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
 		queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&pqe, 0);
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}

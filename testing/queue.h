@@ -75,7 +75,7 @@
 
 struct queue_entry {
 	_Atomic uint32_t cmd_id; // top bit is turn bit.
-	uint32_t info;           // some user-defined info
+	uint64_t info;           // some user-defined info
 	char data[];
 };
 
