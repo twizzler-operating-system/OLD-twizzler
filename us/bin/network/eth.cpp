@@ -31,15 +31,16 @@ void eth_tx(const char* interface_name,
     pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, pkt_ptr, FE_READ);
     pqe.len = pkt_size;
 
+    fprintf(stderr, "Inside eth_tx - %04X\n", eth_type);
     /* enqueue packet (pointer) to primary tx queue */
     queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
     /* for debugging */
-    fprintf(stdout, "[debug] Tx ETH Frame: ");
+    fprintf(stderr, "[debug] Tx ETH Frame: ");
     for (int i = 0; i < pkt_size; ++i) {
-        fprintf(stdout, "%02X ", *((uint8_t *)pkt_ptr + i));
+        fprintf(stderr, "%02X ", *((uint8_t *)pkt_ptr + i));
     }
-    fprintf(stdout, "\n");
+    fprintf(stderr, "\n");
 }
 
 
