@@ -599,6 +599,28 @@ int main()
 	}
 #endif
 
+	if(!fork()) {
+		close(0);
+		close(1);
+		close(2);
+
+		if((fd = open("dev:pty:ptyS0c", O_RDONLY)) != 0) {
+			EPRINTF("1err opening stdin: %d\n", fd);
+			abort();
+		}
+		if((fd = open("dev:pty:ptyS0c", O_RDWR)) != 1) {
+			EPRINTF("1err opening stdout\n");
+			abort();
+		}
+		if((fd = open("dev:pty:ptyS0c", O_RDWR)) != 2) {
+			EPRINTF("1err opening stderr\n");
+			abort();
+		}
+
+		execvp("logboi", (char *[]){ "logboi", NULL });
+		exit(1);
+	}
+
 	if((r = create_pty_pair("dev:pty:pty0", "dev:pty:ptyc0"))) {
 		EPRINTF("failed to create pty pair\n");
 		abort();

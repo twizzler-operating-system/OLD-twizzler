@@ -10,6 +10,6 @@ $(BUILDDIR)/us/libtwzsec/%.o: us/libtwzsec/%.c $(MUSL_HDRS)
 $(BUILDDIR)/us/libtwzsec/libtwzsec.so: $(LIBTWZSEC_OBJ) $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so
 	@mkdir -p $(dir $@)
 	@echo "[LD]      $@"
-	@$(TWZCC) -o $(BUILDDIR)/us/libtwzsec/libtwzsec.so -shared $(LIBTWZSEC_OBJ)
+	@$(TWZCC) -o $(BUILDDIR)/us/libtwzsec/libtwzsec.so -shared $(LIBTWZSEC_OBJ) -ltommath -ltomcrypt
 
 -include $(LIBTWZSEC_OBJ:.o=.d)

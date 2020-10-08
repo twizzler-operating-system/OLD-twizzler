@@ -268,8 +268,9 @@ int twz_object_new(twzobj *obj, twzobj *src, twzobj *ku, uint64_t flags)
 		if(!k) {
 			return -EINVAL;
 		}
-		if(!objid_parse(k, strlen(k), &kuid))
+		if(!objid_parse(k, strlen(k), &kuid)) {
 			return -EINVAL;
+		}
 	} else if(ku) {
 		kuid = twz_object_guid(ku);
 	} else {

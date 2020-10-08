@@ -321,6 +321,12 @@ int main()
 		exit(1);
 	}
 
+	if(!fork()) {
+		fprintf(stderr, "[init] starting logboi\n");
+		execvp("logboi", (char *[]){ "logboi", NULL });
+		exit(1);
+	}
+
 	/* start the terminal program */
 	if(access("/dev/pty/pty0", F_OK) == 0) {
 		if(!fork()) {

@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <twz/alloc.h>
 #include <twz/debug.h>
@@ -28,6 +29,76 @@ __asm__(".global libtwzsec_gate_return;\n"
 extern int main();
 extern int libtwz_panic();
 extern int libtwzsec_gate_return();
+
+int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms)
+{
+	struct sccap *cap;
+	int r = twz_cap_create(&cap,
+	  twz_object_guid(obj),
+	  twz_object_guid(sctx),
+	  perms,
+	  NULL,
+	  NULL,
+	  SCHASH_SHA1,
+	  SCENC_DSA,
+	  key);
+	if(r)
+		return r;
+
+	/* probably get the length from some other function? */
+	r = twz_sctx_add(sctx, twz_object_guid(obj), cap, sizeof(*cap) + cap->slen, ~0, NULL);
+	free(cap);
+	return r;
+}
+
+int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
+{
+	const char *k = getenv("TWZUSERKEY");
+	if(!k) {
+		return -EINVAL;
+	}
+	objid_t pkeyid;
+	if(!objid_parse(k, strlen(k), &pkeyid)) {
+		return -EINVAL;
+	}
+
+	/* TODO: could try to verify that the public key is right */
+	/*
+	k = getenv("TWZUSERKU");
+	if(!k) {
+	    return -EINVAL;
+	}
+	objid_t ukeyid;
+	if(!objid_parse(k, strlen(k), &ukeyid)) {
+	    return -EINVAL;
+	}
+	*/
+
+	k = getenv("TWZUSERSCTX");
+	if(!k) {
+		return -EINVAL;
+	}
+	objid_t ctxid;
+	if(!objid_parse(k, strlen(k), &ctxid)) {
+		return -EINVAL;
+	}
+
+	int r;
+	twzobj obj_kr, obj_ctx;
+	if((r = twz_object_init_guid(&obj_kr, pkeyid, FE_READ))) {
+		return r;
+	}
+
+	if((r = twz_object_init_guid(&obj_ctx, ctxid, FE_READ | FE_WRITE))) {
+		twz_object_release(&obj_kr);
+		return r;
+	}
+	r = twz_context_add_perms(&obj_ctx, &obj_kr, obj, perms);
+
+	twz_object_release(&obj_kr);
+	twz_object_release(&obj_ctx);
+	return r;
+}
 
 void twz_secure_api_create(twzobj *obj, const char *name)
 {
@@ -127,7 +198,9 @@ int twz_sctx_init(twzobj *obj, const char *name)
 	struct twzoa_header *oa = (void *)sc->userdata;
 	oa_hdr_init(obj,
 	  oa,
-	  align_up(sizeof(*sc) + sizeof(struct scbucket) * (sc->nbuckets + sc->nchain), 0x1000),
+	  align_up(
+	    sizeof(*sc) + sizeof(struct scbucket) * (sc->nbuckets + sc->nchain) + OBJ_NULLPAGE_SIZE,
+	    0x1000),
 	  OBJ_TOPDATA);
 
 	return 0;
@@ -193,6 +266,17 @@ int twz_sctx_add(twzobj *obj,
 {
 	struct secctx *sc = twz_object_base(obj);
 	struct twzoa_header *oa = (void *)sc->userdata;
+
+	/* this is a bit of a hack with bootstrapped security contexts (generated outside twizzler).
+	 * TODO: a better solution would be to properly support setting up an OA header from outside
+	 * twizzler.
+	 */
+
+	/* this isn't thread safe, but... it's okay for now (see above TODO) */
+	if(oa->end == 0) {
+		oa_hdr_init(obj, oa, align_up(sc->alloc.max, 0x1000), OBJ_TOPDATA);
+	}
+
 	void *data = oa_hdr_alloc(obj, oa, itemlen);
 	if(!data) {
 		return -ENOMEM;
