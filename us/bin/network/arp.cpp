@@ -117,15 +117,15 @@ void arp_tx(uint16_t hw_type,
 {
     arp_hdr_t* arp_hdr = (arp_hdr_t *)pkt_ptr;
 
-    arp_hdr->hw_type = hw_type;
+    arp_hdr->hw_type = htons(hw_type);
 
-    arp_hdr->proto_type = proto_type;
+    arp_hdr->proto_type = htons(proto_type);
 
     arp_hdr->hw_addr_len = hw_addr_len;
 
     arp_hdr->proto_addr_len = proto_addr_len;
 
-    arp_hdr->opcode = opcode;
+    arp_hdr->opcode = htons(opcode);
 
     memcpy(arp_hdr->sender_hw_addr, sender_hw_addr, HW_ADDR_SIZE);
 
@@ -144,12 +144,14 @@ void arp_rx(const char* interface_name,
 
     arp_hdr_t* arp_hdr = (arp_hdr_t *)pkt_ptr;
 
-    switch (arp_hdr->opcode) {
+    switch (ntohs(arp_hdr->opcode)) {
         case ARP_REQUEST:
             arp_table_insert(arp_hdr->sender_proto_addr, arp_hdr->sender_hw_addr);
 
             for (int i = 0; i < PROTO_ADDR_SIZE; ++i) {
                 if (arp_hdr->target_proto_addr[i] != interface->ip.ip[i]) {
+                    fprintf(stderr, "Error arp_rx: Wrong IP destination; "
+                            "ARP request packet dropped\n");
                     return;
                 }
             }
@@ -165,7 +167,6 @@ void arp_rx(const char* interface_name,
 
         case ARP_REPLY:
             arp_table_insert(arp_hdr->sender_proto_addr, arp_hdr->sender_hw_addr);
-            arp_table_view();
             break;
 
         default:

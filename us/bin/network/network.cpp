@@ -24,9 +24,9 @@ int main(int argc, char* argv[])
     /* start receiving packets on the new interface */
     std::thread recv_thread (eth_rx, "/dev/e1000");
 
+    interface_t* interface = get_interface_by_name("/dev/e1000");
 #ifdef LOOPBACK_TESTING
     /* start a simulated network link (for loopback testing) */
-    interface_t* interface = get_interface_by_name("/dev/e1000");
     std::thread link (loopback_network_link,
             &interface->tx_queue_obj, &interface->rx_queue_obj);
     std::thread free_pkt_memory (free_packet_buffer_object,
@@ -41,11 +41,12 @@ int main(int argc, char* argv[])
         if (strcmp(argv[2], "ipv4") == 0) {
             if (argc > 3) {
                 int count = 0;
-                while (count < 1) {
+                while (count < 10) {
                     ++count;
                     char payload[] = "This is test data.";
                     fprintf(stdout, "Sending out an ipv4 packet\n");
-                    int ret = send_ipv4_packet("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
+                    int ret = send_ipv4_packet
+                        ("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
                     if (ret == ARP_TIMEOUT_ERROR) {
                         fprintf(stderr, "ARP TIMEOUT ERROR\n");
                     }
@@ -53,7 +54,31 @@ int main(int argc, char* argv[])
                 }
 
             } else {
-                fprintf(stderr, "Error: ipv4 program requires dst ip addr as argument\n");
+                fprintf(stderr, "Error: ipv4 program requires "
+                        "dst ip addr as argument\n");
+                exit(1);
+            }
+
+        } else if (strcmp(argv[2], "twz") == 0) {
+            if (argc > 3) {
+                int count = 0;
+                while (count < 10) {
+                    ++count;
+                    char payload[] = "This is test data.";
+                    object_id_t object_id;
+                    for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
+                        object_id.id[i] = interface->mac.mac[i % MAC_ADDR_SIZE];
+                    }
+                    fprintf(stdout, "Sending out a twizzler packet\n");
+                    int ret = send_twz_packet
+                        ("/dev/e1000", object_id,
+                         convert_ip_addr(argv[3]), TCP, payload);
+                    usleep(1000000);
+                }
+
+            } else {
+                fprintf(stderr, "Error: ipv4 program requires "
+                        "dst ip addr as argument\n");
                 exit(1);
             }
 

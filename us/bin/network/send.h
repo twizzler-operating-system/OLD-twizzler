@@ -17,4 +17,9 @@ int send_ipv4_packet(const char* interface_name,
                     uint8_t ip_type,
                     char* payload);
 
+int send_twz_packet(const char* interface_name,
+                    object_id_t object_id,
+                    ip_addr_t dst_ip,
+                    uint8_t ip_type,
+                    char* payload);
 #endif

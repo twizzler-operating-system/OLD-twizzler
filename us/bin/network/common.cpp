@@ -6,41 +6,70 @@ static uint64_t id_counter = 0;
 static std::mutex mtx;
 
 
-uint64_t get_id()
+uint8_t check_machine_endianess()
 {
-    return ++id_counter;
+    int32_t n = 1;
+    if (*(char *)&n == 1) {
+        return LITTLEENDIAN;
+    } else {
+        return BIGENDIAN;
+    }
 }
 
 
-void* allocate_packet_buffer_object(int pkt_size)
+uint32_t ntohl(uint32_t n)
 {
-    twzobj pkt_buffer_obj;
-    if (twz_object_new(&pkt_buffer_obj, NULL, NULL,
-    TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0) {
-        fprintf(stderr, "Error create_packet_buffer_object: "
-                "cannot create packet buffer object\n");
-        exit(1);
+    if (check_machine_endianess() == BIGENDIAN) {
+        return n;
     }
-    mtx.lock();
-    twz_object_build_alloc(&pkt_buffer_obj, 0);
-    mtx.unlock();
-    void *p = twz_object_alloc(&pkt_buffer_obj, pkt_size);
-    void *pkt_ptr = twz_object_lea(&pkt_buffer_obj, p);
 
-    return pkt_ptr;
+    uint8_t data[4] = {};
+    memcpy(&data, &n, sizeof(data));
+    return ((uint32_t) data[3] << 0)
+            | ((uint32_t) data[2] << 8)
+            | ((uint32_t) data[1] << 16)
+            | ((uint32_t) data[0] << 24);
 }
 
 
-void free_packet_buffer_object(twzobj* queue_obj)
+uint16_t ntohs(uint16_t n)
 {
-    while (true) {
-        struct packet_queue_entry pqe;
-
-        /* dequeue the completion entry from completion queue of queue_obj */
-        queue_get_finished(queue_obj, (struct queue_entry *)&pqe, 0);
-
-        //TODO free pqe
+    if (check_machine_endianess() == BIGENDIAN) {
+        return n;
     }
+
+    uint8_t data[2] = {};
+    memcpy(&data, &n, sizeof(data));
+    return ((uint16_t) data[1] << 0)
+            | ((uint16_t) data[0] << 8);
+}
+
+
+uint32_t htonl(uint32_t n)
+{
+    if (check_machine_endianess() == BIGENDIAN) {
+        return n;
+    }
+
+    uint8_t data[4] = {};
+    memcpy(&data, &n, sizeof(data));
+    return ((uint32_t) data[3] << 0)
+            | ((uint32_t) data[2] << 8)
+            | ((uint32_t) data[1] << 16)
+            | ((uint32_t) data[0] << 24);
+}
+
+
+uint16_t htons(uint16_t n)
+{
+    if (check_machine_endianess() == BIGENDIAN) {
+        return n;
+    }
+
+    uint8_t data[2] = {};
+    memcpy(&data, &n, sizeof(data));
+    return ((uint16_t) data[1] << 0)
+            | ((uint16_t) data[0] << 8);
 }
 
 
@@ -124,3 +153,43 @@ uint16_t checksum(unsigned char* data,
 
     return (uint16_t)~sum;
 }
+
+
+uint64_t get_id()
+{
+    return ++id_counter;
+}
+
+
+void* allocate_packet_buffer_object(int pkt_size)
+{
+    twzobj pkt_buffer_obj;
+    if (twz_object_new(&pkt_buffer_obj, NULL, NULL,
+    TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0) {
+        fprintf(stderr, "Error create_packet_buffer_object: "
+                "cannot create packet buffer object\n");
+        exit(1);
+    }
+    mtx.lock();
+    twz_object_build_alloc(&pkt_buffer_obj, 0);
+    mtx.unlock();
+    void *p = twz_object_alloc(&pkt_buffer_obj, pkt_size);
+    void *pkt_ptr = twz_object_lea(&pkt_buffer_obj, p);
+
+    return pkt_ptr;
+}
+
+
+void free_packet_buffer_object(twzobj* queue_obj)
+{
+    while (true) {
+        struct packet_queue_entry pqe;
+
+        /* dequeue the completion entry from completion queue of queue_obj */
+        queue_get_finished(queue_obj, (struct queue_entry *)&pqe, 0);
+
+        //TODO free pqe
+    }
+}
+
+

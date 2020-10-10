@@ -6,7 +6,7 @@
 void ip_tx(const char* interface_name,
           ip_addr_t dst_ip,
           uint8_t ip_type,
-          void *pkt_ptr,
+          void* pkt_ptr,
           int pkt_size)
 {
     interface_t* interface = get_interface_by_name(interface_name);
@@ -22,7 +22,7 @@ void ip_tx(const char* interface_name,
     ip_hdr->tos = 0;
 
     /* total packet length */
-    ip_hdr->tot_len = pkt_size;
+    ip_hdr->tot_len = htons(pkt_size);
 
     /* fragmentation attributes */
     ip_hdr->identification = 0;
@@ -44,7 +44,7 @@ void ip_tx(const char* interface_name,
     memcpy(ip_hdr->dst_ip.ip, dst_ip.ip, IP_ADDR_SIZE);
 
     uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
-    ip_hdr->hdr_checksum = checksum((unsigned char *)pkt_ptr, ihl);
+    ip_hdr->hdr_checksum = htons(checksum((unsigned char *)pkt_ptr, ihl));
 }
 
 
@@ -53,7 +53,7 @@ void ip_rx(void* pkt_ptr)
     ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
 
     /* verify header checksum */
-    uint16_t recvd_checksum = ip_hdr->hdr_checksum;
+    uint16_t recvd_checksum = ntohs(ip_hdr->hdr_checksum);
     ip_hdr->hdr_checksum = 0;
 
     uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes

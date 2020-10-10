@@ -3,6 +3,8 @@
 
 #include "common.h"
 
+#define IP_HDR_SIZE 20 //bytes
+
 //IP types
 #define ICMP 0x01
 #define TCP 0x06
@@ -24,7 +26,7 @@ typedef struct __attribute__((__packed__)) ip_hdr {
 void ip_tx(const char* interface_name,
           ip_addr_t dst_ip,
           uint8_t ip_type,
-          void *pkt_ptr,
+          void* pkt_ptr,
           int pkt_size);
 
 void ip_rx(void* pkt_ptr);

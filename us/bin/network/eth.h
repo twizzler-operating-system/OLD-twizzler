@@ -10,6 +10,7 @@
 //ETH types
 #define IPV4 0x0800
 #define ARP 0x0806
+#define TWIZZLER 0x0700
 
 typedef struct __attribute__((__packed__)) eth_hdr {
     mac_addr_t dst_mac;

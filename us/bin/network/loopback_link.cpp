@@ -12,7 +12,6 @@ void loopback_network_link(twzobj* tx_queue_obj,
     while (true) {
         struct packet_queue_entry tx_pqe;
         queue_receive(tx_queue_obj, (struct queue_entry *)&tx_pqe, 0);
-        fprintf(stderr, "Removed a packet from tx queue\n");
         char* pkt_ptr = (char *)twz_object_lea(tx_queue_obj, tx_pqe.ptr);
 
         usleep(1000); //propagation delay

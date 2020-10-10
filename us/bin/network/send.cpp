@@ -2,8 +2,9 @@
 
 #include "interface.h"
 #include "eth.h"
-#include "ipv4.h"
+#include "twz.h"
 #include "arp.h"
+#include "ipv4.h"
 
 
 void send_arp_packet(const char* interface_name,
@@ -44,7 +45,6 @@ int send_ipv4_packet(const char* interface_name,
     if (payload) {
         payload_size = strlen(payload);
     }
-    int IP_HDR_SIZE = 20;
     int pkt_size = ETH_HDR_SIZE + IP_HDR_SIZE + payload_size;
     if (pkt_size > MAX_ETH_FRAME_SIZE) {
         fprintf(stderr, "Error encapsulate_mac_ping_packet: "
@@ -85,10 +85,58 @@ int send_ipv4_packet(const char* interface_name,
         }
     }
 
+    /* add ethernet header */
     mac_addr_t dst_mac;
     memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
-    /* add ethernet header */
     eth_tx(interface_name, dst_mac, IPV4, pkt_ptr, pkt_size);
+
+    return 0;
+}
+
+
+int send_twz_packet(const char* interface_name,
+                    object_id_t object_id,
+                    ip_addr_t dst_ip,
+                    uint8_t ip_type,
+                    char* payload)
+{
+    /* calculate the size of packet buffer */
+    uint16_t payload_size = 0;
+    if (payload) {
+        payload_size = strlen(payload);
+    }
+    int pkt_size = ETH_HDR_SIZE + TWZ_HDR_SIZE + IP_HDR_SIZE + payload_size;
+    if (pkt_size > MAX_ETH_FRAME_SIZE) {
+        fprintf(stderr, "Error encapsulate_mac_ping_packet: "
+                "sending frame larger than allowed ethernet standard\n");
+        return -1;
+    }
+
+    /* create packet buffer object to store packet that will the transfered */
+    void* pkt_ptr = allocate_packet_buffer_object(pkt_size);
+
+    /* add payload */
+    if (payload) {
+        char* payload_ptr = (char *)pkt_ptr;
+        payload_ptr += ETH_HDR_SIZE + TWZ_HDR_SIZE + IP_HDR_SIZE;
+        strcpy(payload_ptr, payload);
+    }
+
+    /* add ipv4 header */
+    char* ip_ptr = (char *)pkt_ptr;
+    ip_ptr += ETH_HDR_SIZE + TWZ_HDR_SIZE;
+    ip_tx(interface_name, dst_ip, ip_type, ip_ptr, (pkt_size - ETH_HDR_SIZE));
+
+    /* add twizzler header */
+    char* twz_ptr = (char *)pkt_ptr;
+    twz_ptr += ETH_HDR_SIZE;
+    twz_tx(object_id, IPV4, twz_ptr);
+
+    /* add ethernet header */
+    mac_addr_t dst_mac = (mac_addr_t) {
+        .mac = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}
+    };
+    eth_tx(interface_name, dst_mac, TWIZZLER, pkt_ptr, pkt_size);
 
     return 0;
 }
