@@ -14,6 +14,7 @@ void twz_tx(object_id_t object_id,
           uint16_t twz_type,
           void* pkt_ptr);
 
-void twz_rx(void* pkt_ptr);
+void twz_rx(const char* interface_name,
+          void* pkt_ptr);
 
 #endif

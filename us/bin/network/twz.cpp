@@ -16,11 +16,12 @@ void twz_tx(object_id_t object_id,
 }
 
 
-void twz_rx(void* pkt_ptr)
+void twz_rx(const char* interface_name,
+          void* pkt_ptr)
 {
     twz_hdr_t* twz_hdr = (twz_hdr_t *)pkt_ptr;
 
-    fprintf(stdout, "Received Twz packet (id: ");
+    fprintf(stdout, "Received twizzler packet (id: ");
     for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
         fprintf(stdout, "%02X", twz_hdr->object_id.id[i]);
     }
@@ -33,7 +34,7 @@ void twz_rx(void* pkt_ptr)
 
     switch (twz_type) {
         case IPV4:
-            ip_rx(payload);
+            ip_rx(interface_name, payload);
             break;
 
         default:

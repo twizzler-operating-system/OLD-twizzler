@@ -124,13 +124,6 @@ ip_addr_t convert_ip_addr(char* ip_addr)
 uint16_t checksum(unsigned char* data,
                 int8_t len)
 {
-    /* for debugging */
-    //fprintf(stdout, "[checksum] len = %d data = ", len);
-    //for (int i = 0; i < len; ++i) {
-    //    fprintf(stdout, "%02X ", *(data + i));
-    //}
-    //fprintf(stdout, "\n");
-
     uint32_t sum = 0;
     int i = 0;
 

@@ -44,11 +44,19 @@ int main(int argc, char* argv[])
                 while (count < 10) {
                     ++count;
                     char payload[] = "This is test data.";
-                    fprintf(stdout, "Sending out an ipv4 packet\n");
+                    fprintf(stdout, "Sending out an ipv4 packet...\n");
                     int ret = send_ipv4_packet
                         ("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
-                    if (ret == ARP_TIMEOUT_ERROR) {
-                        fprintf(stderr, "ARP TIMEOUT ERROR\n");
+                    int64_t counter = 0;
+                    while (ret == EARP_WAIT) {
+                        usleep(10);
+                        ret = send_ipv4_packet
+                            ("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
+                        ++counter;
+                        if (counter*10 == ARP_TIMEOUT) {
+                            fprintf(stderr, "Error ARP failed; message not sent\n");
+                            break;
+                        }
                     }
                     usleep(1000000);
                 }

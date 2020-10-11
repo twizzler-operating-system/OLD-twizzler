@@ -35,11 +35,11 @@ void eth_tx(const char* interface_name,
     queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
     /* for debugging */
-    fprintf(stdout, "[debug] Tx ETH Frame: ");
-    for (int i = 0; i < pkt_size; ++i) {
-        fprintf(stdout, "%02X ", *((uint8_t *)pkt_ptr + i));
-    }
-    fprintf(stdout, "\n");
+    //fprintf(stdout, "[debug] Tx ETH Frame: ");
+    //for (int i = 0; i < pkt_size; ++i) {
+    //    fprintf(stdout, "%02X ", *((uint8_t *)pkt_ptr + i));
+    //}
+    //fprintf(stdout, "\n");
 }
 
 
@@ -90,7 +90,7 @@ void eth_rx(const char* interface_name)
 
             switch (eth_type) {
                 case TWIZZLER:
-                    twz_rx(payload);
+                    twz_rx(interface_name, payload);
                     break;
 
                 case ARP:
@@ -98,7 +98,7 @@ void eth_rx(const char* interface_name)
                     break;
 
                 case IPV4:
-                    ip_rx(payload);
+                    ip_rx(interface_name, payload);
                     break;
 
                 default:

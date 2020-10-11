@@ -48,9 +48,22 @@ void ip_tx(const char* interface_name,
 }
 
 
-void ip_rx(void* pkt_ptr)
+void ip_rx(const char* interface_name,
+        void* pkt_ptr)
 {
+    interface_t* interface = get_interface_by_name(interface_name);
+
     ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
+
+    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+        if (ip_hdr->dst_ip.ip[i] != interface->ip.ip[i]) {
+            fprintf(stderr, "ip_rx: wrong ipv4 destination (%d.%d.%d.%d); "
+                    "packet dropped\n", ip_hdr->dst_ip.ip[0],
+                    ip_hdr->dst_ip.ip[1], ip_hdr->dst_ip.ip[2],
+                    ip_hdr->dst_ip.ip[3]);
+            return;
+        }
+    }
 
     /* verify header checksum */
     uint16_t recvd_checksum = ntohs(ip_hdr->hdr_checksum);
@@ -59,13 +72,15 @@ void ip_rx(void* pkt_ptr)
     uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
     uint16_t calculated_checksum = checksum((unsigned char *)ip_hdr, ihl);
     if (recvd_checksum != calculated_checksum) {
-        fprintf(stderr, "Error ip_rx: checksum mismatch; packet dropped\n");
+        fprintf(stderr, "ip_rx: checksum mismatch; packet dropped\n");
         return;
     }
 
     char* payload = (char *)pkt_ptr;
     payload += ihl;
 
-    fprintf(stdout, "Rx IP Payload: ");
+    fprintf(stdout, "Received ipv4 packet from (%d.%d.%d.%d) payload = ",
+            ip_hdr->src_ip.ip[0], ip_hdr->src_ip.ip[1],
+            ip_hdr->src_ip.ip[2], ip_hdr->src_ip.ip[3]);
     fprintf(stdout, "%s\n", payload);
 }

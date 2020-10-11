@@ -47,4 +47,12 @@ void arp_table_view();
 
 void arp_table_clear();
 
+void insert_arp_req(uint8_t* proto_addr);
+
+void delete_arp_req(uint8_t* proto_addr);
+
+bool is_arp_req_inflight(uint8_t* proto_addr);
+
+void view_arp_req_inflight();
+
 #endif

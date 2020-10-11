@@ -4,8 +4,11 @@
 #include "send.h"
 
 
-static std::map<uint8_t*,uint8_t*> arp_table;
-static std::mutex arp_table_mutex;
+std::map<uint8_t*,uint8_t*> arp_table;
+std::mutex arp_table_mutex;
+
+std::vector<uint8_t*> inflight_arp_req;
+std::mutex inflight_arp_req_mutex;
 
 
 void arp_table_insert(uint8_t* proto_addr,
@@ -14,6 +17,10 @@ void arp_table_insert(uint8_t* proto_addr,
     std::map<uint8_t*,uint8_t*>::iterator it;
 
     arp_table_mutex.lock();
+    uint8_t* key = (uint8_t *)malloc(sizeof(uint8_t)*PROTO_ADDR_SIZE);
+    uint8_t* value = (uint8_t *)malloc(sizeof(uint8_t)*MAC_ADDR_SIZE);
+    memcpy(key, proto_addr, PROTO_ADDR_SIZE);
+    memcpy(value, hw_addr, MAC_ADDR_SIZE);
     bool found;
     for (it = arp_table.begin(); it != arp_table.end(); ++it) {
         found = true;
@@ -26,9 +33,9 @@ void arp_table_insert(uint8_t* proto_addr,
         if (found) break;
     }
     if (!found) {
-        arp_table[proto_addr] = hw_addr;
+        arp_table[key] = value;
     } else {
-        it->second = hw_addr;
+        it->second = value;
     }
     arp_table_mutex.unlock();
 }
@@ -62,8 +69,25 @@ uint8_t* arp_table_get(uint8_t* proto_addr)
 
 void arp_table_delete(uint8_t* proto_addr)
 {
+    std::map<uint8_t*,uint8_t*>::iterator it;
+
     arp_table_mutex.lock();
-    arp_table.erase(proto_addr);
+    bool found;
+    for (it = arp_table.begin(); it != arp_table.end(); ++it) {
+        found = true;
+        for (int i = 0; i < PROTO_ADDR_SIZE; ++i) {
+            if (it->first[i] != proto_addr[i]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) {
+            free(it->first);
+            free(it->second);
+            arp_table.erase(it);
+            break;
+        }
+    }
     arp_table_mutex.unlock();
 }
 
@@ -101,6 +125,84 @@ void arp_table_clear()
         arp_table.erase(it);
     }
     arp_table_mutex.unlock();
+}
+
+
+void insert_arp_req(uint8_t* proto_addr)
+{
+    inflight_arp_req_mutex.lock();
+    uint8_t* key = (uint8_t *)malloc(sizeof(uint8_t)*PROTO_ADDR_SIZE);
+    memcpy(key, proto_addr, PROTO_ADDR_SIZE);
+    inflight_arp_req.push_back(key);
+    inflight_arp_req_mutex.unlock();
+}
+
+
+void delete_arp_req(uint8_t* proto_addr)
+{
+    std::vector<uint8_t*>::iterator it;
+
+    inflight_arp_req_mutex.lock();
+    bool found;
+    for (it = inflight_arp_req.begin(); it != inflight_arp_req.end(); ++it) {
+        found = true;
+        for (int i = 0; i < PROTO_ADDR_SIZE; ++i) {
+            if ((*it)[i] != proto_addr[i]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) {
+            free(*it);
+            inflight_arp_req.erase(it);
+            break;
+        }
+    }
+    inflight_arp_req_mutex.unlock();
+}
+
+
+bool is_arp_req_inflight(uint8_t* proto_addr)
+{
+    std::vector<uint8_t*>::iterator it;
+
+    inflight_arp_req_mutex.lock();
+    bool found;
+    for (it = inflight_arp_req.begin(); it != inflight_arp_req.end(); ++it) {
+        found = true;
+        for (int i = 0; i < PROTO_ADDR_SIZE; ++i) {
+            if ((*it)[i] != proto_addr[i]) {
+                found = false;
+                break;
+            }
+        }
+        if (found) {
+            inflight_arp_req_mutex.unlock();
+            return true;
+        }
+    }
+    inflight_arp_req_mutex.unlock();
+
+    return false;
+}
+
+
+void view_arp_req_inflight()
+{
+    std::vector<uint8_t*>::iterator it;
+
+    inflight_arp_req_mutex.lock();
+    fprintf(stdout, "Inflight ARP Requests:\n");
+    fprintf(stdout, "------------------------------------------\n");
+    for (it = inflight_arp_req.begin(); it != inflight_arp_req.end(); ++it) {
+        int i;
+        for (i = 0; i < PROTO_ADDR_SIZE-1; ++i) {
+            fprintf(stdout, "%d.", (*it)[i]);
+        }
+        fprintf(stdout, "%d\n", (*it)[i]);
+    }
+    fprintf(stdout, "------------------------------------------\n");
+    inflight_arp_req_mutex.unlock();
 }
 
 
@@ -150,8 +252,6 @@ void arp_rx(const char* interface_name,
 
             for (int i = 0; i < PROTO_ADDR_SIZE; ++i) {
                 if (arp_hdr->target_proto_addr[i] != interface->ip.ip[i]) {
-                    fprintf(stderr, "Error arp_rx: Wrong IP destination; "
-                            "ARP request packet dropped\n");
                     return;
                 }
             }
@@ -167,9 +267,10 @@ void arp_rx(const char* interface_name,
 
         case ARP_REPLY:
             arp_table_insert(arp_hdr->sender_proto_addr, arp_hdr->sender_hw_addr);
+            delete_arp_req(arp_hdr->sender_proto_addr);
             break;
 
         default:
-            fprintf(stderr, "Error arp_rx: unrecognized opcode\n");
+            fprintf(stderr, "arp_rx: unrecognized opcode; packet dropped\n");
     }
 }

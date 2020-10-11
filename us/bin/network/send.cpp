@@ -7,6 +7,26 @@
 #include "ipv4.h"
 
 
+static bool arp_check(const char* interface_name,
+                    ip_addr_t dst_ip)
+{
+    uint8_t* dst_mac_addr;
+    if ((dst_mac_addr = arp_table_get(dst_ip.ip)) == NULL) {
+        if (!is_arp_req_inflight(dst_ip.ip)) {
+            /* send ARP Request packet */
+            mac_addr_t mac = (mac_addr_t) {.mac = {0}};
+            send_arp_packet(interface_name, ARP_REQUEST, mac, dst_ip);
+
+            insert_arp_req(dst_ip.ip);
+        }
+
+        return false;
+    }
+
+    return true;
+}
+
+
 void send_arp_packet(const char* interface_name,
                    uint16_t opcode,
                    mac_addr_t dst_mac,
@@ -40,6 +60,10 @@ int send_ipv4_packet(const char* interface_name,
                     uint8_t ip_type,
                     char* payload)
 {
+    if (arp_check(interface_name, dst_ip) == false) {
+        return EARP_WAIT;
+    }
+
     /* calculate the size of packet buffer */
     uint16_t payload_size = 0;
     if (payload) {
@@ -47,9 +71,7 @@ int send_ipv4_packet(const char* interface_name,
     }
     int pkt_size = ETH_HDR_SIZE + IP_HDR_SIZE + payload_size;
     if (pkt_size > MAX_ETH_FRAME_SIZE) {
-        fprintf(stderr, "Error encapsulate_mac_ping_packet: "
-                "sending frame larger than allowed ethernet standard\n");
-        return -1;
+        return EMAX_FRAME_SIZE;
     }
 
     /* create packet buffer object to store packet that will the transfered */
@@ -67,25 +89,8 @@ int send_ipv4_packet(const char* interface_name,
     ip_ptr += ETH_HDR_SIZE;
     ip_tx(interface_name, dst_ip, ip_type, ip_ptr, (pkt_size - ETH_HDR_SIZE));
 
-    /* ARP check */
-    uint8_t* dst_mac_addr;
-    if ((dst_mac_addr = arp_table_get(dst_ip.ip)) == NULL) {
-        /* send ARP Request packet */
-        mac_addr_t mac = (mac_addr_t) {.mac = {0}};
-        send_arp_packet(interface_name, ARP_REQUEST, mac, dst_ip);
-
-        /* blocking send */
-        uint64_t count = 0;
-        while ((dst_mac_addr = arp_table_get(dst_ip.ip)) == NULL) {
-            usleep(1);
-            ++count;
-            if (count == ARP_TIMEOUT) {
-                return ARP_TIMEOUT_ERROR;
-            }
-        }
-    }
-
     /* add ethernet header */
+    uint8_t* dst_mac_addr = arp_table_get(dst_ip.ip);
     mac_addr_t dst_mac;
     memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
     eth_tx(interface_name, dst_mac, IPV4, pkt_ptr, pkt_size);
@@ -107,9 +112,7 @@ int send_twz_packet(const char* interface_name,
     }
     int pkt_size = ETH_HDR_SIZE + TWZ_HDR_SIZE + IP_HDR_SIZE + payload_size;
     if (pkt_size > MAX_ETH_FRAME_SIZE) {
-        fprintf(stderr, "Error encapsulate_mac_ping_packet: "
-                "sending frame larger than allowed ethernet standard\n");
-        return -1;
+        return EMAX_FRAME_SIZE;
     }
 
     /* create packet buffer object to store packet that will the transfered */

@@ -29,6 +29,7 @@ void ip_tx(const char* interface_name,
           void* pkt_ptr,
           int pkt_size);
 
-void ip_rx(void* pkt_ptr);
+void ip_rx(const char* interface_name,
+        void* pkt_ptr);
 
 #endif

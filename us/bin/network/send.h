@@ -5,7 +5,9 @@
 
 #define ARP_TIMEOUT 1000000 //in us
 
-#define ARP_TIMEOUT_ERROR 1
+//error codes
+#define EMAX_FRAME_SIZE 1
+#define EARP_WAIT 2
 
 void send_arp_packet(const char* interface_name,
                    uint16_t opcode,

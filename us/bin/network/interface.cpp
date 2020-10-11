@@ -14,8 +14,8 @@ void init_interface(const char* interface_name,
     /* create object to hold interface properties */
     if (twz_object_new(&interface_obj, NULL, NULL,
     TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE) < 0) {
-        fprintf(stderr,
-            "init_interface: could not create object for interface properties\n");
+        fprintf(stderr, "Error init_interface: "
+                "could not create object for interface properties\n");
         exit(1);
     }
 
@@ -82,7 +82,7 @@ interface_t* get_interface_by_name(const char* interface_name)
 
     it = interface_list.find(interface_name);
     if (it == interface_list.end()) {
-        fprintf(stderr, "Error get_interface_by_name: interface %s does not exist",
+        fprintf(stderr, "Error get_interface_by_name: interface %s not exist\n",
                 interface_name);
         exit(1);
     }
