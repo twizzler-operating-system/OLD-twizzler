@@ -167,15 +167,17 @@ static inline struct queue_entry *__get_entry(struct object *obj,
 static inline int __wait_on(void *o, atomic_uint_least64_t *p, uint64_t v, int dq)
 {
 	(void)o;
-	twz_thread_sync(THREAD_SYNC_SLEEP, p, v, NULL);
-	return 0;
+	(void)dq;
+	int r = twz_thread_sync(THREAD_SYNC_SLEEP, p, v, NULL);
+	return r;
 }
 
 static inline int __wake_up(void *o, atomic_uint_least64_t *p, uint64_t v, int dq)
 {
 	(void)o;
-	twz_thread_sync(THREAD_SYNC_WAKE, p, v, NULL);
-	return 0;
+	(void)dq;
+	int r = twz_thread_sync(THREAD_SYNC_WAKE, p, v, NULL);
+	return r;
 }
 
 static inline struct queue_entry *__get_entry(
@@ -344,7 +346,11 @@ static inline int queue_sub_dequeue(
 
 	/* the is_turn function does the acquire operation that pairs with the release on cmd_id in
 	 * the enqueue function. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
 	memcpy(result, entry, hdr->subqueue[sq].stride);
+#pragma GCC diagnostic pop
 
 	/* update the tail, remembering not to overwrite the waiting bit */
 	hdr->subqueue[sq].tail = (hdr->subqueue[sq].tail + 1) & 0x7fffffff;
@@ -408,6 +414,7 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 
 	if(sleep_count == count) {
 		int r = twz_thread_sync_multiple(sleep_count, tsa, NULL);
+		(void)r;
 		/* TODO: errors */
 		return queue_sub_dequeue_multiple(count, specs);
 	}

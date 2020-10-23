@@ -1,3 +1,4 @@
+#include <err.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,7 +103,6 @@ int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
 
 void twz_secure_api_create(twzobj *obj, const char *name)
 {
-	objid_t id;
 	__twz_secapi_nextstack = (char *)malloc(0x2000) + 0x2000;
 	__twz_secapi_nextstack_backup = __twz_secapi_nextstack;
 	struct secure_api_header *hdr = twz_object_base(obj);
@@ -128,7 +128,9 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 
 	twz_view_object_init(&orig_view);
 
-	twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE);
+	if(twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE)) {
+		abort(); // TODO
+	}
 
 	struct sccap *cap;
 	twz_cap_create(&cap,

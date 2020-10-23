@@ -169,7 +169,7 @@ static void vbufprintk(char *buffer, const char *fmt, va_list args)
 				case 's':
 					str = va_arg(args, char *);
 					if(!str)
-						str = "(null)";
+						str = (char *)"(null)";
 					len = strlen(str);
 					if(precision && precision < len)
 						len = precision;

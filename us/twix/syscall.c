@@ -558,10 +558,23 @@ __attribute__((unused)) static const char *syscall_names[] = {
 	[331] = "pkey_free",
 };
 static size_t stlen = sizeof(syscall_table) / sizeof(syscall_table[0]);
+bool try_twix_version2(struct twix_register_frame *frame,
+  long num,
+  long a0,
+  long a1,
+  long a2,
+  long a3,
+  long a4,
+  long a5,
+  long *ret);
 
 long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5)
 {
 	__linux_init();
+	long t2ret;
+	if(try_twix_version2(NULL, num, a0, a1, a2, a3, a4, a5, &t2ret)) {
+		return t2ret;
+	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
 #if 1
 		if(num != 12 && num != 13 && num != 14)
@@ -617,6 +630,10 @@ static long twix_syscall_frame(struct twix_register_frame *frame,
   long a5)
 {
 	__linux_init();
+	long t2ret;
+	if(try_twix_version2(frame, num, a0, a1, a2, a3, a4, a5, &t2ret)) {
+		return t2ret;
+	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
 #if 1
 		if(num != 12 && num != 13 && num != 14)

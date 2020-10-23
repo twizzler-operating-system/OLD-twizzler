@@ -78,7 +78,8 @@ int main(int argc, char **argv)
 	uint64_t flags = nh->flags;
 	while(!(flags & NIC_FL_MAC_VALID)) {
 		/* if it's not set, sleep and specify the comparison value as the value we just checked. */
-		twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
+		int r = twz_thread_sync(THREAD_SYNC_SLEEP, &nh->flags, flags, /* timeout */ NULL);
+		(void)r;
 		/* we woke up, so someone woke us up. Reload the flags to check the new value */
 		flags = nh->flags;
 		/* we have to go around the loop again because we might have had a spurious wake up. */

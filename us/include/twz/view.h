@@ -38,7 +38,6 @@ _Static_assert(offsetof(struct twzview_repr, fault_handler) == __VE_FAULT_HANDLE
 _Static_assert(offsetof(struct twzview_repr, dbl_fault_handler) == __VE_DBL_FAULT_HANDLER_OFFSET,
   "Offset of fault_handler must be equal to __VE_DBL_FAULT_HANDLER_OFFSET");
 
-twzobj;
 void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags);
 void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags);
 void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags);

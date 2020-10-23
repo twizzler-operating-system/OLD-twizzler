@@ -130,8 +130,22 @@ static inline void twz_secure_api_close(struct secure_api *api)
 		struct sys_become_args args = {                                                            \
 			.target_view = hdr->view,                                                              \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
-			.rdi = (long)arg,                                                                      \
+			.rax = 0,                                                                              \
+			.rbx = 0,                                                                              \
+			.rcx = 0,                                                                              \
+			.rdx = 0,                                                                              \
+			.rdi = (unsigned long)arg,                                                             \
+			.rsi = 0,                                                                              \
 			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+			.rbp = 0,                                                                              \
+			.r8 = 0,                                                                               \
+			.r9 = 0,                                                                               \
+			.r10 = 0,                                                                              \
+			.r11 = 0,                                                                              \
+			.r12 = 0,                                                                              \
+			.r13 = 0,                                                                              \
+			.r14 = 0,                                                                              \
+			.r15 = 0,                                                                              \
 		};                                                                                         \
 		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
 		if(r == 0)                                                                                 \
@@ -139,21 +153,23 @@ static inline void twz_secure_api_close(struct secure_api *api)
 		r;                                                                                         \
 	})
 
+/*
 #define twz_secure_api_call2(hdr, gate, arg1, arg2)                                                \
-	({                                                                                             \
-		twz_secure_api_setup_tmp_stack();                                                          \
-		struct sys_become_args args = {                                                            \
-			.target_view = hdr->view,                                                              \
-			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
-			.rdi = (long)arg1,                                                                     \
-			.rsi = (long)arg2,                                                                     \
-			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
-		};                                                                                         \
-		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-		if(r == 0)                                                                                 \
-			r = sys_become(&args, 0, 0);                                                           \
-		r;                                                                                         \
-	})
+    ({                                                                                             \
+        twz_secure_api_setup_tmp_stack();                                                          \
+        struct sys_become_args args = {                                                            \
+            .target_view = hdr->view,                                                              \
+            .target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
+            .rdi = (long)arg1,                                                                     \
+            .rsi = (long)arg2,                                                                     \
+            .rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+        };                                                                                         \
+        long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
+        if(r == 0)                                                                                 \
+            r = sys_become(&args, 0, 0);                                                           \
+        r;                                                                                         \
+    })
+*/
 
 #define twz_secure_api_call3(hdr, gate, arg1, arg2, arg3)                                          \
 	({                                                                                             \
@@ -161,10 +177,22 @@ static inline void twz_secure_api_close(struct secure_api *api)
 		struct sys_become_args args = {                                                            \
 			.target_view = hdr->view,                                                              \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
-			.rdx = (long)arg3,                                                                     \
-			.rdi = (long)arg1,                                                                     \
-			.rsi = (long)arg2,                                                                     \
+			.rax = 0,                                                                              \
+			.rbx = 0,                                                                              \
+			.rcx = 0,                                                                              \
+			.rdx = (unsigned long)arg3,                                                            \
+			.rdi = (unsigned long)arg1,                                                            \
+			.rsi = (unsigned long)arg2,                                                            \
 			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+			.rbp = 0,                                                                              \
+			.r8 = 0,                                                                               \
+			.r9 = 0,                                                                               \
+			.r10 = 0,                                                                              \
+			.r11 = 0,                                                                              \
+			.r12 = 0,                                                                              \
+			.r13 = 0,                                                                              \
+			.r14 = 0,                                                                              \
+			.r15 = 0,                                                                              \
 		};                                                                                         \
 		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
 		if(r == 0)                                                                                 \

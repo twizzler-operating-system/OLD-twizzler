@@ -18,8 +18,8 @@ int main()
 		fprintf(stderr, "couldn't open twix API\n");
 		return 1;
 	}
-	objid_t id = 0;
-	int r = twix_open_queue(&api, 0, &id);
+	objid_t id = 0, bid;
+	int r = twix_open_queue(&api, 0, &id, &bid);
 	printf("::: %d : " IDFMT "\n", r, IDPR(id));
 
 	// printf("logtest thr id : " IDFMT "\n", IDPR(twz_thread_repr_base()->reprid));
@@ -27,9 +27,11 @@ int main()
 	twz_object_init_guid(&queue, id, FE_READ | FE_WRITE);
 
 	struct twix_queue_entry tqe;
-	tqe.x = 1234;
-	queue_submit(&queue, (struct queue_entry *)&tqe, 0);
-	queue_get_finished(&queue, (struct queue_entry *)&tqe, 0);
+	tqe.cmd = 1234;
+	for(int i = 0; i < 1000; i++) {
+		queue_submit(&queue, (struct queue_entry *)&tqe, 0);
+		queue_get_finished(&queue, (struct queue_entry *)&tqe, 0);
+	}
 
 	printf("here\n");
 

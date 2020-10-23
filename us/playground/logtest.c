@@ -7,6 +7,7 @@
 #include <twz/io.h>
 #include <twz/thread.h>
 
+#include <twz/name.h>
 #include <twz/security.h>
 
 int main()
@@ -23,7 +24,7 @@ int main()
 	// printf("logtest thr id : " IDFMT "\n", IDPR(twz_thread_repr_base()->reprid));
 	twzobj logbuf;
 	twz_object_init_guid(&logbuf, id, FE_READ | FE_WRITE);
-	ssize_t rr = twzio_write(&logbuf, "logging test!\n", 14, 0, 0);
+	twzio_write(&logbuf, "logging test!\n", 14, 0, 0);
 
 	twzobj obj;
 	if((r = twz_object_new(&obj, NULL, TWZ_KU_USER, TWZ_OC_TIED_NONE | TWZ_OC_DFL_READ))) {

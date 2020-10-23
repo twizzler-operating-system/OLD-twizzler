@@ -124,11 +124,13 @@ int bstream_poll(twzobj *obj, uint64_t type, struct event *event)
 
 ssize_t bstream_ioread(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags)
 {
+	(void)off;
 	return bstream_hdr_read(obj, twz_object_base(obj), ptr, len, flags);
 }
 
 ssize_t bstream_iowrite(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags)
 {
+	(void)off;
 	return bstream_hdr_write(obj, twz_object_base(obj), ptr, len, flags);
 }
 

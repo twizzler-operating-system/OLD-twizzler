@@ -14,25 +14,7 @@
 
 #include <twix/twix.h>
 
-class queue_client
-{
-  public:
-	twzobj queue, thrdobj;
-	queue_client()
-	{
-	}
-
-	int init()
-	{
-		int r =
-		  twz_object_new(&queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
-		if(r)
-			return r;
-		r = queue_init_hdr(
-		  &queue, 12, sizeof(struct twix_queue_entry), 12, sizeof(struct twix_queue_entry));
-		return r;
-	}
-};
+#include "state.h"
 
 #define HANDLER_QUEUE_ADD_CLIENT 0
 #define HANDLER_QUEUE_DEL_CLIENT 1
@@ -88,7 +70,7 @@ class handler
 
 	void handler_cleanup_thread()
 	{
-		struct sys_thread_sync_args *tsa;
+		struct sys_thread_sync_args *tsa = nullptr;
 		size_t tsa_len = 0;
 		for(;;) {
 			size_t len;
@@ -113,6 +95,7 @@ class handler
 				}
 			}
 			int r = twz_thread_sync_multiple(len, tsa, NULL);
+			(void)r;
 			/* TODO err */
 
 			{
@@ -166,8 +149,21 @@ class handler
 
 	void handle_client(queue_client *client, struct twix_queue_entry *tqe, bool drain)
 	{
-		fprintf(stderr, "handle client: %d\n", tqe->x);
-		queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
+		fprintf(stderr,
+		  "handle client: %p: %d %ld %ld %ld %ld %ld %ld %ld %d\n",
+		  client,
+		  tqe->cmd,
+		  tqe->arg0,
+		  tqe->arg1,
+		  tqe->arg2,
+		  tqe->arg3,
+		  tqe->arg4,
+		  tqe->arg5,
+		  tqe->buflen,
+		  tqe->flags);
+		tqe->ret = client->handle_command(tqe);
+		if(!drain)
+			queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
 	}
 
 	void handle_handler_queue(struct handler_queue_entry *hqe)
@@ -204,8 +200,10 @@ class handler
 	{
 		for(;;) {
 			ssize_t ret = queue_sub_dequeue_multiple(qspec_len, qspec);
+			/* TODO: check ret */
+			(void)ret;
 			for(size_t i = 1; i < qspec_len; i++) {
-				// fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
+				fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
 				if(qspec[i].ret != 0) {
 					/* got a message */
 					queue_client *client;
@@ -227,10 +225,9 @@ std::vector<handler *> handlers;
 std::mutex handlers_lock;
 
 extern "C" {
-DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *arg)
+DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qid, objid_t *bid)
 {
-	fprintf(stderr, "hello from queue open\n");
-
+	(void)flags;
 	queue_client *client = new queue_client();
 	int r = client->init();
 	if(r) {
@@ -245,7 +242,8 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *ar
 		handler *handler = handlers[0]; // TODO
 		handler->add_client(client);
 	}
-	*arg = twz_object_guid(&client->queue);
+	*qid = twz_object_guid(&client->queue);
+	*bid = twz_object_guid(&client->buffer);
 	return 0;
 }
 }
@@ -254,9 +252,12 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *ar
 int main()
 {
 	twzobj api_obj;
-	twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	int r = twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	if(r) {
+		abort();
+	}
 	twz_secure_api_create(&api_obj, "twix-unix");
-	struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
+	// struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
 
 	auto h = new handler();
 	handlers.push_back(h);
