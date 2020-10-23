@@ -1,4 +1,4 @@
-PLAYGROUND_PROGS=example queue net logtest
+PLAYGROUND_PROGS=example queue net logtest ut
 
 PLAYGROUND_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 
@@ -24,6 +24,7 @@ $(BUILDDIR)/us/playground/%.opp: us/playground/%.cpp $(MUSL_HDRS)
 	@echo "[CC]      $@"
 	@$(TWZCXX) $(TWZCFLAGS) $(PLAYGROUND_CFLAGS) -o $@ $(CFLAGS_$(basename $(notdir $@))) -c -MD $<
 
+-include $($(BUILDDIR)/us/playground/*.d)
 
 SYSROOT_FILES+=$(addprefix $(BUILDDIR)/us/sysroot/usr/bin/,$(PLAYGROUND_PROGS))
 

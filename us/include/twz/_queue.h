@@ -365,6 +365,7 @@ struct queue_dequeue_multiple_spec {
 	int ret;
 };
 
+#include <stdio.h>
 static inline ssize_t queue_sub_dequeue_multiple(size_t count,
   struct queue_dequeue_multiple_spec *specs)
 {
@@ -384,10 +385,22 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 		struct queue_entry *entry = __get_entry(specs[i].obj, hdr, specs[i].sq, t);
 
 		if(is_empty(b, t) || !is_turn(hdr, specs[i].sq, t, entry)) {
-			specs[i].ret = 0;
-			twz_thread_sync_init(
-			  &tsa[sleep_count++], THREAD_SYNC_SLEEP, &hdr->subqueue[specs[i].sq].bell, b);
+			/* TODO: do we need to clear waiting ourselves? I don't think so, since
+			 * queue_sub_dequeue does it. */
+			D_SETWAITING(hdr, specs[i].sq);
+
+			t = hdr->subqueue[specs[i].sq].tail & 0x7fffffff;
+			b = hdr->subqueue[specs[i].sq].bell;
+
+			if(is_empty(b, t) || !is_turn(hdr, specs[i].sq, t, entry)) {
+				specs[i].ret = 0;
+				twz_thread_sync_init(
+				  &tsa[sleep_count++], THREAD_SYNC_SLEEP, &hdr->subqueue[specs[i].sq].bell, b);
+			} else {
+				goto try_dequeue;
+			}
 		} else {
+		try_dequeue:
 			queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true);
 			specs[i].ret = 1;
 		}
