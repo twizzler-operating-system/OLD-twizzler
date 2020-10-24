@@ -149,6 +149,7 @@ class handler
 
 	void handle_client(queue_client *client, struct twix_queue_entry *tqe, bool drain)
 	{
+		/*
 		fprintf(stderr,
 		  "handle client: %p: %d %ld %ld %ld %ld %ld %ld %ld %d\n",
 		  client,
@@ -161,9 +162,12 @@ class handler
 		  tqe->arg5,
 		  tqe->buflen,
 		  tqe->flags);
+		  */
 		tqe->ret = client->handle_command(tqe);
-		if(!drain)
+		if(!drain) {
+			/* TODO: make this non-blocking, and handle the case where it wants to block */
 			queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
+		}
 	}
 
 	void handle_handler_queue(struct handler_queue_entry *hqe)

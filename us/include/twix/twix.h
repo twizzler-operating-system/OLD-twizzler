@@ -39,6 +39,7 @@ struct unix_repr {
 
 enum twix_command {
 	TWIX_CMD_GET_PROC_INFO,
+	NUM_TWIX_COMMANDS,
 };
 
 struct proc_info {
