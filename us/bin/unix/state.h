@@ -95,6 +95,7 @@ class queue_client
 	{
 		twz_object_delete(&queue, 0);
 		twz_object_delete(&buffer, 0);
+		twz_object_unwire(NULL, &thrdobj);
 	}
 
 	void *buffer_base()

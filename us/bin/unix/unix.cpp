@@ -73,7 +73,7 @@ class handler
 		struct sys_thread_sync_args *tsa = nullptr;
 		size_t tsa_len = 0;
 		for(;;) {
-			size_t len;
+			size_t len, sleep_count = 0;
 			{
 				std::unique_lock<std::mutex> _lg(lock);
 				if(clients.size() == 0) {
@@ -90,30 +90,42 @@ class handler
 				for(size_t i = 0; i < len; i++) {
 					struct twzthread_repr *repr =
 					  (struct twzthread_repr *)twz_object_base(&clients[i]->thrdobj);
+					if(repr->syncs[THRD_SYNC_EXIT] == 0) {
+						tsa[i].res = 0;
+						sleep_count++;
+					}
 					twz_thread_sync_init(
 					  &tsa[i], THREAD_SYNC_SLEEP, &repr->syncs[THRD_SYNC_EXIT], 0);
 				}
 			}
-			int r = twz_thread_sync_multiple(len, tsa, NULL);
-			(void)r;
-			/* TODO err */
+			if(sleep_count == len) {
+				int r = twz_thread_sync_multiple(len, tsa, NULL);
+				(void)r;
+				/* TODO err */
+			}
 
 			{
 				std::lock_guard<std::mutex> _lg(lock);
 				if(len > clients.size()) {
 					len = clients.size();
 				}
+				for(size_t i = 0; i < len; i++) {
+					struct twzthread_repr *repr =
+					  (struct twzthread_repr *)twz_object_base(&clients[i]->thrdobj);
+					if(repr->syncs[THRD_SYNC_EXIT]) {
+						tsa[i].res = 1;
+					}
+				}
 			}
 			for(size_t i = 0; i < len; i++) {
-				struct twzthread_repr *repr =
-				  (struct twzthread_repr *)twz_object_base(&clients[i]->thrdobj);
-				if(repr->syncs[THRD_SYNC_EXIT]) {
+				if(tsa[i].res) {
 					/* that thread exited, inform the main thread */
 					struct handler_queue_entry subhqe;
 					subhqe.cmd = HANDLER_QUEUE_DEL_CLIENT;
 					subhqe.client_idx = i;
 					queue_submit(&client_add_queue, (struct queue_entry *)&subhqe, 0);
 					queue_get_finished(&client_add_queue, (struct queue_entry *)&subhqe, 0);
+					break;
 				}
 			}
 		}
@@ -177,6 +189,7 @@ class handler
 				std::lock_guard<std::mutex> _lg(lock);
 				clients.push_back(hqe->client);
 				cv.notify_all();
+				fprintf(stderr, "added client: %d\n", hqe->client->proc->pid);
 				//		fprintf(stderr, "added client %p -> %ld\n", hqe->client, clients.size() -
 				// 1);
 			} break;
@@ -193,6 +206,7 @@ class handler
 				  queue_receive(&client->queue, (struct queue_entry *)&tqe, QUEUE_NONBLOCK) == 0) {
 					handle_client(client, &tqe, true);
 				}
+				fprintf(stderr, "removed client: %d\n", client->proc->pid);
 				delete client;
 				//		fprintf(stderr, "deleted client %ld\n", hqe->client_idx);
 			} break;
@@ -240,6 +254,8 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 	}
 
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
+	r = twz_object_wire(NULL, &client->thrdobj);
+	(void)r;
 
 	{
 		std::lock_guard<std::mutex> _lg(handlers_lock);

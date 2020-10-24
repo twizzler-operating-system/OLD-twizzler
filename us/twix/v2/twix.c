@@ -11,7 +11,7 @@ struct unix_server {
 	_Atomic bool ok;
 };
 
-static struct unix_server userver;
+static struct unix_server userver = {};
 
 void twix_sync_command(struct twix_queue_entry *tqe)
 {
@@ -24,6 +24,9 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 	int nr_va = 0;
 	switch(cmd) {
 		case TWIX_CMD_GET_PROC_INFO:
+			nr_va = 0;
+			break;
+		default:
 			nr_va = 0;
 			break;
 	}
@@ -95,10 +98,34 @@ static bool setup_queue(void)
 	userver.ok = true;
 	userver.inited = true;
 
-	struct proc_info info = {};
-	get_proc_info(&info);
 	return true;
 }
+
+struct syscall_args {
+	long a0, a1, a2, a3, a4, a5;
+	long num;
+	struct twix_register_frame *frame;
+};
+
+#include "../syscall_defs.h"
+
+long hook_proc_info_syscalls(struct syscall_args *args)
+{
+	struct proc_info info = {};
+	get_proc_info(&info);
+	switch(args->num) {
+		case LINUX_SYS_getpid:
+			debug_printf("GETPID: %d\n", info.pid);
+			return info.pid;
+			break;
+		default:
+			return -ENOSYS;
+	}
+}
+
+static long (*syscall_v2_table[1024])(struct syscall_args *) = {
+	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
+};
 
 bool try_twix_version2(struct twix_register_frame *frame,
   long num,
@@ -110,15 +137,21 @@ bool try_twix_version2(struct twix_register_frame *frame,
   long a5,
   long *ret)
 {
-	(void)frame;
-	(void)num;
-	(void)a0;
-	(void)a1;
-	(void)a2;
-	(void)a3;
-	(void)a4;
-	(void)a5;
-	(void)ret;
-	setup_queue();
-	return false;
+	struct syscall_args args = {
+		.a0 = a0,
+		.a1 = a1,
+		.a2 = a2,
+		.a3 = a3,
+		.a4 = a4,
+		.a5 = a5,
+		.num = num,
+		.frame = frame,
+	};
+	if(!setup_queue())
+		return false;
+	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
+		return false;
+	}
+	*ret = syscall_v2_table[num](&args);
+	return *ret != -ENOSYS;
 }
