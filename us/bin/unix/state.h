@@ -33,6 +33,11 @@ class descriptor
 	int flags;
 };
 
+enum proc_state {
+	PROC_NORMAL,
+	PROC_EXITED,
+};
+
 class unixprocess
 {
   public:
@@ -40,6 +45,7 @@ class unixprocess
 	int gid;
 	int uid;
 	int ppid;
+	proc_state state = PROC_NORMAL;
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
 
@@ -52,6 +58,12 @@ class unixprocess
 		return threads.size() - 1;
 	}
 
+	void remove_thread(size_t perproc_tid)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		threads.erase(threads.begin() + perproc_tid);
+	}
+
 	unixprocess(int pid)
 	  : pid(pid)
 	{
@@ -61,6 +73,11 @@ class unixprocess
 	  : pid(pid)
 	  , ppid(ppid)
 	{
+	}
+
+	~unixprocess()
+	{
+		fprintf(stderr, "process destructed %d\n", pid);
 	}
 };
 
@@ -75,6 +92,16 @@ class unixthread
 	  : tid(tid)
 	  , parent_process(proc)
 	{
+	}
+
+	void exit()
+	{
+		parent_process->remove_thread(perproc_id);
+	}
+
+	~unixthread()
+	{
+		fprintf(stderr, "thread destructed %d\n", tid);
 	}
 };
 
@@ -91,13 +118,7 @@ class queue_client
 	long handle_command(struct twix_queue_entry *);
 
 	int init();
-	~queue_client()
-	{
-		twz_object_delete(&queue, 0);
-		twz_object_delete(&buffer, 0);
-		twz_object_unwire(NULL, &thrdobj);
-	}
-
+	~queue_client();
 	void *buffer_base()
 	{
 		return twz_object_base(&buffer);

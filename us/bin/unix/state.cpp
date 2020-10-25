@@ -31,6 +31,12 @@ class refmap
 		std::lock_guard<std::mutex> _lg(lock);
 		map.insert(std::make_pair(k, std::make_shared<V>(k, args...)));
 	}
+
+	void remove(K k)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		map.erase(k);
+	}
 };
 
 static refmap<int, unixprocess> proctable;
@@ -59,4 +65,18 @@ int queue_client::init()
 	proc->add_thread(thr);
 
 	return 0;
+}
+
+queue_client::~queue_client()
+{
+	twz_object_delete(&queue, 0);
+	twz_object_delete(&buffer, 0);
+	twz_object_unwire(NULL, &thrdobj);
+	thrtable.remove(thr->tid);
+	proc->state = PROC_EXITED;
+	thr->exit();
+
+	if(proc->ppid == 0) {
+		proctable.remove(proc->pid);
+	}
 }
