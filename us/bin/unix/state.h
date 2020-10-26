@@ -14,21 +14,38 @@ class unixthread;
 class filedesc
 {
   public:
-	filedesc(int id, objid_t objid)
-	  : id(id)
-	  , objid(objid)
+	filedesc(objid_t objid, size_t pos, int fcntl_flags)
+	  : objid(objid)
+	  , fcntl_flags(fcntl_flags)
+	  , pos(pos)
+	{
+		int r = twz_object_init_guid(&obj, objid, FE_READ | FE_WRITE);
+		(void)r; // TODO
+	}
+	filedesc()
 	{
 	}
-	int id;
+
+	int init_path(const char *path, int _fcntl_flags);
 	twzobj obj;
 	objid_t objid;
-	int flags;
-	size_t pos;
+	int fcntl_flags;
+	size_t pos = 0;
 };
 
 class descriptor
 {
   public:
+	descriptor(std::shared_ptr<filedesc> desc, int flags)
+	  : desc(desc)
+	  , flags(flags)
+	{
+	}
+	descriptor()
+	{
+		desc = nullptr;
+		flags = 0;
+	}
 	std::shared_ptr<filedesc> desc;
 	int flags;
 };
@@ -62,6 +79,30 @@ class unixprocess
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		threads.erase(threads.begin() + perproc_tid);
+	}
+
+	void steal_fd(int fd, std::shared_ptr<filedesc> desc, int flags)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(fds.size() <= (size_t)fd) {
+			fds.resize(fd + 1);
+		}
+		fds[fd].desc = desc;
+		fds[fd].flags = flags;
+	}
+
+	int assign_fd(std::shared_ptr<filedesc> desc, int flags)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		for(size_t i = 0; i < fds.size(); i++) {
+			if(fds[i].desc == nullptr) {
+				fds[i].desc = desc;
+				fds[i].flags = flags;
+				return i;
+			}
+		}
+		fds.push_back(descriptor(desc, flags));
+		return fds.size() - 1;
 	}
 
 	unixprocess(int pid)

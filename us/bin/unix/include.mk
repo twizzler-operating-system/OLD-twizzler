@@ -1,4 +1,4 @@
-UNIX_SRCS=$(addprefix us/bin/unix/,unix.cpp cmd.cpp state.cpp)
+UNIX_SRCS=$(addprefix us/bin/unix/,unix.cpp cmd.cpp state.cpp files.cpp)
 UNIX_OBJS=$(addprefix $(BUILDDIR)/,$(UNIX_SRCS:.cpp=.o))
 
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive

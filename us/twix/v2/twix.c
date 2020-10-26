@@ -26,6 +26,12 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 		case TWIX_CMD_GET_PROC_INFO:
 			nr_va = 0;
 			break;
+		case TWIX_CMD_REOPEN_V1_FD:
+			nr_va = 5;
+			break;
+		case TWIX_CMD_OPENAT:
+			nr_va = 3;
+			break;
 		default:
 			nr_va = 0;
 			break;
@@ -59,7 +65,7 @@ void extract_bufdata(void *ptr, size_t len)
 	memcpy(ptr, base, len);
 }
 
-void write_bufdata(void *ptr, size_t len)
+void write_bufdata(const void *ptr, size_t len)
 {
 	void *base = twz_object_base(&userver.buffer);
 	memcpy(base, ptr, len);
@@ -98,6 +104,21 @@ static bool setup_queue(void)
 	userver.ok = true;
 	userver.inited = true;
 
+	for(int fd = 0; fd < MAX_FD; fd++) {
+		struct file *file = twix_get_fd(fd);
+		if(file) {
+			struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
+			  0,
+			  0,
+			  file->fd,
+			  ID_LO(twz_object_guid(&file->obj)),
+			  ID_HI(twz_object_guid(&file->obj)),
+			  file->fcntl_fl,
+			  file->pos);
+			twix_sync_command(&tqe);
+		}
+	}
+
 	return true;
 }
 
@@ -123,9 +144,28 @@ long hook_proc_info_syscalls(struct syscall_args *args)
 	}
 }
 
+static long __dummy(struct syscall_args *args __attribute__((unused)))
+{
+	return 0;
+}
+
+long hook_open(struct syscall_args *args)
+{
+	const char *path = (const char *)args->a0;
+	struct twix_queue_entry tqe =
+	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), 0, args->a1, args->a2);
+	write_bufdata(path, strlen(path) + 1);
+	twix_sync_command(&tqe);
+	return tqe.ret;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
+	[LINUX_SYS_set_tid_address] = __dummy,
+	[LINUX_SYS_open] = hook_open,
 };
+
+extern const char *syscall_names[];
 
 bool try_twix_version2(struct twix_register_frame *frame,
   long num,
@@ -150,6 +190,7 @@ bool try_twix_version2(struct twix_register_frame *frame,
 	if(!setup_queue())
 		return false;
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
+		twix_log("twix_v2 syscall: %ld (%s)\n", num, syscall_names[num]);
 		return false;
 	}
 	*ret = syscall_v2_table[num](&args);

@@ -41,7 +41,6 @@ class refmap
 
 static refmap<int, unixprocess> proctable;
 static refmap<int, unixthread> thrtable;
-static refmap<int, filedesc> filetable;
 
 int queue_client::init()
 {

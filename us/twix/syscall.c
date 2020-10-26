@@ -134,7 +134,7 @@ static long (*syscall_table[])() = {
 	[LINUX_SYS_unlink] = linux_sys_unlink,
 };
 
-__attribute__((unused)) static const char *syscall_names[] = {
+const char *syscall_names[] = {
 	[0] = "read",
 	[1] = "write",
 	[2] = "open",
