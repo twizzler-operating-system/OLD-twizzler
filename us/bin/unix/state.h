@@ -45,8 +45,8 @@ class filedesc
 	ssize_t write(const void *, size_t, off_t, int, bool);
 	twzobj obj;
 	objid_t objid;
-	int fcntl_flags;
-	size_t pos = 0;
+	std::atomic<int> fcntl_flags;
+	std::atomic<size_t> pos = 0;
 };
 
 class descriptor

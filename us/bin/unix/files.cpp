@@ -128,3 +128,23 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 
 	return ret;
 }
+
+long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe)
+{
+	int fd = tqe->arg0;
+	int cmd = tqe->arg1;
+	int arg = tqe->arg2;
+
+	switch(cmd) {
+		case F_GETFD:
+			return client->proc->get_file_flags(fd);
+			break;
+		case F_SETFD:
+			return client->proc->set_file_flags(fd, arg);
+			break;
+		case F_GETFL: {
+			auto desc = client->proc->get_file(fd);
+			return desc->fcntl_flags;
+		} break;
+	}
+}

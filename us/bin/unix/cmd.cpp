@@ -37,6 +37,7 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 	[TWIX_CMD_REOPEN_V1_FD] = __reopen_v1_fd,
 	[TWIX_CMD_OPENAT] = twix_cmd_open,
 	[TWIX_CMD_PIO] = twix_cmd_pio,
+	[TWIX_CMD_FCNTL] = twix_cmd_fcntl,
 };
 
 static const char *cmd_strs[] = {
