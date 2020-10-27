@@ -93,26 +93,38 @@ DECLARE_SAPI_ENTRY(open_connection,
 {
 	// fprintf(stderr, "Hello from logboi open: %p: %s\n", arg, name);
 	struct client *client = (struct client *)malloc(sizeof(struct client));
-	twz_object_new(&client->obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	int r;
+	if((r = twz_object_new(&client->obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
+		free(client);
+		return r;
+	}
 	struct bstream_hdr *hdr = (struct bstream_hdr *)twz_object_base(&client->obj);
-	bstream_obj_init(&client->obj, hdr, 12);
+	if((r = bstream_obj_init(&client->obj, hdr, 12))) {
+		twz_object_delete(&client->obj, 0);
+		free(client);
+		return r;
+	}
 	client->name = strdup(name);
 	client->flags = flags;
 	*arg = twz_object_guid(&client->obj);
 	client->thread = new std::thread(client_loop, client);
 	client->id = ++next_client_id;
-	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
-	twz_object_wire(NULL, &client->thrdobj);
-	return 12345;
+	r = twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
+	r = twz_object_wire(NULL, &client->thrdobj);
+	(void)r;
+	return 0;
 }
 }
 
 int main(int argc, char **argv)
 {
+	(void)argc;
+	(void)argv;
 	twzobj api_obj;
-	twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	if(twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
+		abort();
 	twz_secure_api_create(&api_obj, "test");
-	struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
+	// struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
 
 	twz_name_assign(twz_object_guid(&api_obj), "/dev/logboi");
 

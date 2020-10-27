@@ -10,96 +10,7 @@
 #include <twz/hier.h>
 
 /* TODO: arch-dep */
-
-#define LINUX_SYS_read 0
-#define LINUX_SYS_write 1
-#define LINUX_SYS_open 2
-#define LINUX_SYS_close 3
-#define LINUX_SYS_stat 4
-#define LINUX_SYS_fstat 5
-#define LINUX_SYS_lstat 6
-
-#define LINUX_SYS_lseek 8
-#define LINUX_SYS_mmap 9
-
-#define LINUX_SYS_munmap 11
-#define LINUX_SYS_mprotect 10
-
-#define LINUX_SYS_ioctl 16
-#define LINUX_SYS_pread 17
-#define LINUX_SYS_pwrite 18
-#define LINUX_SYS_readv 19
-#define LINUX_SYS_writev 20
-#define LINUX_SYS_access 21
-
-#define LINUX_SYS_select 23
-
-#define LINUX_SYS_madvise 28
-
-#define LINUX_SYS_dup 32
-#define LINUX_SYS_dup2 33
-
-#define LINUX_SYS_nanosleep 35
-
-#define LINUX_SYS_getpid 39
-#define LINUX_SYS_clone 56
-#define LINUX_SYS_fork 57
-#define LINUX_SYS_vfork 58
-#define LINUX_SYS_execve 59
-#define LINUX_SYS_exit 60
-#define LINUX_SYS_wait4 61
-
-#define LINUX_SYS_uname 63
-
-#define LINUX_SYS_fsync 74
-
-#define LINUX_SYS_ftruncate 77
-
-#define LINUX_SYS_mkdir 83
-
-#define LINUX_SYS_unlink 87
-
-#define LINUX_SYS_readlink 89
-
-#define LINUX_SYS_getrlimit 97
-
-#define LINUX_SYS_getuid 102
-#define LINUX_SYS_getgid 104
-#define LINUX_SYS_geteuid 107
-#define LINUX_SYS_getegid 108
-
-#define LINUX_SYS_getppid 110
-#define LINUX_SYS_getpgid 121
-#define LINUX_SYS_arch_prctl 158
-#define LINUX_SYS_chroot 161
-#define LINUX_SYS_gettid 186
-
-#define LINUX_SYS_futex 202
-
-#define LINUX_SYS_set_thread_area 205
-
-#define LINUX_SYS_getdents64 217
-#define LINUX_SYS_set_tid_address 218
-
-#define LINUX_SYS_clock_gettime 228
-
-#define LINUX_SYS_exit_group 231
-
-#define LINUX_SYS_faccessat 269
-#define LINUX_SYS_pselect6 270
-
-#define LINUX_SYS_dup3 292
-#define LINUX_SYS_preadv 295
-#define LINUX_SYS_pwritev 296
-
-#define LINUX_SYS_prlimit 302
-#define LINUX_SYS_getrandom 318
-
-#define LINUX_SYS_preadv2 327
-#define LINUX_SYS_pwritev2 328
-
-#define LINUX_SYS_fcntl 72
-
+#include "syscall_defs.h"
 #include "syscalls.h"
 
 long linux_sys_set_thread_area()
@@ -223,7 +134,7 @@ static long (*syscall_table[])() = {
 	[LINUX_SYS_unlink] = linux_sys_unlink,
 };
 
-__attribute__((unused)) static const char *syscall_names[] = {
+const char *syscall_names[] = {
 	[0] = "read",
 	[1] = "write",
 	[2] = "open",
@@ -558,10 +469,23 @@ __attribute__((unused)) static const char *syscall_names[] = {
 	[331] = "pkey_free",
 };
 static size_t stlen = sizeof(syscall_table) / sizeof(syscall_table[0]);
+bool try_twix_version2(struct twix_register_frame *frame,
+  long num,
+  long a0,
+  long a1,
+  long a2,
+  long a3,
+  long a4,
+  long a5,
+  long *ret);
 
 long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5)
 {
 	__linux_init();
+	long t2ret;
+	if(try_twix_version2(NULL, num, a0, a1, a2, a3, a4, a5, &t2ret)) {
+		return t2ret;
+	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
 #if 1
 		if(num != 12 && num != 13 && num != 14)
@@ -617,6 +541,10 @@ static long twix_syscall_frame(struct twix_register_frame *frame,
   long a5)
 {
 	__linux_init();
+	long t2ret;
+	if(try_twix_version2(frame, num, a0, a1, a2, a3, a4, a5, &t2ret)) {
+		return t2ret;
+	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
 #if 1
 		if(num != 12 && num != 13 && num != 14)

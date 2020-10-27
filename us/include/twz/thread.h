@@ -31,9 +31,9 @@ struct thrd_spawn_args {
 	char *tls_base; /* tls base address. */
 };
 
-__attribute__((non_null, const)) struct twzthread_repr *twz_thread_repr_base(void);
-__attribute__((non_null, const)) struct twzthread_ctrl_repr *twz_thread_ctrl_repr_base(void);
-__attribute__((non_null, const)) twzobj *__twz_get_stdstack_obj(void);
+__attribute__((const)) struct twzthread_repr *twz_thread_repr_base(void);
+__attribute__((const)) struct twzthread_ctrl_repr *twz_thread_ctrl_repr_base(void);
+__attribute__((const)) twzobj *__twz_get_stdstack_obj(void);
 #define twz_stdstack ({ __twz_get_stdstack_obj(); })
 
 __must_check int twz_thread_create(struct thread *thrd);

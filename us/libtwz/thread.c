@@ -67,7 +67,7 @@ twzobj *__twz_get_stdstack_obj(void)
 int twz_thread_create(struct thread *thrd)
 {
 	int r;
-	struct twzthread_repr *currepr = twz_thread_repr_base();
+	// struct twzthread_repr *currepr = twz_thread_repr_base();
 
 	if((r = twz_object_new(
 	      &thrd->obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
@@ -99,7 +99,7 @@ int twz_thread_spawn(struct thread *thrd, struct thrd_spawn_args *args)
 	}
 
 	struct twzthread_repr *currepr = twz_thread_repr_base();
-	struct twzthread_repr *newrepr = twz_object_base(&thrd->obj);
+	// struct twzthread_repr *newrepr = twz_object_base(&thrd->obj);
 
 	struct sys_thrd_spawn_args sa = {
 		.target_view = args->target_view,

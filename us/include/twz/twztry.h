@@ -84,5 +84,4 @@ extern void _twz_try_unhandled(int, void *);
 	if(_pjb)                                                                                       \
 		longjmp(*_pjb, f);                                                                         \
 	else                                                                                           \
-		_twz_try_unhandled(f, d);                                                                  \
-	\
+		_twz_try_unhandled(f, d);

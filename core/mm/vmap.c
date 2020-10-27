@@ -167,7 +167,7 @@ static struct viewentry kso_view_lookup(struct vm_context *ctx, size_t slot)
 static bool lookup_by_slot(size_t slot, objid_t *id, uint64_t *flags)
 {
 	switch(slot) {
-		struct object *obj;
+		// struct object *obj;
 		struct viewentry ve;
 		default:
 			// obj = kso_get_obj(current_thread->throbj, thr);

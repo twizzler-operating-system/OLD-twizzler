@@ -141,6 +141,8 @@ static int do_object_meta(twzobj *obj)
 
 static int do_object_data(twzobj *obj)
 {
+	/* TODO */
+	(void)obj;
 	return 0;
 }
 

@@ -1,4 +1,4 @@
-TWIX_SRC=$(addprefix us/twix/,syscall.c rw.c fd.c linux.c file.c thread.c access.c process.c time.c dir.c rand.c)
+TWIX_SRC=$(addprefix us/twix/,syscall.c rw.c fd.c linux.c file.c thread.c access.c process.c time.c dir.c rand.c v2/twix.c v2/rw.c)
 TWIX_OBJ=$(addprefix $(BUILDDIR)/,$(TWIX_SRC:.c=.o))
 
 #ifneq (,$(wildcard $(shell $(TWZCC) -print-file-name=libubsan.a)))
@@ -29,8 +29,8 @@ $(BUILDDIR)/us/twix/libtwix.so: $(TWIX_OBJ)
 
 $(BUILDDIR)/us/twix/%.o: us/twix/%.c $(MUSL_HDRS)
 	@echo "[CC]      $@"
-	@mkdir -p $(BUILDDIR)/us/twix
-	@$(TWZCC) $(TWZCFLAGS) $(TWIXCFLAGS) -c -o $@ $< -MD -fPIC
+	@mkdir -p $(BUILDDIR)/us/twix/v2
+	@$(TWZCC) $(TWZCFLAGS) $(TWIXCFLAGS) -c -o $@ $< -MD -fPIC -Ius/include
 
 -include $(TWIX_OBJ:.o=.d)
 

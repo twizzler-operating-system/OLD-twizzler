@@ -25,7 +25,8 @@ struct file *twix_get_fd(int fd);
 void twix_copy_fds(twzobj *view);
 struct file *twix_get_cwd(void);
 void twix_log(char *buf, ...);
-
+#include <stdbool.h>
+#include <twix/twix.h>
 #include <twz/obj.h>
 struct file {
 	twzobj obj;
@@ -35,17 +36,6 @@ struct file {
 	bool valid;
 	bool taken;
 	int fcntl_fl;
-};
-
-struct unix_repr {
-	int pid;
-	int uid;
-	int gid;
-	int euid;
-	int egid;
-	int pgid;
-	int sid;
-	int tid;
 };
 
 struct twix_register_frame {
