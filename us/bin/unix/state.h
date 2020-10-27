@@ -4,6 +4,9 @@
 #include <twz/obj.h>
 #include <twz/queue.h>
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -13,6 +16,9 @@ class unixthread;
 
 class filedesc
 {
+  private:
+	std::mutex lock;
+
   public:
 	filedesc(objid_t objid, size_t pos, int fcntl_flags)
 	  : objid(objid)
@@ -26,7 +32,17 @@ class filedesc
 	{
 	}
 
-	int init_path(const char *path, int _fcntl_flags);
+	int init_path(const char *path, int _fcntl_flags, int mode = 0);
+	bool access(int mode)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		bool ok = true;
+		ok = ok && (!(mode & R_OK) || (fcntl_flags & (O_RDONLY + 1)));
+		ok = ok && (!(mode & W_OK) || (fcntl_flags & (O_WRONLY + 1)));
+		return ok;
+	}
+	ssize_t read(void *, size_t, off_t, int, bool);
+	ssize_t write(const void *, size_t, off_t, int, bool);
 	twzobj obj;
 	objid_t objid;
 	int fcntl_flags;
@@ -105,6 +121,15 @@ class unixprocess
 		return fds.size() - 1;
 	}
 
+	std::shared_ptr<filedesc> get_file(int fd)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(fds.size() <= (size_t)fd || fd < 0) {
+			return nullptr;
+		}
+		return fds[fd].desc;
+	}
+
 	unixprocess(int pid)
 	  : pid(pid)
 	{
@@ -163,6 +188,18 @@ class queue_client
 	void *buffer_base()
 	{
 		return twz_object_base(&buffer);
+	}
+
+	auto buffer_to_string(size_t buflen)
+	{
+		struct ret {
+			bool ok;
+			std::string str;
+		};
+		if(buflen > OBJ_TOPDATA / 2) {
+			return ret{ false, "" };
+		}
+		return ret{ true, std::string((const char *)buffer_base(), buflen) };
 	}
 
 	template<typename T>

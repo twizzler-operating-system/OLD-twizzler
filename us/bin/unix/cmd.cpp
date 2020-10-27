@@ -18,6 +18,9 @@ static long __get_proc_info(queue_client *client, twix_queue_entry *tqe)
 	return 0;
 }
 
+long twix_cmd_open(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe);
+
 static long __reopen_v1_fd(queue_client *client, twix_queue_entry *tqe)
 {
 	objid_t objid = MKID(tqe->arg2, tqe->arg1);
@@ -32,12 +35,26 @@ static long __reopen_v1_fd(queue_client *client, twix_queue_entry *tqe)
 static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *tqe) = {
 	[TWIX_CMD_GET_PROC_INFO] = __get_proc_info,
 	[TWIX_CMD_REOPEN_V1_FD] = __reopen_v1_fd,
+	[TWIX_CMD_OPENAT] = twix_cmd_open,
+	[TWIX_CMD_PIO] = twix_cmd_pio,
+};
+
+static const char *cmd_strs[] = {
+	[TWIX_CMD_GET_PROC_INFO] = "get_proc_info",
+	[TWIX_CMD_REOPEN_V1_FD] = "reopen_v1_fd",
+	[TWIX_CMD_OPENAT] = "open",
+	[TWIX_CMD_PIO] = "pio",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)
 {
-	fprintf(stderr, "[twix-server] got command from proc %d, thr %d\n", proc->pid, thr->tid);
 	if(tqe->cmd >= 0 && tqe->cmd < NUM_TWIX_COMMANDS && call_table[tqe->cmd]) {
+		fprintf(stderr,
+		  "[twix-server] got command from proc %d, thr %d: %d (%s)\n",
+		  proc->pid,
+		  thr->tid,
+		  tqe->cmd,
+		  cmd_strs[tqe->cmd]);
 		return call_table[tqe->cmd](this, tqe);
 	}
 	return -ENOSYS;

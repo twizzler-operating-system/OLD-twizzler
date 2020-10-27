@@ -14,7 +14,7 @@ $(BUILDDIR)/us/sysroot/usr/bin/unix: $(UNIX_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(
 $(BUILDDIR)/us/bin/unix/%.o: us/bin/unix/%.cpp $(MUSL_HDRS)
 	@mkdir -p $(dir $@)
 	@echo "[CC]	$@"
-	@$(TWZCXX) $(TWZCFLAGS) $(UNIX_CFLAGS) -o $@ -c -MD $< -Ius/include
+	@$(TWZCXX) $(TWZCFLAGS) $(UNIX_CFLAGS) -std=gnu++17 -o $@ -c -MD $< -Ius/include
 
 -include $(UNIX_OBJS:.o=.d)
 

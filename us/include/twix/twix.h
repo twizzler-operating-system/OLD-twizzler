@@ -37,10 +37,14 @@ struct unix_repr {
 	int tid;
 };
 
+#define TWIX_FLAGS_PIO_WRITE 1
+#define TWIX_FLAGS_PIO_POS 2
+
 enum twix_command {
 	TWIX_CMD_GET_PROC_INFO,
 	TWIX_CMD_REOPEN_V1_FD,
 	TWIX_CMD_OPENAT,
+	TWIX_CMD_PIO,
 	NUM_TWIX_COMMANDS,
 };
 

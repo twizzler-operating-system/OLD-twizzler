@@ -221,7 +221,7 @@ class handler
 			/* TODO: check ret */
 			(void)ret;
 			for(size_t i = 1; i < qspec_len; i++) {
-				fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
+				// fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
 				if(qspec[i].ret != 0) {
 					/* got a message */
 					queue_client *client;

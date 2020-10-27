@@ -4,6 +4,9 @@
 
 #include "../syscalls.h"
 
+#include "sys.h"
+#include "v2.h"
+
 struct unix_server {
 	twzobj cmdqueue, buffer;
 	struct secure_api api;
@@ -59,23 +62,23 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 	return tqe;
 }
 
-void extract_bufdata(void *ptr, size_t len)
+void extract_bufdata(void *ptr, size_t len, size_t off)
 {
 	void *base = twz_object_base(&userver.buffer);
-	memcpy(ptr, base, len);
+	memcpy(ptr, (char *)base + off, len);
 }
 
-void write_bufdata(const void *ptr, size_t len)
+void write_bufdata(const void *ptr, size_t len, size_t off)
 {
 	void *base = twz_object_base(&userver.buffer);
-	memcpy(base, ptr, len);
+	memcpy((char *)base + off, ptr, len);
 }
 
 long get_proc_info(struct proc_info *info)
 {
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_GET_PROC_INFO, 0, sizeof(struct proc_info));
 	twix_sync_command(&tqe);
-	extract_bufdata(info, sizeof(*info));
+	extract_bufdata(info, sizeof(*info), 0);
 
 	return 0;
 }
@@ -122,12 +125,6 @@ static bool setup_queue(void)
 	return true;
 }
 
-struct syscall_args {
-	long a0, a1, a2, a3, a4, a5;
-	long num;
-	struct twix_register_frame *frame;
-};
-
 #include "../syscall_defs.h"
 
 long hook_proc_info_syscalls(struct syscall_args *args)
@@ -153,8 +150,8 @@ long hook_open(struct syscall_args *args)
 {
 	const char *path = (const char *)args->a0;
 	struct twix_queue_entry tqe =
-	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), 0, args->a1, args->a2);
-	write_bufdata(path, strlen(path) + 1);
+	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), -1, args->a1, args->a2);
+	write_bufdata(path, strlen(path) + 1, 0);
 	twix_sync_command(&tqe);
 	return tqe.ret;
 }
@@ -163,6 +160,16 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
 	[LINUX_SYS_open] = hook_open,
+	[LINUX_SYS_pwritev2] = hook_sys_pwritev2,
+	[LINUX_SYS_pwritev] = hook_sys_pwritev,
+	[LINUX_SYS_writev] = hook_sys_writev,
+	[LINUX_SYS_preadv2] = hook_sys_preadv2,
+	[LINUX_SYS_preadv] = hook_sys_preadv,
+	[LINUX_SYS_readv] = hook_sys_readv,
+	[LINUX_SYS_pread] = hook_sys_pread,
+	[LINUX_SYS_pwrite] = hook_sys_pwrite,
+	[LINUX_SYS_read] = hook_sys_read,
+	[LINUX_SYS_write] = hook_sys_write,
 };
 
 extern const char *syscall_names[];
