@@ -146,3 +146,47 @@ long hook_sys_fcntl(struct syscall_args *args)
 	twix_sync_command(&tqe);
 	return tqe.ret;
 }
+
+#include <fcntl.h>
+#include <sys/stat.h>
+static long twix_sys_fstatat(int fd, const char *path, struct stat *st, int flag)
+{
+	size_t buflen = path ? strlen(path) + 1 : 0;
+	if(path) {
+		write_bufdata(path, buflen, 0);
+	}
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_STAT, buflen, 0, fd, flag);
+	twix_sync_command(&tqe);
+	extract_bufdata(st, sizeof(*st), buflen);
+	return tqe.ret;
+}
+
+long hook_sys_stat(struct syscall_args *args)
+{
+	const char *path = (const char *)args->a0;
+	struct stat *st = (struct stat *)args->a1;
+	return twix_sys_fstatat(AT_FDCWD, path, st, 0);
+}
+
+long hook_sys_lstat(struct syscall_args *args)
+{
+	const char *path = (const char *)args->a0;
+	struct stat *st = (struct stat *)args->a1;
+	return twix_sys_fstatat(AT_FDCWD, path, st, AT_SYMLINK_NOFOLLOW);
+}
+
+long hook_sys_fstatat(struct syscall_args *args)
+{
+	int fd = args->a0;
+	const char *path = (const char *)args->a1;
+	struct stat *st = (struct stat *)args->a2;
+	int flags = args->a3;
+	return twix_sys_fstatat(fd, path, st, flags);
+}
+
+long hook_sys_fstat(struct syscall_args *args)
+{
+	int fd = args->a0;
+	struct stat *st = (struct stat *)args->a1;
+	return twix_sys_fstatat(fd, NULL, st, 0);
+}

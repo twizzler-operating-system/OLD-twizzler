@@ -44,9 +44,10 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 static const char *cmd_strs[] = {
 	[TWIX_CMD_GET_PROC_INFO] = "get_proc_info",
 	[TWIX_CMD_REOPEN_V1_FD] = "reopen_v1_fd",
-	[TWIX_CMD_OPENAT] = "open",
+	[TWIX_CMD_OPENAT] = "openat",
 	[TWIX_CMD_PIO] = "pio",
 	[TWIX_CMD_FCNTL] = "fcntl",
+	[TWIX_CMD_STAT] = "fstatat",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)

@@ -32,6 +32,11 @@ class filedesc
 	{
 	}
 
+	~filedesc()
+	{
+		twz_object_release(&obj);
+	}
+
 	int init_path(const char *path, int _fcntl_flags, int mode = 0);
 	bool access(int mode)
 	{

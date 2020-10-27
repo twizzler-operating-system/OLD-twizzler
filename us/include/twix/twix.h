@@ -46,6 +46,7 @@ enum twix_command {
 	TWIX_CMD_OPENAT,
 	TWIX_CMD_PIO,
 	TWIX_CMD_FCNTL,
+	TWIX_CMD_STAT,
 	NUM_TWIX_COMMANDS,
 };
 
