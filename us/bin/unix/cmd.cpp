@@ -20,6 +20,7 @@ static long __get_proc_info(queue_client *client, twix_queue_entry *tqe)
 
 long twix_cmd_open(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe);
 
 static long __reopen_v1_fd(queue_client *client, twix_queue_entry *tqe)
 {
@@ -45,6 +46,7 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_REOPEN_V1_FD] = "reopen_v1_fd",
 	[TWIX_CMD_OPENAT] = "open",
 	[TWIX_CMD_PIO] = "pio",
+	[TWIX_CMD_FCNTL] = "fcntl",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)

@@ -135,3 +135,14 @@ HOOK3(sys_write, int, fd, const void *, buf, size_t, count)
 	struct iovec v = { .iov_base = (void *)buf, .iov_len = count };
 	return twix_sys_pwritev(fd, &v, 1, -1);
 }
+
+long hook_sys_fcntl(struct syscall_args *args)
+{
+	int fd = args->a0;
+	int cmd = args->a1;
+	int arg = args->a2;
+
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_FCNTL, 0, 0, fd, cmd, arg);
+	twix_sync_command(&tqe);
+	return tqe.ret;
+}

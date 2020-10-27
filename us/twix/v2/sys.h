@@ -13,3 +13,4 @@ long hook_sys_preadv(struct syscall_args *);
 long hook_sys_readv(struct syscall_args *);
 long hook_sys_pread(struct syscall_args *);
 long hook_sys_read(struct syscall_args *);
+long hook_sys_fcntl(struct syscall_args *args);

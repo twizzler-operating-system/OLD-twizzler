@@ -33,7 +33,11 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 			nr_va = 5;
 			break;
 		case TWIX_CMD_OPENAT:
+		case TWIX_CMD_FCNTL:
 			nr_va = 3;
+			break;
+		case TWIX_CMD_PIO:
+			nr_va = 4;
 			break;
 		default:
 			nr_va = 0;
@@ -170,6 +174,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_pwrite] = hook_sys_pwrite,
 	[LINUX_SYS_read] = hook_sys_read,
 	[LINUX_SYS_write] = hook_sys_write,
+	[LINUX_SYS_fcntl] = hook_sys_fcntl,
 };
 
 extern const char *syscall_names[];

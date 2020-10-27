@@ -97,6 +97,25 @@ class unixprocess
 		threads.erase(threads.begin() + perproc_tid);
 	}
 
+	int get_file_flags(int fd)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(fds.size() <= (size_t)fd || fd < 0 || fds[fd].desc == nullptr) {
+			return -EBADF;
+		}
+		return fds[fd].flags;
+	}
+
+	int set_file_flags(int fd, int flags)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(fds.size() <= (size_t)fd || fd < 0 || fds[fd].desc == nullptr) {
+			return -EBADF;
+		}
+		fds[fd].flags = flags;
+		return 0;
+	}
+
 	void steal_fd(int fd, std::shared_ptr<filedesc> desc, int flags)
 	{
 		std::lock_guard<std::mutex> _lg(lock);

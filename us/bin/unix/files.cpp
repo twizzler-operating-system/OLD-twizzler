@@ -113,6 +113,9 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 	bool writing = flags & TWIX_FLAGS_PIO_WRITE;
 
 	auto filedesc = client->proc->get_file(fd);
+	if(filedesc == nullptr) {
+		return -EBADF;
+	}
 	if(!filedesc->access(writing ? W_OK : R_OK)) {
 		return -EACCES;
 	}
@@ -144,7 +147,18 @@ long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe)
 			break;
 		case F_GETFL: {
 			auto desc = client->proc->get_file(fd);
-			return desc->fcntl_flags;
+			if(desc == nullptr)
+				return -EBADF;
+			return desc->fcntl_flags - 1;
 		} break;
+		case F_SETFL: {
+			auto desc = client->proc->get_file(fd);
+			if(desc == nullptr)
+				return -EBADF;
+			desc->fcntl_flags = arg & ~(O_ACCMODE);
+			return 0;
+		} break;
+		default:
+			return -EINVAL;
 	}
 }
