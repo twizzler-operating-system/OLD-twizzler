@@ -2,6 +2,7 @@
 #include "interface.h"
 #include "eth.h"
 #include "ipv4.h"
+#include "twz.h"
 #include "send.h"
 #include "loopback_link.h"
 
@@ -14,7 +15,7 @@ int main(int argc, char* argv[])
         /* extract IP address */
         interface_ip = convert_ip_addr(argv[1]);
     } else {
-        fprintf(stderr, "usage: network ip_address <program_name> <args>\n");
+        fprintf(stderr, "usage: network host_ip_address <program_name> <args>\n");
         exit(1);
     }
 
@@ -38,20 +39,29 @@ int main(int argc, char* argv[])
 
     /* Run specified network program */
     if (argc > 2) {
-        if (strcmp(argv[2], "ipv4") == 0) {
-            if (argc > 3) {
+        if (strcmp(argv[2], "udp") == 0) {
+            if (argc == 6) {
+                object_id_t object_id;
                 int count = 0;
-                while (count < 10) {
+                while (count < 50) {
                     ++count;
                     char payload[] = "This is test data.";
-                    fprintf(stdout, "Sending out an ipv4 packet...\n");
-                    int ret = send_ipv4_packet
-                        ("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
+                    fprintf(stdout, "Sending out a UDP packet...\n");
+                    int ret = send_udp_packet
+                        ("/dev/e1000", object_id, NOOP,
+                         convert_ip_addr(argv[3]),
+                         atoi(argv[4]),
+                         atoi(argv[5]),
+                         payload);
                     int64_t counter = 0;
                     while (ret == EARP_WAIT) {
                         usleep(10);
-                        ret = send_ipv4_packet
-                            ("/dev/e1000", convert_ip_addr(argv[3]), TCP, payload);
+                        ret = send_udp_packet
+                            ("/dev/e1000", object_id, NOOP,
+                             convert_ip_addr(argv[3]),
+                             atoi(argv[4]),
+                             atoi(argv[5]),
+                             payload);
                         ++counter;
                         if (counter*10 == ARP_TIMEOUT) {
                             fprintf(stderr, "Error ARP failed; message not sent\n");
@@ -62,15 +72,15 @@ int main(int argc, char* argv[])
                 }
 
             } else {
-                fprintf(stderr, "Error: ipv4 program requires "
-                        "dst ip addr as argument\n");
+                fprintf(stderr, "Error: udp program requires 3 arguments - "
+                        "dst_ip_addr src_port dst_port\n");
                 exit(1);
             }
 
         } else if (strcmp(argv[2], "twz") == 0) {
             if (argc > 3) {
                 int count = 0;
-                while (count < 10) {
+                while (count < 50) {
                     ++count;
                     char payload[] = "This is test data.";
                     object_id_t object_id;
@@ -85,8 +95,8 @@ int main(int argc, char* argv[])
                 }
 
             } else {
-                fprintf(stderr, "Error: ipv4 program requires "
-                        "dst ip addr as argument\n");
+                fprintf(stderr, "Error: twz program requires "
+                        "dst_ip_addr as argument\n");
                 exit(1);
             }
 
@@ -98,4 +108,6 @@ int main(int argc, char* argv[])
 
     for (;;)
         usleep(100000);
+
+    return 0;
 }

@@ -36,6 +36,13 @@ typedef struct __attribute__((__packed__)) object_id {
     uint8_t id[OBJECT_ID_SIZE];
 } object_id_t;
 
+typedef struct remote_info {
+    object_id_t object_id;
+    uint8_t twz_op;
+    ip_addr_t remote_ip;
+    uint16_t remote_port;
+} remote_info_t;
+
 uint8_t check_machine_endianess();
 
 uint32_t ntohl(uint32_t n);
@@ -47,16 +54,17 @@ uint32_t htonl(uint32_t n);
 uint16_t htons(uint16_t n);
 
 bool compare_mac_addr(mac_addr_t my_mac,
-                    mac_addr_t their_mac);
+                      mac_addr_t their_mac);
 
 ip_addr_t convert_ip_addr(char* ip_addr);
 
 uint16_t checksum(unsigned char* data,
-                int8_t len);
+                  int8_t len);
 
 uint64_t get_id();
 
 void* allocate_packet_buffer_object(int pkt_size);
 
 void free_packet_buffer_object(twzobj* queue_obj);
+
 #endif

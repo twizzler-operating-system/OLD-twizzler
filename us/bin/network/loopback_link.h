@@ -4,6 +4,6 @@
 #include "common.h"
 
 void loopback_network_link(twzobj* tx_queue_obj,
-                         twzobj* rx_queue_obj);
+                           twzobj* rx_queue_obj);
 
 #endif
