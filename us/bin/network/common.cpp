@@ -74,7 +74,7 @@ uint16_t htons(uint16_t n)
 
 
 bool compare_mac_addr(mac_addr_t my_mac,
-                    mac_addr_t their_mac)
+                      mac_addr_t their_mac)
 {
     int count = 0;
     for (int i = 0; i < MAC_ADDR_SIZE; ++i) {
@@ -122,7 +122,7 @@ ip_addr_t convert_ip_addr(char* ip_addr)
 
 
 uint16_t checksum(unsigned char* data,
-                int8_t len)
+                  int8_t len)
 {
     uint32_t sum = 0;
     int i = 0;

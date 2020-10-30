@@ -1,20 +1,21 @@
 #include "ipv4.h"
 
 #include "interface.h"
+#include "udp.h"
 
 
 void ip_tx(const char* interface_name,
-          ip_addr_t dst_ip,
-          uint8_t ip_type,
-          void* pkt_ptr,
-          int pkt_size)
+           ip_addr_t dst_ip,
+           uint8_t ip_type,
+           void* pkt_ptr,
+           int pkt_size)
 {
     interface_t* interface = get_interface_by_name(interface_name);
 
     ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
 
     /* version and header length
-     * version is 4 for ipv4
+     * version is 4 for IPv4
      * header length is assumed to be min ip header len (5 or 20bytes) */
     ip_hdr->ver_and_ihl = 0x45;
 
@@ -49,7 +50,8 @@ void ip_tx(const char* interface_name,
 
 
 void ip_rx(const char* interface_name,
-        void* pkt_ptr)
+           remote_info_t* remote_info,
+           void* pkt_ptr)
 {
     interface_t* interface = get_interface_by_name(interface_name);
 
@@ -57,7 +59,7 @@ void ip_rx(const char* interface_name,
 
     for (int i = 0; i < IP_ADDR_SIZE; ++i) {
         if (ip_hdr->dst_ip.ip[i] != interface->ip.ip[i]) {
-            fprintf(stderr, "ip_rx: wrong ipv4 destination (%d.%d.%d.%d); "
+            fprintf(stderr, "ip_rx: wrong IPv4 destination (%d.%d.%d.%d); "
                     "packet dropped\n", ip_hdr->dst_ip.ip[0],
                     ip_hdr->dst_ip.ip[1], ip_hdr->dst_ip.ip[2],
                     ip_hdr->dst_ip.ip[3]);
@@ -76,11 +78,18 @@ void ip_rx(const char* interface_name,
         return;
     }
 
+    remote_info->remote_ip = ip_hdr->src_ip;
+
     char* payload = (char *)pkt_ptr;
     payload += ihl;
 
-    fprintf(stdout, "Received ipv4 packet from (%d.%d.%d.%d) payload = ",
-            ip_hdr->src_ip.ip[0], ip_hdr->src_ip.ip[1],
-            ip_hdr->src_ip.ip[2], ip_hdr->src_ip.ip[3]);
-    fprintf(stdout, "%s\n", payload);
+    switch (ip_hdr->protocol) {
+        case UDP:
+            udp_rx(remote_info, payload);
+            break;
+
+        default:
+            fprintf(stderr, "ip_rx: unrecognized IPv4 type 0x%02X; "
+                    "packet dropped\n", ip_hdr->protocol);
+    }
 }

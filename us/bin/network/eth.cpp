@@ -22,7 +22,7 @@ void eth_tx(const char* interface_name,
     /* destination MAC */
     memcpy(eth_hdr->dst_mac.mac, dst_mac.mac, MAC_ADDR_SIZE);
 
-    /* ethernet type */
+    /* Ethernet type */
     eth_hdr->type = htons(eth_type);
 
     /* create a pointer to the packet */
@@ -75,22 +75,25 @@ void eth_rx(const char* interface_name)
         uint16_t eth_type = ntohs(pkt_ptr->type);
 
         if (compare_mac_addr(interface->mac, dst_mac) == false) {
-            fprintf(stderr, "eth_rx: wrong destination; packet dropped\n");
+            fprintf(stderr, "eth_rx: wrong destination; packet dropped (");
             fprintf(stderr, "SRC: %02X:%02X:%02X:%02X:%02X:%02X ",
                     src_mac.mac[0], src_mac.mac[1], src_mac.mac[2], src_mac.mac[3],
                     src_mac.mac[4], src_mac.mac[5]);
             fprintf(stderr, "DST: %02X:%02X:%02X:%02X:%02X:%02X ",
                     dst_mac.mac[0], dst_mac.mac[1], dst_mac.mac[2], dst_mac.mac[3],
                     dst_mac.mac[4], dst_mac.mac[5]);
-            fprintf(stderr, "TYPE: %04X\n", pkt_ptr->type);
+            fprintf(stderr, "TYPE: 0x%04X)\n", eth_type);
 
         } else {
             char* payload = (char *)pkt_ptr;
             payload += ETH_HDR_SIZE;
 
+            remote_info_t remote_info;
+            remote_info->twz_op = NOOP;
+
             switch (eth_type) {
                 case TWIZZLER:
-                    twz_rx(interface_name, payload);
+                    twz_rx(interface_name, &remote_info, payload);
                     break;
 
                 case ARP:
@@ -98,11 +101,11 @@ void eth_rx(const char* interface_name)
                     break;
 
                 case IPV4:
-                    ip_rx(interface_name, payload);
+                    ip_rx(interface_name, &remote_info, payload);
                     break;
 
                 default:
-                    fprintf(stderr, "eth_rx: unrecognized ethernet type %04X; "
+                    fprintf(stderr, "eth_rx: unrecognized Ethernet type 0x%04X; "
                             "packet dropped\n", eth_type);
             }
         }

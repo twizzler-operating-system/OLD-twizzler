@@ -5,7 +5,7 @@
 /* simulates a network link by moving packets from tx queue of an interface
  * to rx queue of the interface. Used for loopback testing */
 void loopback_network_link(twzobj* tx_queue_obj,
-                         twzobj* rx_queue_obj)
+                           twzobj* rx_queue_obj)
 {
     fprintf(stderr, "Started a simulated link for loopback testing\n");
 

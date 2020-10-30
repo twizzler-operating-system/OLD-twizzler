@@ -14,8 +14,8 @@ typedef struct interface {
 } interface_t;
 
 void init_interface(const char* interface_name,
-                  const char* info_queue_name,
-                  ip_addr_t interface_ip);
+                    const char* info_queue_name,
+                    ip_addr_t interface_ip);
 
 interface_t* get_interface_by_name(const char* interface_name);
 

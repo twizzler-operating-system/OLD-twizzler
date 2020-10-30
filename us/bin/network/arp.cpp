@@ -12,7 +12,7 @@ std::mutex inflight_arp_req_mutex;
 
 
 void arp_table_insert(uint8_t* proto_addr,
-                    uint8_t* hw_addr)
+                      uint8_t* hw_addr)
 {
     std::map<uint8_t*,uint8_t*>::iterator it;
 
@@ -207,15 +207,15 @@ void view_arp_req_inflight()
 
 
 void arp_tx(uint16_t hw_type,
-          uint16_t proto_type,
-          uint8_t hw_addr_len,
-          uint8_t proto_addr_len,
-          uint16_t opcode,
-          uint8_t sender_hw_addr[HW_ADDR_SIZE],
-          uint8_t sender_proto_addr[PROTO_ADDR_SIZE],
-          uint8_t target_hw_addr[HW_ADDR_SIZE],
-          uint8_t target_proto_addr[PROTO_ADDR_SIZE],
-          void* pkt_ptr)
+            uint16_t proto_type,
+            uint8_t hw_addr_len,
+            uint8_t proto_addr_len,
+            uint16_t opcode,
+            uint8_t sender_hw_addr[HW_ADDR_SIZE],
+            uint8_t sender_proto_addr[PROTO_ADDR_SIZE],
+            uint8_t target_hw_addr[HW_ADDR_SIZE],
+            uint8_t target_proto_addr[PROTO_ADDR_SIZE],
+            void* pkt_ptr)
 {
     arp_hdr_t* arp_hdr = (arp_hdr_t *)pkt_ptr;
 
@@ -240,7 +240,7 @@ void arp_tx(uint16_t hw_type,
 
 
 void arp_rx(const char* interface_name,
-          void* pkt_ptr)
+            void* pkt_ptr)
 {
     interface_t* interface = get_interface_by_name(interface_name);
 

@@ -10,18 +10,16 @@
 #define EARP_WAIT 2
 
 void send_arp_packet(const char* interface_name,
-                   uint16_t opcode,
-                   mac_addr_t dst_mac,
-                   ip_addr_t dst_ip);
+                     uint16_t opcode,
+                     mac_addr_t dst_mac,
+                     ip_addr_t dst_ip);
 
-int send_ipv4_packet(const char* interface_name,
-                    ip_addr_t dst_ip,
-                    uint8_t ip_type,
-                    char* payload);
-
-int send_twz_packet(const char* interface_name,
+int send_udp_packet(const char* interface_name,
                     object_id_t object_id,
+                    uint8_t twz_op,
                     ip_addr_t dst_ip,
-                    uint8_t ip_type,
+                    uint16_t src_port,
+                    uint16_t dst_port,
                     char* payload);
+
 #endif

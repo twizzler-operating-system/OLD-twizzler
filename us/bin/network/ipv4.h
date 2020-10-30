@@ -24,12 +24,13 @@ typedef struct __attribute__((__packed__)) ip_hdr {
 } ip_hdr_t;
 
 void ip_tx(const char* interface_name,
-          ip_addr_t dst_ip,
-          uint8_t ip_type,
-          void* pkt_ptr,
-          int pkt_size);
+           ip_addr_t dst_ip,
+           uint8_t ip_type,
+           void* pkt_ptr,
+           int pkt_size);
 
 void ip_rx(const char* interface_name,
-        void* pkt_ptr);
+           remote_info_t* remote_info,
+           void* pkt_ptr);
 
 #endif
