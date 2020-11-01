@@ -5,7 +5,6 @@
 #include "twz.h"
 #include "send.h"
 #include "twz_op.h"
-#include "loopback_link.h"
 
 
 int main(int argc, char* argv[])
