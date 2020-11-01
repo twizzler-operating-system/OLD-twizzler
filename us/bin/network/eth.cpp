@@ -58,15 +58,11 @@ void eth_rx(const char* interface_name)
         /* dequeue packet (pointer) from primary rx queue */
         queue_receive(rx_queue_obj, (struct queue_entry *)&pqe, 0);
 
-#ifdef LOOPBACK_TESTING
-        char* ph = (char *)twz_object_lea(rx_queue_obj, pqe.ptr);
-#else
         /* packet structure from the nic starts with a packet_header struct that
          * contains information followed by the actual packet data. */
         struct packet_header* ph = (struct packet_header *)
             twz_object_lea(rx_queue_obj, pqe.ptr);
         ph += 1;
-#endif
 
         /* decapsulate then send to higher layers */
         eth_hdr_t* pkt_ptr = (eth_hdr_t *)ph;
@@ -74,7 +70,7 @@ void eth_rx(const char* interface_name)
         mac_addr_t dst_mac = pkt_ptr->dst_mac;
         uint16_t eth_type = ntohs(pkt_ptr->type);
 
-        if (compare_mac_addr(interface->mac, dst_mac) == false) {
+        if (!compare_mac_addr(dst_mac, interface->mac)) {
             fprintf(stderr, "eth_rx: wrong destination; packet dropped (");
             fprintf(stderr, "SRC: %02X:%02X:%02X:%02X:%02X:%02X ",
                     src_mac.mac[0], src_mac.mac[1], src_mac.mac[2], src_mac.mac[3],
@@ -89,7 +85,7 @@ void eth_rx(const char* interface_name)
             payload += ETH_HDR_SIZE;
 
             remote_info_t remote_info;
-            remote_info->twz_op = NOOP;
+            remote_info.twz_op = NOOP;
 
             switch (eth_type) {
                 case TWIZZLER:

@@ -5,7 +5,7 @@
 
 
 void twz_tx(object_id_t object_id,
-            uint8_t twz_op;
+            uint8_t twz_op,
             uint16_t twz_type,
             void* pkt_ptr)
 {
@@ -49,6 +49,10 @@ void twz_rx(const char* interface_name,
 
         case TWZ_WRITE_REQ:
             fprintf(stdout, "OP: WRITE REQUEST\n");
+            break;
+
+        case TWZ_WRITE_REPLY:
+            fprintf(stdout, "OP: WRITE REPLY\n");
             break;
     }
 

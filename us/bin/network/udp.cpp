@@ -1,5 +1,8 @@
 #include "udp.h"
 
+#include "twz.h"
+#include "twz_op.h"
+
 
 void udp_tx(uint16_t src_port,
             uint16_t dst_port,
@@ -18,7 +21,8 @@ void udp_tx(uint16_t src_port,
 }
 
 
-void udp_rx(remote_info_t* remote_info,
+void udp_rx(const char* interface_name,
+            remote_info_t* remote_info,
             void* pkt_ptr)
 {
     udp_hdr_t* udp_hdr = (udp_hdr_t *)pkt_ptr;
@@ -30,11 +34,16 @@ void udp_rx(remote_info_t* remote_info,
     char* payload = (char *)pkt_ptr;
     payload += UDP_HDR_SIZE;
 
-    fprintf(stdout, "Received UDP packet from (%d.%d.%d.%d port %d) payload = ",
-            remote_info->remote_ip.ip[0],
-            remote_info->remote_ip.ip[1],
-            remote_info->remote_ip.ip[2],
-            remote_info->remote_ip.ip[3],
-            src_port);
-    fprintf(stdout, "%s\n", payload);
+    if (remote_info->twz_op != NOOP) {
+        twz_op_recv(interface_name, remote_info, payload);
+
+    } else {
+        fprintf(stdout, "Received UDP packet from ('%d.%d.%d.%d', %d) payload = ",
+                remote_info->remote_ip.ip[0],
+                remote_info->remote_ip.ip[1],
+                remote_info->remote_ip.ip[2],
+                remote_info->remote_ip.ip[3],
+                src_port);
+        fprintf(stdout, "%s\n", payload);
+    }
 }

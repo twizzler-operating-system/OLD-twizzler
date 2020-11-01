@@ -73,7 +73,7 @@ int send_udp_packet(const char* interface_name,
 
     /* calculate the size of packet buffer */
     uint16_t payload_size = 0;
-    if (payload) {
+    if (payload != NULL) {
         payload_size = strlen(payload);
     }
     int pkt_size;
@@ -91,7 +91,7 @@ int send_udp_packet(const char* interface_name,
     void* pkt_ptr = allocate_packet_buffer_object(pkt_size);
 
     /* add payload */
-    if (payload) {
+    if (payload != NULL) {
         char* payload_ptr = (char *)pkt_ptr;
         payload_ptr += (pkt_size - payload_size);
         strcpy(payload_ptr, payload);

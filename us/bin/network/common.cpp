@@ -73,8 +73,8 @@ uint16_t htons(uint16_t n)
 }
 
 
-bool compare_mac_addr(mac_addr_t my_mac,
-                      mac_addr_t their_mac)
+bool compare_mac_addr(mac_addr_t their_mac,
+                      mac_addr_t my_mac)
 {
     int count = 0;
     for (int i = 0; i < MAC_ADDR_SIZE; ++i) {
@@ -99,7 +99,51 @@ bool compare_mac_addr(mac_addr_t my_mac,
 }
 
 
-ip_addr_t convert_ip_addr(char* ip_addr)
+bool compare_ip_addr(ip_addr_t their_ip,
+                     ip_addr_t my_ip,
+                     ip_addr_t bcast_ip)
+{
+    int count = 0;
+    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+        if (their_ip.ip[i] != bcast_ip.ip[i]) {
+            break;
+        } else {
+            count += 1;
+        }
+    }
+
+    if (count == IP_ADDR_SIZE) { //broadcast ip addr
+        return true;
+
+    } else {
+        for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+            if (their_ip.ip[i] != my_ip.ip[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+
+mac_addr_t string_to_mac_addr(char* mac_addr)
+{
+    uint8_t my_mac[MAC_ADDR_SIZE] = {0};
+
+    for (int i = 0; i < MAC_ADDR_SIZE; ++i) {
+        char p[3];
+        strncpy(p, (mac_addr+(3*i)), 2);
+        my_mac[i] = strtol(p, NULL, 16);
+    }
+
+    mac_addr_t mac;
+    memcpy(mac.mac, my_mac, MAC_ADDR_SIZE);
+
+    return mac;
+}
+
+
+ip_addr_t string_to_ip_addr(char* ip_addr)
 {
     uint8_t my_ip[IP_ADDR_SIZE] = {0};
     int index = 0;

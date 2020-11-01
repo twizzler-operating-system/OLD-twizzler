@@ -18,9 +18,9 @@ void arp_table_insert(uint8_t* proto_addr,
 
     arp_table_mutex.lock();
     uint8_t* key = (uint8_t *)malloc(sizeof(uint8_t)*PROTO_ADDR_SIZE);
-    uint8_t* value = (uint8_t *)malloc(sizeof(uint8_t)*MAC_ADDR_SIZE);
+    uint8_t* value = (uint8_t *)malloc(sizeof(uint8_t)*HW_ADDR_SIZE);
     memcpy(key, proto_addr, PROTO_ADDR_SIZE);
-    memcpy(value, hw_addr, MAC_ADDR_SIZE);
+    memcpy(value, hw_addr, HW_ADDR_SIZE);
     bool found;
     for (it = arp_table.begin(); it != arp_table.end(); ++it) {
         found = true;

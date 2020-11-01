@@ -17,7 +17,8 @@ void udp_tx(uint16_t src_port,
             void* pkt_ptr,
             int pkt_size);
 
-void udp_rx(remote_info_t* remote_info,
+void udp_rx(const char* interface_name,
+            remote_info_t* remote_info,
             void* pkt_ptr);
 
 #endif

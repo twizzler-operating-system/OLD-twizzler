@@ -1,12 +1,15 @@
 #include "interface.h"
 
+#include "arp.h"
+
 
 static std::map<const char*,interface_t*> interface_list;
 
 
 void init_interface(const char* interface_name,
                     const char* info_queue_name,
-                    ip_addr_t interface_ip)
+                    ip_addr_t interface_ip,
+                    ip_addr_t interface_bcast_ip)
 {
     twzobj interface_obj;
     twzobj info_obj;
@@ -53,6 +56,7 @@ void init_interface(const char* interface_name,
     strncpy(interface->name, interface_name, MAX_INTERFACE_NAME_SIZE);
     memcpy(interface->mac.mac, nh->mac, MAC_ADDR_SIZE);
     memcpy(interface->ip.ip, interface_ip.ip, IP_ADDR_SIZE);
+    memcpy(interface->bcast_ip.ip, interface_bcast_ip.ip, IP_ADDR_SIZE);
     /* initialize tx queue obj */
     char tx_queue_name[MAX_INTERFACE_NAME_SIZE];
     strcpy(tx_queue_name, interface->name);
@@ -71,6 +75,10 @@ void init_interface(const char* interface_name,
         fprintf(stderr,"Error init_interface: could not init rx-queue\n");
         exit(1);
     }
+    /* initialize ARP table */
+    uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    arp_table_insert(interface->bcast_ip.ip, bcast_mac);
+    arp_table_insert(interface->ip.ip, interface->mac.mac);
 
     /* add new interface to interface list */
     interface_list.insert(std::make_pair(interface_name, interface));

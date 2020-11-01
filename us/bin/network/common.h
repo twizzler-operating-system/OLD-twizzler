@@ -53,10 +53,16 @@ uint32_t htonl(uint32_t n);
 
 uint16_t htons(uint16_t n);
 
-bool compare_mac_addr(mac_addr_t my_mac,
-                      mac_addr_t their_mac);
+bool compare_mac_addr(mac_addr_t their_mac,
+                      mac_addr_t my_mac);
 
-ip_addr_t convert_ip_addr(char* ip_addr);
+bool compare_ip_addr(ip_addr_t their_ip,
+                     ip_addr_t my_ip,
+                     ip_addr_t bcast_ip);
+
+mac_addr_t string_to_mac_addr(char* mac_addr);
+
+ip_addr_t string_to_ip_addr(char* ip_addr);
 
 uint16_t checksum(unsigned char* data,
                   int8_t len);

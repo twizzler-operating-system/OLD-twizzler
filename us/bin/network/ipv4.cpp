@@ -57,14 +57,12 @@ void ip_rx(const char* interface_name,
 
     ip_hdr_t* ip_hdr = (ip_hdr_t *)pkt_ptr;
 
-    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
-        if (ip_hdr->dst_ip.ip[i] != interface->ip.ip[i]) {
-            fprintf(stderr, "ip_rx: wrong IPv4 destination (%d.%d.%d.%d); "
-                    "packet dropped\n", ip_hdr->dst_ip.ip[0],
-                    ip_hdr->dst_ip.ip[1], ip_hdr->dst_ip.ip[2],
-                    ip_hdr->dst_ip.ip[3]);
-            return;
-        }
+    if (!compare_ip_addr(ip_hdr->dst_ip, interface->ip, interface->bcast_ip)) {
+        fprintf(stderr, "ip_rx: wrong IPv4 destination (%d.%d.%d.%d); "
+                "packet dropped\n", ip_hdr->dst_ip.ip[0],
+                ip_hdr->dst_ip.ip[1], ip_hdr->dst_ip.ip[2],
+                ip_hdr->dst_ip.ip[3]);
+        return;
     }
 
     /* verify header checksum */
@@ -85,7 +83,7 @@ void ip_rx(const char* interface_name,
 
     switch (ip_hdr->protocol) {
         case UDP:
-            udp_rx(remote_info, payload);
+            udp_rx(interface_name, remote_info, payload);
             break;
 
         default:
