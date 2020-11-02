@@ -73,14 +73,12 @@ ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int fla
 ssize_t filedesc::read(void *buffer, size_t buflen, off_t offset, int flags, bool use_pos)
 {
 	/* TODO: atomicity */
-	fprintf(stderr, "read! %ld %ld %d %d\n", buflen, offset, flags, use_pos);
 	bool nonblock = (flags & RWF_NOWAIT) || (fcntl_flags & O_NONBLOCK);
 	if(use_pos) {
 		offset = pos;
 	}
 	ssize_t r = twzio_read(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 0);
 	if(r == -ENOTSUP) {
-		fprintf(stderr, "  here\n");
 		struct metainfo *mi = twz_object_meta(&obj);
 		if(mi->flags & MIF_SZ) {
 			if((size_t)offset >= mi->sz) {
@@ -112,17 +110,15 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 	int preadv_flags = tqe->arg2;
 	int flags = tqe->arg3;
 
-	fprintf(stderr, "PIO %d %ld %d %d\n", fd, off, preadv_flags, flags);
+	// fprintf(stderr, "PIO %d %ld %d %d\n", fd, off, preadv_flags, flags);
 
 	bool writing = flags & TWIX_FLAGS_PIO_WRITE;
 
 	auto filedesc = client->proc->get_file(fd);
 	if(filedesc == nullptr) {
-		fprintf(stderr, "a\n");
 		return -EBADF;
 	}
 	if(!filedesc->access(writing ? W_OK : R_OK)) {
-		fprintf(stderr, "b\n");
 		return -EACCES;
 	}
 
@@ -134,7 +130,6 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 		ret = filedesc->read(
 		  client->buffer_base(), tqe->buflen, off, preadv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
 	}
-	fprintf(stderr, "c: %ld\n", ret);
 
 	return ret;
 }
@@ -144,8 +139,6 @@ long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe)
 	int fd = tqe->arg0;
 	int cmd = tqe->arg1;
 	int arg = tqe->arg2;
-
-	fprintf(stderr, "FCNTL %d %d %d\n", fd, cmd, arg);
 
 	switch(cmd) {
 		case F_GETFD:
