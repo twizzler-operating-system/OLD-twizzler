@@ -14,9 +14,10 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 	int flags = tqe->arg2;
 	off_t offset = tqe->arg3;
 	off_t map_offset = tqe->arg4;
+	size_t length = tqe->arg5;
 
 	bool shared;
-	fprintf(stderr, "MMAP %d %d %d %ld %ld\n", fd, prot, flags, offset, map_offset);
+	fprintf(stderr, "MMAP %d %d %d %ld %ld %lx\n", fd, prot, flags, offset, map_offset, length);
 	if(flags & MAP_PRIVATE) {
 		fprintf(stderr, "    private\n");
 		shared = false;
@@ -34,24 +35,55 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 			return -EINVAL;
 		}
 	} else {
-		map_offset = 0;
+		map_offset = OBJ_NULLPAGE_SIZE;
 	}
 
 	objid_t id;
+	int r;
 	if(fd >= 0) {
 		auto desc = client->proc->get_file(fd);
 		if(!desc) {
 			return -EBADF;
 		}
-		id = desc->objid;
-		if(!shared) {
-			/* TODO: create a new object */
-			//	int r = twz_object_create(
-			//	  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_TIED_NONE, 0, id,
-			//&id); 	if(r) 		return r;
+		struct metainfo *mi = twz_object_meta(&desc->obj);
+		if(mi->flags & MIF_SZ) {
+			if(length > mi->sz) {
+				length = mi->sz;
+			}
 		}
+
+		if(!shared) {
+			int r = twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC
+			                            | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE,
+			  0,
+			  0,
+			  &id);
+			if(r)
+				return r;
+		} else {
+			return -ENOTSUP;
+		}
+
+		fprintf(stderr,
+		  "    copying: %lx -> %lx for %lx\n",
+		  map_offset,
+		  offset + OBJ_NULLPAGE_SIZE,
+		  length);
+		/* TODO: verify offsets */
+		if((r = sys_ocopy(id,
+		      desc->objid,
+		      map_offset,
+		      offset + OBJ_NULLPAGE_SIZE,
+		      (length + 0xfff) & ~0xfff,
+		      0))) {
+			return r;
+		}
+
 	} else {
-		int r = twz_object_create(
+		if(!(flags & MAP_ANON))
+			return -EINVAL;
+		fprintf(stderr, "    anon\n");
+		r = twz_object_create(
 		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE,
 		  0,
 		  0,
