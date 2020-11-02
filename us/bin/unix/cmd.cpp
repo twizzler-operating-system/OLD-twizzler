@@ -64,7 +64,8 @@ long queue_client::handle_command(twix_queue_entry *tqe)
 		  thr->tid,
 		  tqe->cmd,
 		  cmd_strs[tqe->cmd]);
-		return call_table[tqe->cmd](this, tqe);
+		long ret = call_table[tqe->cmd](this, tqe);
+		fprintf(stderr, "[twix-server]     return %ld\n", ret);
 	}
 	return -ENOSYS;
 }

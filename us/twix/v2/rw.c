@@ -46,6 +46,7 @@ HOOK5(sys_preadv2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off, 
 		return tqe.ret;
 	}
 	count = 0;
+	/* TODO: limit result */
 	for(int i = 0; i < iovcnt; i++) {
 		size_t thisiov_len = iov[i].iov_len;
 		if(count + thisiov_len > (size_t)tqe.ret) {
@@ -55,6 +56,7 @@ HOOK5(sys_preadv2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off, 
 			}
 		}
 		extract_bufdata(iov[i].iov_base, thisiov_len, count);
+		count += thisiov_len;
 	}
 
 	return tqe.ret;
@@ -96,6 +98,7 @@ HOOK5(sys_pwritev2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off,
 			}
 		}
 		write_bufdata(iov[i].iov_base, thisiov_len, count);
+		count += thisiov_len;
 	}
 
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_PIO,

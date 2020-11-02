@@ -1,6 +1,7 @@
 #pragma once
 
 #include <twix/twix.h>
+#include <twz/hier.h>
 #include <twz/obj.h>
 #include <twz/queue.h>
 
@@ -18,6 +19,7 @@ class filedesc
 {
   private:
 	std::mutex lock;
+	bool inited = false;
 
   public:
 	filedesc(objid_t objid, size_t pos, int fcntl_flags)
@@ -34,10 +36,12 @@ class filedesc
 
 	~filedesc()
 	{
-		twz_object_release(&obj);
+		if(inited) {
+			twz_object_release(&obj);
+		}
 	}
 
-	int init_path(const char *path, int _fcntl_flags, int mode = 0);
+	int init_path(std::shared_ptr<filedesc> at, const char *path, int _fcntl_flags, int mode = 0);
 	bool access(int mode)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
@@ -52,6 +56,7 @@ class filedesc
 	objid_t objid;
 	std::atomic<int> fcntl_flags;
 	std::atomic<size_t> pos = 0;
+	struct twz_name_ent dirent;
 };
 
 class descriptor
@@ -86,6 +91,8 @@ class unixprocess
 	proc_state state = PROC_NORMAL;
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
+
+	std::shared_ptr<filedesc> cwd;
 
 	std::mutex lock;
 
@@ -233,3 +240,5 @@ class queue_client
 		memcpy(base, t, sizeof(T));
 	}
 };
+
+std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at, const char *path);

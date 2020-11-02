@@ -63,6 +63,13 @@ int queue_client::init()
 	thr = thrtable.lookup(taskid);
 	proc->add_thread(thr);
 
+	auto [rr, desc] = open_file(nullptr, "/");
+	if(rr) {
+		return rr;
+	}
+
+	proc->cwd = desc;
+
 	return 0;
 }
 

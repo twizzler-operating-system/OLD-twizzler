@@ -126,7 +126,7 @@ static bool setup_queue(void)
 			  fd,
 			  ID_LO(twz_object_guid(&file->obj)),
 			  ID_HI(twz_object_guid(&file->obj)),
-			  file->fcntl_fl,
+			  file->fcntl_fl | 3 /*TODO*/,
 			  file->pos);
 			twix_sync_command(&tqe);
 		}
@@ -264,6 +264,11 @@ long hook_close(struct syscall_args *args)
 	return 0;
 }
 
+long hook_ioctl(struct syscall_args *args)
+{
+	return 0;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -285,6 +290,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_fstatat] = hook_sys_fstatat,
 	[LINUX_SYS_mmap] = hook_mmap,
 	[LINUX_SYS_close] = hook_close,
+	[LINUX_SYS_ioctl] = hook_ioctl,
 };
 
 extern const char *syscall_names[];
@@ -312,9 +318,10 @@ bool try_twix_version2(struct twix_register_frame *frame,
 	if(!setup_queue())
 		return false;
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
-		twix_log("twix_v2 syscall: %ld (%s)\n", num, syscall_names[num]);
+		twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
 		return false;
 	}
+	twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 	*ret = syscall_v2_table[num](&args);
 	return *ret != -ENOSYS;
 }

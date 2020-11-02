@@ -7,15 +7,37 @@
 
 #include "state.h"
 
-int filedesc::init_path(const char *path, int _fcntl_flags, int mode)
+int filedesc::init_path(std::shared_ptr<filedesc> at, const char *path, int _fcntl_flags, int mode)
 {
-	int r = twz_object_init_name(&obj, path, FE_READ | FE_WRITE);
-	if(r) {
-		return r;
+	if(at == nullptr) {
+		/* TODO: this should go off the root, and use hier directly */
+		int r = twz_object_init_name(&obj, path, FE_READ | FE_WRITE);
+		if(r) {
+			return r;
+		}
+	} else {
+		/* TODO: check if at is a directory */
+		int r = twz_hier_resolve_name(&at->obj, path, 0, &dirent);
+		if(r)
+			return r;
+		if((r = twz_object_init_guid(&obj, dirent.id, FE_READ | FE_WRITE))) {
+			return r;
+		}
 	}
 	objid = twz_object_guid(&obj);
 	fcntl_flags = _fcntl_flags;
+	inited = true;
 	return 0;
+}
+
+std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at, const char *path)
+{
+	if(path == NULL || path[0] == 0) {
+		return std::make_pair(at != nullptr, at);
+	}
+	auto desc = std::make_shared<filedesc>();
+	int r = desc->init_path(at, path, O_RDWR, 0);
+	return std::make_pair(r, desc);
 }
 
 /* buf: path, a0: dirfd, a1: flags, a2: mode (create) */
@@ -26,12 +48,16 @@ long twix_cmd_open(queue_client *client, twix_queue_entry *tqe)
 	int dirfd = tqe->arg0;
 	auto [ok, path] = client->buffer_to_string(tqe->buflen);
 
-	if(dirfd != -1) {
-		return -ENOSYS;
+	auto at = client->proc->cwd;
+	if(dirfd >= 0) {
+		at = client->proc->get_file(dirfd);
+		if(at == nullptr) {
+			return -EBADF;
+		}
 	}
 	auto desc = std::make_shared<filedesc>();
 	int r;
-	if((r = desc->init_path(path.c_str(), flags, mode))) {
+	if((r = desc->init_path(at, path.c_str(), flags, mode))) {
 		return r;
 	}
 
@@ -47,6 +73,7 @@ ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int fla
 	if(use_pos) {
 		offset = pos;
 	}
+	fprintf(stderr, "write: %s\n", buffer);
 	ssize_t r = twzio_write(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 0);
 	if(r == -ENOTSUP) {
 		/* TODO: bounds check */
@@ -116,9 +143,11 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 
 	auto filedesc = client->proc->get_file(fd);
 	if(filedesc == nullptr) {
+		fprintf(stderr, "A\n");
 		return -EBADF;
 	}
 	if(!filedesc->access(writing ? W_OK : R_OK)) {
+		fprintf(stderr, "B\n");
 		return -EACCES;
 	}
 
@@ -170,19 +199,19 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	int flags = tqe->arg1;
-	auto desc = client->proc->get_file(fd);
-	if(!desc) {
+	auto at = fd >= 0 ? client->proc->get_file(fd) : client->proc->cwd;
+	if(!at) {
 		return -EBADF;
 	}
+
 	auto [ok, path] = client->buffer_to_string(tqe->buflen);
 	fprintf(stderr, "STAT %d %d: '%s'\n", fd, flags, path.c_str());
 
-	if(path.size() > 0) {
-		return -ENOTSUP; // TODO
+	auto [r, desc] = open_file(at, ok ? path.c_str() : NULL);
+	if(r) {
+		return r;
 	}
-
 	struct metainfo *mi = twz_object_meta(&desc->obj);
-
 	struct stat st = (struct stat){
 		.st_dev = 0,
 		.st_ino = 11,
