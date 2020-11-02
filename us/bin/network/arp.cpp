@@ -97,21 +97,21 @@ void arp_table_view()
     std::map<uint8_t*,uint8_t*>::iterator it;
 
     arp_table_mutex.lock();
-    fprintf(stdout, "ARP Table:\n");
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "ARP Table:\n");
+    fprintf(stderr, "------------------------------------------\n");
     for (it = arp_table.begin(); it != arp_table.end(); ++it) {
         int i;
         for (i = 0; i < PROTO_ADDR_SIZE-1; ++i) {
-            fprintf(stdout, "%d.", it->first[i]);
+            fprintf(stderr, "%d.", it->first[i]);
         }
-        fprintf(stdout, "%d -> ", it->first[i]);
+        fprintf(stderr, "%d -> ", it->first[i]);
 
         for (i = 0; i < HW_ADDR_SIZE-1; ++i) {
-            fprintf(stdout, "%02X:", it->second[i]);
+            fprintf(stderr, "%02X:", it->second[i]);
         }
-        fprintf(stdout, "%02X\n", it->second[i]);
+        fprintf(stderr, "%02X\n", it->second[i]);
     }
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "------------------------------------------\n");
     arp_table_mutex.unlock();
 }
 
@@ -192,16 +192,16 @@ void view_arp_req_inflight()
     std::vector<uint8_t*>::iterator it;
 
     inflight_arp_req_mutex.lock();
-    fprintf(stdout, "Inflight ARP Requests:\n");
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "Inflight ARP Requests:\n");
+    fprintf(stderr, "------------------------------------------\n");
     for (it = inflight_arp_req.begin(); it != inflight_arp_req.end(); ++it) {
         int i;
         for (i = 0; i < PROTO_ADDR_SIZE-1; ++i) {
-            fprintf(stdout, "%d.", (*it)[i]);
+            fprintf(stderr, "%d.", (*it)[i]);
         }
-        fprintf(stdout, "%d\n", (*it)[i]);
+        fprintf(stderr, "%d\n", (*it)[i]);
     }
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "------------------------------------------\n");
     inflight_arp_req_mutex.unlock();
 }
 

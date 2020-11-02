@@ -4,25 +4,21 @@
 #include "twz.h"
 #include "send.h"
 
-#define TWIZZLER_PORT 9090
-#define CONTROLLER_PORT 9091
-#define CONTROLLER_ADDR "10.0.0.4"
-
 
 std::map<uint8_t*,uint8_t*> obj_mapping;
 std::mutex obj_mapping_mutex;
 
 
 void obj_mapping_insert(uint8_t* object_id,
-                        uint8_t* mac_addr)
+                        uint8_t* ip_addr)
 {
     std::map<uint8_t*,uint8_t*>::iterator it;
 
     obj_mapping_mutex.lock();
     uint8_t* key = (uint8_t *)malloc(sizeof(uint8_t)*OBJECT_ID_SIZE);
-    uint8_t* value = (uint8_t *)malloc(sizeof(uint8_t)*MAC_ADDR_SIZE);
+    uint8_t* value = (uint8_t *)malloc(sizeof(uint8_t)*IP_ADDR_SIZE);
     memcpy(key, object_id, OBJECT_ID_SIZE);
-    memcpy(value, mac_addr, MAC_ADDR_SIZE);
+    memcpy(value, ip_addr, IP_ADDR_SIZE);
     bool found;
     for (it = obj_mapping.begin(); it != obj_mapping.end(); ++it) {
         found = true;
@@ -99,21 +95,21 @@ void obj_mapping_view()
     std::map<uint8_t*,uint8_t*>::iterator it;
 
     obj_mapping_mutex.lock();
-    fprintf(stdout, "OBJ MAPPING Table:\n");
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "OBJ MAPPING Table:\n");
+    fprintf(stderr, "------------------------------------------\n");
     for (it = obj_mapping.begin(); it != obj_mapping.end(); ++it) {
         int i;
         for (i = 0; i < OBJECT_ID_SIZE-1; ++i) {
-            fprintf(stdout, "%02X", it->first[i]);
+            fprintf(stderr, "%02X", it->first[i]);
         }
-        fprintf(stdout, "%02X -> ", it->first[i]);
+        fprintf(stderr, "%02X -> ", it->first[i]);
 
-        for (i = 0; i < MAC_ADDR_SIZE-1; ++i) {
-            fprintf(stdout, "%02X:", it->second[i]);
+        for (i = 0; i < IP_ADDR_SIZE-1; ++i) {
+            fprintf(stderr, "%d.", it->second[i]);
         }
-        fprintf(stdout, "%02X\n", it->second[i]);
+        fprintf(stderr, "%d\n", it->second[i]);
     }
-    fprintf(stdout, "------------------------------------------\n");
+    fprintf(stderr, "------------------------------------------\n");
     obj_mapping_mutex.unlock();
 }
 
@@ -135,12 +131,12 @@ bool object_exists_locally(const char* interface_name,
 {
     interface_t* interface = get_interface_by_name(interface_name);
 
-    uint8_t* mac_addr = obj_mapping_get(object_id.id);
+    uint8_t* ip_addr = obj_mapping_get(object_id.id);
 
-    if (mac_addr == NULL) return false;
+    if (ip_addr == NULL) return false;
 
-    for (int i = 0; i < MAC_ADDR_SIZE; ++i) {
-        if (mac_addr[i] != interface->mac.mac[i]) {
+    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+        if (ip_addr[i] != interface->ip.ip[i]) {
             return false;
         }
     }
@@ -152,13 +148,33 @@ bool object_exists_locally(const char* interface_name,
 int twz_op_send(const char* interface_name,
                 object_id_t object_id,
                 uint8_t twz_op,
-                char* data)
+                char* data,
+                uint8_t resource_discovery_protocol)
 {
     interface_t* interface = get_interface_by_name(interface_name);
 
+    ip_addr_t dst_ip;
+
+    if (resource_discovery_protocol == CONTROLLER_BASED) {
+        dst_ip = interface->bcast_ip;
+    } else if (resource_discovery_protocol == END_TO_END) {
+        uint8_t* addr = obj_mapping_get(object_id.id);
+        if (addr == NULL) {
+            dst_ip = interface->bcast_ip;
+        } else {
+            for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+                dst_ip.ip[i] = addr[i];
+            }
+        }
+    } else {
+        fprintf(stderr, "Error twz_op_send: invalid resource discovery "
+                "protocol option (%d)\n", resource_discovery_protocol);
+        return EINVALID_RESOURCE_DISCOVERY_PROTOCOL;
+    }
+
     switch (twz_op) {
         case TWZ_ADVERT:
-            if (true) {
+            if (resource_discovery_protocol == CONTROLLER_BASED) {
                 char* msg = (char *)malloc(sizeof(char)*45);
                 char* p = msg;
                 for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
@@ -168,11 +184,15 @@ int twz_op_send(const char* interface_name,
                     msg += sprintf(msg, "%02X", interface->mac.mac[i]);
                 }
                 msg += sprintf(msg, ":");
-                fprintf(stdout, "Advertising object id ");
+                fprintf(stderr, "Sending twizzler packet (id: ");
                 for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-                    fprintf(stdout, "%02X", object_id.id[i]);
+                    fprintf(stderr, "%02X", object_id.id[i]);
                 }
-                fprintf(stdout, " (%s)\n", p);
+                fprintf(stderr, ") OP: ADVERTISMENT ");
+                fprintf(stderr, "to ('%s', %d) PAYLOAD: %s\n",
+                        CONTROLLER_ADDR,
+                        CONTROLLER_PORT,
+                        p);
                 int ret =  send_udp_packet(interface_name,
                                            object_id,
                                            NOOP,
@@ -182,40 +202,56 @@ int twz_op_send(const char* interface_name,
                                            p);
                 free(p);
                 return ret;
+
+            } else {
+                return EINVALID_TWZ_OP;
             }
 
         case TWZ_READ_REQ:
-            fprintf(stdout, "Sending READ REQ for object id ");
+            fprintf(stderr, "Sending twizzler packet (id: ");
             for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-                fprintf(stdout, "%02X", object_id.id[i]);
+                fprintf(stderr, "%02X", object_id.id[i]);
             }
-            fprintf(stdout, "\n");
+            fprintf(stderr, ") OP: READ REQUEST ");
+            fprintf(stderr, "to ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    dst_ip.ip[0],
+                    dst_ip.ip[1],
+                    dst_ip.ip[2],
+                    dst_ip.ip[3],
+                    TWIZZLER_PORT,
+                    (data != NULL) ? data : "");
             return send_udp_packet(interface_name,
                                    object_id,
                                    twz_op,
-                                   interface->bcast_ip,
+                                   dst_ip,
                                    TWIZZLER_PORT,
                                    TWIZZLER_PORT,
                                    data);
 
         case TWZ_WRITE_REQ:
-            fprintf(stdout, "Sending WRITE REQ for object id ");
+            fprintf(stderr, "Sending twizzler packet (id: ");
             for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-                fprintf(stdout, "%02X", object_id.id[i]);
+                fprintf(stderr, "%02X", object_id.id[i]);
             }
-            fprintf(stdout, "; payload: %s\n", data);
+            fprintf(stderr, ") OP: WRITE REQUEST ");
+            fprintf(stderr, "to ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    dst_ip.ip[0],
+                    dst_ip.ip[1],
+                    dst_ip.ip[2],
+                    dst_ip.ip[3],
+                    TWIZZLER_PORT,
+                    (data != NULL) ? data : "");
             return send_udp_packet(interface_name,
                                    object_id,
                                    twz_op,
-                                   interface->bcast_ip,
+                                   dst_ip,
                                    TWIZZLER_PORT,
                                    TWIZZLER_PORT,
                                    data);
 
         default:
             fprintf(stderr, "Error twz_op_send: unrecognized twz op %d\n", twz_op);
-            return 3;
-
+            return EINVALID_TWZ_OP;
     }
 }
 
@@ -224,11 +260,25 @@ void twz_op_recv(const char* interface_name,
                  remote_info_t* remote_info,
                  char* payload)
 {
+    fprintf(stderr, "Received twizzler packet (id: ");
+    for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
+        fprintf(stderr, "%02X", remote_info->object_id.id[i]);
+    }
+    fprintf(stderr, ") ");
+
     switch (remote_info->twz_op) {
         case TWZ_READ_REQ:
+            fprintf(stderr, "OP: READ REQUEST ");
+            fprintf(stderr, "from ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    remote_info->remote_ip.ip[0],
+                    remote_info->remote_ip.ip[1],
+                    remote_info->remote_ip.ip[2],
+                    remote_info->remote_ip.ip[3],
+                    remote_info->remote_port,
+                    payload);
             if (object_exists_locally(interface_name, remote_info->object_id)) {
                 //TODO read object
-                char read_data[12] = "Read object";
+                char read_data[9] = "Read ACK";
 
                 //reply back
                 int ret =  send_udp_packet(interface_name,
@@ -239,21 +289,29 @@ void twz_op_recv(const char* interface_name,
                                            TWIZZLER_PORT,
                                            read_data);
             } else {
-                fprintf(stdout, "Error twz_op_recv: object ");
+                fprintf(stderr, "Error twz_op_recv: object ");
                 for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-                    fprintf(stdout, "%02X", remote_info->object_id.id[i]);
+                    fprintf(stderr, "%02X", remote_info->object_id.id[i]);
                 }
-                fprintf(stdout, " does not exist on this machine\n");
+                fprintf(stderr, " does not exist on this machine\n");
             }
             break;
 
         case TWZ_WRITE_REQ:
+            fprintf(stderr, "OP: WRITE REQUEST ");
+            fprintf(stderr, "from ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    remote_info->remote_ip.ip[0],
+                    remote_info->remote_ip.ip[1],
+                    remote_info->remote_ip.ip[2],
+                    remote_info->remote_ip.ip[3],
+                    remote_info->remote_port,
+                    payload);
             if (object_exists_locally(interface_name, remote_info->object_id)) {
                 //TODO write payload
                 //reply back
                 int len = strlen(payload);
-                char* msg = (char *)malloc(sizeof(char)*(21+len));
-                sprintf(msg, "Wrote object with - %s", payload);
+                char* msg = (char *)malloc(sizeof(char)*(11+len));
+                sprintf(msg, "Write ACK %s", payload);
                 int ret =  send_udp_packet(interface_name,
                                            remote_info->object_id,
                                            TWZ_WRITE_REPLY,
@@ -263,17 +321,20 @@ void twz_op_recv(const char* interface_name,
                                            msg);
                 free(msg);
             } else {
-                fprintf(stdout, "Error twz_op_recv: object ");
+                fprintf(stderr, "Error twz_op_recv: object ");
                 for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-                    fprintf(stdout, "%02X", remote_info->object_id.id[i]);
+                    fprintf(stderr, "%02X", remote_info->object_id.id[i]);
                 }
-                fprintf(stdout, " does not exist on this machine\n");
+                fprintf(stderr, " does not exist on this machine\n");
             }
             break;
 
         case TWZ_READ_REPLY:
-            fprintf(stdout, "Received READ REPLY from ('%d.%d.%d.%d', %d) "
-                    "reply: %s\n", remote_info->remote_ip.ip[0],
+            fprintf(stderr, "OP: READ REPLY ");
+            obj_mapping_insert(remote_info->object_id.id,
+                               remote_info->remote_ip.ip);
+            fprintf(stderr, "from ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    remote_info->remote_ip.ip[0],
                     remote_info->remote_ip.ip[1],
                     remote_info->remote_ip.ip[2],
                     remote_info->remote_ip.ip[3],
@@ -282,14 +343,21 @@ void twz_op_recv(const char* interface_name,
             break;
 
         case TWZ_WRITE_REPLY:
-            fprintf(stdout, "Received WRITE REPLY from ('%d.%d.%d.%d', %d) "
-                    "reply: %s\n", remote_info->remote_ip.ip[0],
+            fprintf(stderr, "OP: WRITE REPLY ");
+            obj_mapping_insert(remote_info->object_id.id,
+                               remote_info->remote_ip.ip);
+            fprintf(stderr, "from ('%d.%d.%d.%d', %d) PAYLOAD: %s\n",
+                    remote_info->remote_ip.ip[0],
                     remote_info->remote_ip.ip[1],
                     remote_info->remote_ip.ip[2],
                     remote_info->remote_ip.ip[3],
                     remote_info->remote_port,
                     payload);
             break;
+
+        default:
+            fprintf(stderr, "Error twz_op_recv: invalid twizzler op (%d); "
+                    "packet dropped\n", remote_info->twz_op);
     }
 }
 

@@ -35,11 +35,11 @@ void eth_tx(const char* interface_name,
     queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
     /* for debugging */
-    //fprintf(stdout, "[debug] Tx ETH Frame: ");
+    //fprintf(stderr, "[debug] Tx ETH Frame: ");
     //for (int i = 0; i < pkt_size; ++i) {
-    //    fprintf(stdout, "%02X ", *((uint8_t *)pkt_ptr + i));
+    //    fprintf(stderr, "%02X ", *((uint8_t *)pkt_ptr + i));
     //}
-    //fprintf(stdout, "\n");
+    //fprintf(stderr, "\n");
 }
 
 
@@ -48,7 +48,7 @@ void eth_rx(const char* interface_name)
     interface_t* interface = get_interface_by_name(interface_name);
     twzobj* rx_queue_obj = &interface->rx_queue_obj;
 
-    fprintf(stdout, "Started the packet receive thread for interface %s\n",
+    fprintf(stderr, "Started the packet receive thread for interface %s\n",
             interface_name);
 
     while (true) {
@@ -85,6 +85,7 @@ void eth_rx(const char* interface_name)
             payload += ETH_HDR_SIZE;
 
             remote_info_t remote_info;
+            remote_info.remote_mac = src_mac;
             remote_info.twz_op = NOOP;
 
             switch (eth_type) {

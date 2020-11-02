@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
                 while (count < 50) {
                     ++count;
                     char payload[] = "This is test data.";
-                    fprintf(stdout, "Sending out a UDP packet...\n");
+                    fprintf(stderr, "Sending out a UDP packet...\n");
                     int ret = send_udp_packet
                         ("/dev/e1000", object_id, NOOP,
                          string_to_ip_addr(argv[4]),
@@ -83,10 +83,11 @@ int main(int argc, char* argv[])
                 for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
                     object_id.id[i] = interface->mac.mac[i % MAC_ADDR_SIZE];
                 }
-                obj_mapping_insert(object_id.id, interface->mac.mac);
+                obj_mapping_insert(object_id.id, interface->ip.ip);
 
-                if (strcmp(argv[4], "0") == 0) { //controller-based
-                    if (strcmp(argv[1], "10.0.0.1") == 0) {
+                if (strcmp(argv[4], "0") == 0
+                || strcmp(argv[4], "1") == 0) {
+                    if (strcmp(argv[1], "10.0.0.1") == 0) { //read/write
                         int count = 0;
                         object_id_t obj_id_1 = (object_id_t) {
                             .id = {0x08, 0x00, 0x00, 0x00, 0x02, 0x22,
@@ -98,26 +99,31 @@ int main(int argc, char* argv[])
                                    0x08, 0x00, 0x00, 0x00, 0x03, 0x33,
                                    0x08, 0x00, 0x00, 0x00}
                         };
-                        char payload[] = "This is test data.";
+                        char payload[5];
                         while (count < 1000) {
                             ++count;
+                            sprintf(payload, "%d", count);
                             int ret;
                             if (count % 2 == 0) {
                                 ret = twz_op_send("/dev/e1000", obj_id_1,
-                                        TWZ_READ_REQ, NULL);
+                                        TWZ_READ_REQ, payload,
+                                        atoi(argv[4]));
                             } else {
                                 ret = twz_op_send("/dev/e1000", obj_id_2,
-                                        TWZ_WRITE_REQ, payload);
+                                        TWZ_WRITE_REQ, payload,
+                                        atoi(argv[4]));
                             }
                             int64_t counter = 0;
                             while (ret == EARP_WAIT) {
                                 usleep(10);
                                 if (count % 2 == 0) {
                                     ret = twz_op_send("/dev/e1000", obj_id_1,
-                                            TWZ_READ_REQ, NULL);
+                                            TWZ_READ_REQ, payload,
+                                            atoi(argv[4]));
                                 } else {
                                     ret = twz_op_send("/dev/e1000", obj_id_2,
-                                            TWZ_WRITE_REQ, payload);
+                                            TWZ_WRITE_REQ, payload,
+                                            atoi(argv[4]));
                                 }
                                 ++counter;
                                 if (counter*10 == ARP_TIMEOUT) {
@@ -129,15 +135,15 @@ int main(int argc, char* argv[])
                             usleep(1000000);
                         }
 
-                    } else {
+                    } else if (strcmp(argv[4], "0") == 0){ //advertise
                         usleep(20000000);
                         int ret = twz_op_send("/dev/e1000", object_id,
-                                TWZ_ADVERT, NULL);
+                                TWZ_ADVERT, NULL, atoi(argv[4]));
                         int64_t counter = 0;
                         while (ret == EARP_WAIT) {
                             usleep(1000000);
                             ret = twz_op_send("/dev/e1000", object_id,
-                                    TWZ_ADVERT, NULL);
+                                    TWZ_ADVERT, NULL, atoi(argv[4]));
                             ++counter;
                             if (counter == 10) {
                             fprintf(stderr, "Error ARP failed; "
