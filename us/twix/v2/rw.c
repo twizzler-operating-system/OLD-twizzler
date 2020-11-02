@@ -39,13 +39,8 @@ HOOK5(sys_preadv2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off, 
 	if(count >= OBJ_TOPDATA)
 		count = OBJ_TOPDATA;
 
-	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_PIO,
-	  0,
-	  count,
-	  fd,
-	  off,
-	  flags,
-	  TWIX_FLAGS_PIO_WRITE | ((off < 0) ? TWIX_FLAGS_PIO_POS : 0));
+	struct twix_queue_entry tqe =
+	  build_tqe(TWIX_CMD_PIO, 0, count, fd, off, flags, (off < 0) ? TWIX_FLAGS_PIO_POS : 0);
 	twix_sync_command(&tqe);
 	if(tqe.ret <= 0) {
 		return tqe.ret;
@@ -155,7 +150,7 @@ static long twix_sys_fstatat(int fd, const char *path, struct stat *st, int flag
 	if(path) {
 		write_bufdata(path, buflen, 0);
 	}
-	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_STAT, buflen, 0, fd, flag);
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_STAT, 0, buflen, fd, flag);
 	twix_sync_command(&tqe);
 	extract_bufdata(st, sizeof(*st), buflen);
 	return tqe.ret;

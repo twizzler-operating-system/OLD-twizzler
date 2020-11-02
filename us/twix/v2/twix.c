@@ -30,6 +30,7 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 			nr_va = 0;
 			break;
 		case TWIX_CMD_REOPEN_V1_FD:
+		case TWIX_CMD_MMAP:
 			nr_va = 5;
 			break;
 		case TWIX_CMD_OPENAT:
@@ -120,7 +121,7 @@ static bool setup_queue(void)
 			struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
 			  0,
 			  0,
-			  file->fd,
+			  fd,
 			  ID_LO(twz_object_guid(&file->obj)),
 			  ID_HI(twz_object_guid(&file->obj)),
 			  file->fcntl_fl,
@@ -163,6 +164,21 @@ long hook_open(struct syscall_args *args)
 	return tqe.ret;
 }
 
+long hook_mmap(struct syscall_args *args)
+{
+	void *addr = (void *)args->a0;
+	size_t len = args->a1;
+	int prot = args->a2;
+	int flags = args->a3;
+	int fd = args->a4;
+	off_t offset = args->a5;
+
+	struct twix_queue_entry tqe = build_tqe(
+	  TWIX_CMD_MMAP, 0, sizeof(objid_t), fd, prot, flags, offset, (uintptr_t)addr % OBJ_MAXSIZE);
+	twix_sync_command(&tqe);
+	return -ENOSYS;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -182,6 +198,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_fstat] = hook_sys_fstat,
 	[LINUX_SYS_lstat] = hook_sys_lstat,
 	[LINUX_SYS_fstatat] = hook_sys_fstatat,
+	[LINUX_SYS_mmap] = hook_mmap,
 };
 
 extern const char *syscall_names[];

@@ -21,6 +21,8 @@ static long __get_proc_info(queue_client *client, twix_queue_entry *tqe)
 long twix_cmd_open(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe);
 
 static long __reopen_v1_fd(queue_client *client, twix_queue_entry *tqe)
 {
@@ -39,6 +41,8 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 	[TWIX_CMD_OPENAT] = twix_cmd_open,
 	[TWIX_CMD_PIO] = twix_cmd_pio,
 	[TWIX_CMD_FCNTL] = twix_cmd_fcntl,
+	[TWIX_CMD_STAT] = twix_cmd_stat,
+	[TWIX_CMD_MMAP] = twix_cmd_mmap,
 };
 
 static const char *cmd_strs[] = {
@@ -48,6 +52,7 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_PIO] = "pio",
 	[TWIX_CMD_FCNTL] = "fcntl",
 	[TWIX_CMD_STAT] = "fstatat",
+	[TWIX_CMD_MMAP] = "mmap",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)
