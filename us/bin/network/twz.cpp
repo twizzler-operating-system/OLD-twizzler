@@ -28,34 +28,6 @@ void twz_rx(const char* interface_name,
     remote_info->object_id = twz_hdr->object_id;
     remote_info->twz_op = twz_hdr->op;
 
-    fprintf(stdout, "Received twizzler packet (id: ");
-    for (int i = 0; i < OBJECT_ID_SIZE; ++i) {
-        fprintf(stdout, "%02X", twz_hdr->object_id.id[i]);
-    }
-    fprintf(stdout, ") ");
-
-    switch (twz_hdr->op) {
-        case TWZ_ADVERT:
-            fprintf(stdout, "OP: ADVERTISE\n");
-            break;
-
-        case TWZ_READ_REQ:
-            fprintf(stdout, "OP: READ REQUEST\n");
-            break;
-
-        case TWZ_READ_REPLY:
-            fprintf(stdout, "OP: READ REPLY\n");
-            break;
-
-        case TWZ_WRITE_REQ:
-            fprintf(stdout, "OP: WRITE REQUEST\n");
-            break;
-
-        case TWZ_WRITE_REPLY:
-            fprintf(stdout, "OP: WRITE REPLY\n");
-            break;
-    }
-
     uint16_t twz_type = ntohs(twz_hdr->type);
 
     char* payload = (char *)pkt_ptr;

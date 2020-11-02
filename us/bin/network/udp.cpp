@@ -38,12 +38,12 @@ void udp_rx(const char* interface_name,
         twz_op_recv(interface_name, remote_info, payload);
 
     } else {
-        fprintf(stdout, "Received UDP packet from ('%d.%d.%d.%d', %d) payload = ",
+        fprintf(stderr, "Received UDP packet from ('%d.%d.%d.%d', %d) payload = ",
                 remote_info->remote_ip.ip[0],
                 remote_info->remote_ip.ip[1],
                 remote_info->remote_ip.ip[2],
                 remote_info->remote_ip.ip[3],
                 src_port);
-        fprintf(stdout, "%s\n", payload);
+        fprintf(stderr, "%s\n", payload);
     }
 }

@@ -1,6 +1,7 @@
 #include "ipv4.h"
 
 #include "interface.h"
+#include "arp.h"
 #include "udp.h"
 
 
@@ -77,6 +78,9 @@ void ip_rx(const char* interface_name,
     }
 
     remote_info->remote_ip = ip_hdr->src_ip;
+
+    /* update ARP table entry */
+    arp_table_insert(remote_info->remote_ip.ip, remote_info->remote_mac.mac);
 
     char* payload = (char *)pkt_ptr;
     payload += ihl;

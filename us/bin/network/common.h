@@ -37,6 +37,7 @@ typedef struct __attribute__((__packed__)) object_id {
 } object_id_t;
 
 typedef struct remote_info {
+    mac_addr_t remote_mac;
     object_id_t object_id;
     uint8_t twz_op;
     ip_addr_t remote_ip;
