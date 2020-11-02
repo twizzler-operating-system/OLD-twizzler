@@ -227,9 +227,9 @@ class queue_client
 	}
 
 	template<typename T>
-	void write_buffer(T *t)
+	void write_buffer(T *t, size_t off = 0)
 	{
-		void *base = buffer_base();
+		void *base = (void *)((char *)buffer_base() + off);
 		memcpy(base, t, sizeof(T));
 	}
 };

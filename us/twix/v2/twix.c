@@ -30,6 +30,7 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 			nr_va = 0;
 			break;
 		case TWIX_CMD_REOPEN_V1_FD:
+		case TWIX_CMD_MMAP:
 			nr_va = 5;
 			break;
 		case TWIX_CMD_OPENAT:
@@ -120,7 +121,7 @@ static bool setup_queue(void)
 			struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
 			  0,
 			  0,
-			  file->fd,
+			  fd,
 			  ID_LO(twz_object_guid(&file->obj)),
 			  ID_HI(twz_object_guid(&file->obj)),
 			  file->fcntl_fl,
@@ -163,6 +164,67 @@ long hook_open(struct syscall_args *args)
 	return tqe.ret;
 }
 
+#include <twz/mutex.h>
+#include <twz/view.h>
+static struct mutex mmap_mutex;
+static uint8_t mmap_bitmap[TWZSLOT_MMAP_NUM / 8];
+
+static ssize_t __twix_mmap_get_slot(void)
+{
+	mutex_acquire(&mmap_mutex);
+	for(size_t i = 0; i < TWZSLOT_MMAP_NUM; i++) {
+		if(!(mmap_bitmap[i / 8] & (1 << (i % 8)))) {
+			mmap_bitmap[i / 8] |= (1 << (i % 8));
+			mutex_release(&mmap_mutex);
+			return i + TWZSLOT_MMAP_BASE;
+		}
+	}
+	mutex_release(&mmap_mutex);
+	return -1;
+}
+
+static ssize_t __twix_mmap_take_slot(size_t slot)
+{
+	mutex_acquire(&mmap_mutex);
+	slot -= TWZSLOT_MMAP_BASE;
+	if(mmap_bitmap[slot / 8] & (1 << (slot % 8))) {
+		mutex_release(&mmap_mutex);
+		return -1;
+	}
+	mmap_bitmap[slot / 8] |= (1 << (slot % 8));
+	mutex_release(&mmap_mutex);
+	return slot + TWZSLOT_MMAP_BASE;
+}
+
+long hook_mmap(struct syscall_args *args)
+{
+	void *addr = (void *)args->a0;
+	size_t len = args->a1;
+	int prot = args->a2;
+	int flags = args->a3;
+	int fd = args->a4;
+	off_t offset = args->a5;
+
+	struct twix_queue_entry tqe = build_tqe(
+	  TWIX_CMD_MMAP, 0, sizeof(objid_t), fd, prot, flags, offset, (uintptr_t)addr % OBJ_MAXSIZE);
+	twix_sync_command(&tqe);
+	if(tqe.ret)
+		return tqe.ret;
+	objid_t id;
+	extract_bufdata(&id, sizeof(id), 0);
+	twix_log("twix_v2_mmap: " IDFMT "\n", IDPR(id));
+
+	ssize_t slot = __twix_mmap_get_slot();
+	twix_log("   mmap slot %ld\n", slot);
+	if(slot == -1) {
+		return -ENOMEM;
+	}
+
+	twz_view_set(NULL, slot, id, VE_READ | VE_WRITE | VE_EXEC);
+
+	return (long)SLOT_TO_VADDR(slot) + OBJ_NULLPAGE_SIZE;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -182,6 +244,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_fstat] = hook_sys_fstat,
 	[LINUX_SYS_lstat] = hook_sys_lstat,
 	[LINUX_SYS_fstatat] = hook_sys_fstatat,
+	[LINUX_SYS_mmap] = hook_mmap,
 };
 
 extern const char *syscall_names[];

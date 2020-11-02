@@ -266,6 +266,8 @@ long thread_sleep_on_object(struct object *obj, size_t offset, long arg, bool do
 {
 	struct syncpoint *sp = sp_lookup(obj, offset, true);
 	__thread_init_sync(1);
+	if(current_thread->sleep_entries[0].active)
+		return 0;
 	if(!dont_check) {
 		panic("NI - in-kernel sleep on object with addr check");
 	}

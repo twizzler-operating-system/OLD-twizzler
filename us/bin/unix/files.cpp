@@ -110,6 +110,8 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 	int preadv_flags = tqe->arg2;
 	int flags = tqe->arg3;
 
+	// fprintf(stderr, "PIO %d %ld %d %d\n", fd, off, preadv_flags, flags);
+
 	bool writing = flags & TWIX_FLAGS_PIO_WRITE;
 
 	auto filedesc = client->proc->get_file(fd);
@@ -161,4 +163,47 @@ long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe)
 		default:
 			return -EINVAL;
 	}
+}
+
+#include <sys/stat.h>
+long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
+{
+	int fd = tqe->arg0;
+	int flags = tqe->arg1;
+	auto desc = client->proc->get_file(fd);
+	if(!desc) {
+		return -EBADF;
+	}
+	auto [ok, path] = client->buffer_to_string(tqe->buflen);
+	fprintf(stderr, "STAT %d %d: '%s'\n", fd, flags, path.c_str());
+
+	if(path.size() > 0) {
+		return -ENOTSUP; // TODO
+	}
+
+	struct metainfo *mi = twz_object_meta(&desc->obj);
+
+	struct stat st = (struct stat){
+		.st_dev = 0,
+		.st_ino = 11,
+		.st_nlink = 1,
+
+		.st_mode = 0777,
+		.st_uid = 0,
+		.st_gid = 0,
+		.__pad0 = 0,
+		.st_rdev = 0,
+		.st_size = mi->sz,
+		.st_blksize = 0,
+		.st_blocks = 0,
+
+		.st_atim = {},
+		.st_mtim = {},
+		.st_ctim = {},
+		.__unused = {},
+	};
+
+	client->write_buffer(&st, tqe->buflen);
+
+	return 0;
 }
