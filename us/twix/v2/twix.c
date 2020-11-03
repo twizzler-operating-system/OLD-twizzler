@@ -299,7 +299,85 @@ long hook_readlink(struct syscall_args *args)
 	}
 	return tqe.ret;
 }
+#define FUTEX_WAIT 0
+#define FUTEX_WAKE 1
+#define FUTEX_FD 2
+#define FUTEX_REQUEUE 3
+#define FUTEX_CMP_REQUEUE 4
+#define FUTEX_WAKE_OP 5
+#define FUTEX_LOCK_PI 6
+#define FUTEX_UNLOCK_PI 7
+#define FUTEX_TRYLOCK_PI 8
+#define FUTEX_WAIT_BITSET 9
+#define FUTEX_WAKE_BITSET 10
+#define FUTEX_WAIT_REQUEUE_PI 11
+#define FUTEX_CMP_REQUEUE_PI 12
 
+#define FUTEX_PRIVATE_FLAG 128
+#define FUTEX_CLOCK_REALTIME 256
+#define FUTEX_CMD_MASK ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
+
+#include <twz/thread.h>
+long hook_futex(struct syscall_args *args)
+{
+	int *uaddr = (int *)args->a0;
+	int op = args->a1;
+	int val = args->a2;
+	const struct timespec *timeout = (struct timespec *)args->a3;
+
+	switch((op & FUTEX_CMD_MASK)) {
+		case FUTEX_WAIT:
+			twz_thread_sync32(
+			  THREAD_SYNC_SLEEP, (_Atomic unsigned int *)uaddr, val, (struct timespec *)timeout);
+			return 0; // TODO
+			break;
+		case FUTEX_WAKE:
+			twz_thread_sync32(THREAD_SYNC_WAKE, (_Atomic unsigned int *)uaddr, val, NULL);
+			return 0; // TODO
+			break;
+		default:
+			twix_log("futex %d: %p (%x) %x\n", op, uaddr, uaddr ? *uaddr : 0, val);
+			return -ENOTSUP;
+	}
+	return 0;
+}
+
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
+#include <time.h>
+long hook_clock_gettime(struct syscall_args *args)
+{
+	clockid_t clock = args->a0;
+	struct timespec *tp = (struct timespec *)args->a1;
+	static long tsc_ps = 0;
+	if(!tsc_ps) {
+		tsc_ps = sys_kconf(KCONF_ARCH_TSC_PSPERIOD, 0);
+	}
+	switch(clock) {
+		uint64_t ts;
+		case CLOCK_REALTIME:
+		case CLOCK_REALTIME_COARSE:
+		case CLOCK_PROCESS_CPUTIME_ID:
+		/* TODO: these should probably be different */
+		case CLOCK_MONOTONIC:
+		case CLOCK_MONOTONIC_RAW:
+		case CLOCK_MONOTONIC_COARSE:
+			ts = rdtsc();
+			/* TODO: overflow? */
+			tp->tv_sec = ((long)((double)ts / (1000.0 / (double)tsc_ps))) / 1000000000ul;
+			tp->tv_nsec = ((long)((double)ts / (1000.0 / (double)tsc_ps))) % 1000000000ul;
+			break;
+		default:
+			twix_log(":: CGT: %ld\n", clock);
+			return -ENOTSUP;
+	}
+	return 0;
+}
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -328,6 +406,8 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_access] = hook_access,
 	[LINUX_SYS_readlink] = hook_readlink,
 	[LINUX_SYS_readlinkat] = hook_readlink,
+	[LINUX_SYS_futex] = hook_futex,
+	[LINUX_SYS_clock_gettime] = hook_clock_gettime,
 };
 
 extern const char *syscall_names[];
@@ -356,7 +436,8 @@ int try_twix_version2(struct twix_register_frame *frame,
 		return -1;
 	}
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
-		twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
+		if(num != 14) // TODO signals
+			twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
 		*ret = -ENOSYS;
 		return -2;
 	}
