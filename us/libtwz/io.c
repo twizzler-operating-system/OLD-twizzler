@@ -26,7 +26,8 @@ ssize_t twzio_write(twzobj *obj, const void *buf, size_t len, size_t off, unsign
 	if(!_fn)
 		return -EGENERIC;
 	ssize_t (*fn)(twzobj *, const void *, size_t, size_t, unsigned) = _fn;
-	return fn(obj, buf, len, off, flags);
+	ssize_t ret = fn(obj, buf, len, off, flags);
+	return ret;
 }
 
 ssize_t twzio_ioctl(twzobj *obj, int req, ...)

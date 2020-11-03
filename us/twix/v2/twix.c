@@ -22,36 +22,11 @@ void twix_sync_command(struct twix_queue_entry *tqe)
 	queue_get_finished(&userver.cmdqueue, (struct queue_entry *)tqe, 0);
 }
 
-struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz, ...)
+struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz, int nr_va, ...)
 {
-	int nr_va = 0;
-	switch(cmd) {
-		case TWIX_CMD_MMAP:
-			nr_va = 6;
-			break;
-		case TWIX_CMD_GET_PROC_INFO:
-			nr_va = 0;
-			break;
-		case TWIX_CMD_REOPEN_V1_FD:
-			nr_va = 5;
-			break;
-		case TWIX_CMD_OPENAT:
-		case TWIX_CMD_FCNTL:
-			nr_va = 3;
-			break;
-		case TWIX_CMD_PIO:
-			nr_va = 4;
-			break;
-		case TWIX_CMD_STAT:
-			nr_va = 2;
-			break;
-		default:
-			nr_va = 0;
-			break;
-	}
 	long args[6] = {};
 	va_list va;
-	va_start(va, bufsz);
+	va_start(va, nr_va);
 	for(int i = 0; i < nr_va; i++) {
 		args[i] = va_arg(va, long);
 	}
@@ -86,7 +61,7 @@ void write_bufdata(const void *ptr, size_t len, size_t off)
 
 long get_proc_info(struct proc_info *info)
 {
-	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_GET_PROC_INFO, 0, sizeof(struct proc_info));
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_GET_PROC_INFO, 0, sizeof(struct proc_info), 0);
 	twix_sync_command(&tqe);
 	extract_bufdata(info, sizeof(*info), 0);
 
@@ -120,13 +95,15 @@ static bool setup_queue(void)
 	for(int fd = 0; fd < MAX_FD; fd++) {
 		struct file *file = twix_get_fd(fd);
 		if(file) {
+			objid_t id = twz_object_guid(&file->obj);
 			struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
 			  0,
 			  0,
-			  fd,
-			  ID_LO(twz_object_guid(&file->obj)),
-			  ID_HI(twz_object_guid(&file->obj)),
-			  file->fcntl_fl | 3 /*TODO*/,
+			  5,
+			  (long)fd,
+			  ID_LO(id),
+			  ID_HI(id),
+			  (long)file->fcntl_fl | 3 /*TODO*/,
 			  file->pos);
 			twix_sync_command(&tqe);
 		}
@@ -160,9 +137,10 @@ long hook_open(struct syscall_args *args)
 {
 	const char *path = (const char *)args->a0;
 	struct twix_queue_entry tqe =
-	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), -1, args->a1, args->a2);
+	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), 3, -1, args->a1, args->a2);
 	write_bufdata(path, strlen(path) + 1, 0);
 	twix_sync_command(&tqe);
+	twix_log("open returned %ld\n", tqe.ret);
 	return tqe.ret;
 }
 
@@ -233,6 +211,7 @@ long hook_mmap(struct syscall_args *args)
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_MMAP,
 	  0,
 	  sizeof(objid_t),
+	  6,
 	  fd,
 	  prot,
 	  flags,
@@ -259,14 +238,46 @@ long hook_mmap(struct syscall_args *args)
 	return (long)SLOT_TO_VADDR(slot) + adj;
 }
 
-long hook_close(struct syscall_args *args)
+long hook_simple_passthrough(struct syscall_args *args)
 {
-	return 0;
+	long cmd = -1;
+	switch(args->num) {
+		case LINUX_SYS_close:
+			cmd = TWIX_CMD_CLOSE;
+			break;
+	}
+	struct twix_queue_entry tqe =
+	  build_tqe(cmd, 0, 0, 6, args->a0, args->a1, args->a2, args->a3, args->a4, args->a5);
+	twix_sync_command(&tqe);
+	return tqe.ret;
 }
 
 long hook_ioctl(struct syscall_args *args)
 {
 	return 0;
+}
+
+long hook_exit(struct syscall_args *args)
+{
+	struct twix_queue_entry tqe =
+	  build_tqe(TWIX_CMD_EXIT, 0, 0, 2, args->a0, args->num == LINUX_SYS_exit_group);
+	twix_sync_command(&tqe);
+	twz_thread_exit(args->a0);
+	return 0;
+}
+
+long hook_getdents(struct syscall_args *args)
+{
+	int fd = args->a0;
+	void *dirp = (void *)args->a1;
+	size_t count = args->a2;
+
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_GETDENTS, 0, count, 1, fd);
+	twix_sync_command(&tqe);
+	if(tqe.ret > 0) {
+		extract_bufdata(dirp, tqe.ret, 0);
+	}
+	return tqe.ret;
 }
 
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
@@ -289,13 +300,16 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_lstat] = hook_sys_lstat,
 	[LINUX_SYS_fstatat] = hook_sys_fstatat,
 	[LINUX_SYS_mmap] = hook_mmap,
-	[LINUX_SYS_close] = hook_close,
+	[LINUX_SYS_close] = hook_simple_passthrough,
 	[LINUX_SYS_ioctl] = hook_ioctl,
+	[LINUX_SYS_exit] = hook_exit,
+	[LINUX_SYS_exit_group] = hook_exit,
+	[LINUX_SYS_getdents64] = hook_getdents,
 };
 
 extern const char *syscall_names[];
 
-bool try_twix_version2(struct twix_register_frame *frame,
+int try_twix_version2(struct twix_register_frame *frame,
   long num,
   long a0,
   long a1,
@@ -315,13 +329,15 @@ bool try_twix_version2(struct twix_register_frame *frame,
 		.num = num,
 		.frame = frame,
 	};
-	if(!setup_queue())
-		return false;
+	if(!setup_queue()) {
+		return -1;
+	}
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
 		twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
-		return false;
+		*ret = -ENOSYS;
+		return -2;
 	}
 	twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 	*ret = syscall_v2_table[num](&args);
-	return *ret != -ENOSYS;
+	return *ret == -ENOSYS ? -3 : 0;
 }

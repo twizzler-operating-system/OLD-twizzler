@@ -22,6 +22,7 @@ class filedesc
 	bool inited = false;
 
   public:
+	bool has_obj = false;
 	filedesc(objid_t objid, size_t pos, int fcntl_flags)
 	  : objid(objid)
 	  , fcntl_flags(fcntl_flags)
@@ -29,6 +30,8 @@ class filedesc
 	{
 		int r = twz_object_init_guid(&obj, objid, FE_READ | FE_WRITE);
 		(void)r; // TODO
+		inited = true;
+		has_obj = true;
 	}
 	filedesc()
 	{
@@ -36,12 +39,16 @@ class filedesc
 
 	~filedesc()
 	{
-		if(inited) {
+		if(inited && has_obj) {
 			twz_object_release(&obj);
 		}
 	}
 
-	int init_path(std::shared_ptr<filedesc> at, const char *path, int _fcntl_flags, int mode = 0);
+	int init_path(std::shared_ptr<filedesc> at,
+	  const char *path,
+	  int _fcntl_flags,
+	  int mode = 0,
+	  int flags = 0);
 	bool access(int mode)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
@@ -241,4 +248,6 @@ class queue_client
 	}
 };
 
-std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at, const char *path);
+std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at,
+  const char *path,
+  int flags = 0);

@@ -23,6 +23,17 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe);
+
+long twix_cmd_close(queue_client *client, twix_queue_entry *tqe)
+{
+	return 0;
+}
+
+long twix_cmd_exit(queue_client *client, twix_queue_entry *tqe)
+{
+	return 0;
+}
 
 static long __reopen_v1_fd(queue_client *client, twix_queue_entry *tqe)
 {
@@ -43,6 +54,9 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 	[TWIX_CMD_FCNTL] = twix_cmd_fcntl,
 	[TWIX_CMD_STAT] = twix_cmd_stat,
 	[TWIX_CMD_MMAP] = twix_cmd_mmap,
+	[TWIX_CMD_EXIT] = twix_cmd_exit,
+	[TWIX_CMD_CLOSE] = twix_cmd_close,
+	[TWIX_CMD_GETDENTS] = twix_cmd_getdents,
 };
 
 static const char *cmd_strs[] = {
@@ -53,6 +67,9 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_FCNTL] = "fcntl",
 	[TWIX_CMD_STAT] = "fstatat",
 	[TWIX_CMD_MMAP] = "mmap",
+	[TWIX_CMD_EXIT] = "exit",
+	[TWIX_CMD_CLOSE] = "close",
+	[TWIX_CMD_GETDENTS] = "getdents",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)
@@ -66,6 +83,7 @@ long queue_client::handle_command(twix_queue_entry *tqe)
 		  cmd_strs[tqe->cmd]);
 		long ret = call_table[tqe->cmd](this, tqe);
 		fprintf(stderr, "[twix-server]     return %ld\n", ret);
+		return ret;
 	}
 	return -ENOSYS;
 }

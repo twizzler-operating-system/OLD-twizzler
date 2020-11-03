@@ -7,36 +7,56 @@
 
 #include "state.h"
 
-int filedesc::init_path(std::shared_ptr<filedesc> at, const char *path, int _fcntl_flags, int mode)
+#include <twz/name.h>
+
+int filedesc::init_path(std::shared_ptr<filedesc> at,
+  const char *path,
+  int _fcntl_flags,
+  int mode,
+  int flags)
 {
 	if(at == nullptr) {
-		/* TODO: this should go off the root, and use hier directly */
-		int r = twz_object_init_name(&obj, path, FE_READ | FE_WRITE);
+		/* TODO: get root from process */
+		int r = twz_hier_resolve_name(twz_name_get_root(), path, flags, &dirent);
 		if(r) {
 			return r;
 		}
+		if(dirent.type != NAME_ENT_SYMLINK) {
+			r = twz_object_init_guid(&obj, dirent.id, FE_READ | FE_WRITE);
+			if(r) {
+				return r;
+			}
+			has_obj = true;
+		}
 	} else {
 		/* TODO: check if at is a directory */
-		int r = twz_hier_resolve_name(&at->obj, path, 0, &dirent);
+		int r = twz_hier_resolve_name(&at->obj, path, flags, &dirent);
 		if(r)
 			return r;
-		if((r = twz_object_init_guid(&obj, dirent.id, FE_READ | FE_WRITE))) {
-			return r;
+		if(dirent.type != NAME_ENT_SYMLINK) {
+			if((r = twz_object_init_guid(&obj, dirent.id, FE_READ | FE_WRITE))) {
+				return r;
+			}
+			has_obj = true;
 		}
 	}
-	objid = twz_object_guid(&obj);
+	if(has_obj) {
+		objid = twz_object_guid(&obj);
+	}
 	fcntl_flags = _fcntl_flags;
 	inited = true;
 	return 0;
 }
 
-std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at, const char *path)
+std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at,
+  const char *path,
+  int flags)
 {
 	if(path == NULL || path[0] == 0) {
 		return std::make_pair(at != nullptr, at);
 	}
 	auto desc = std::make_shared<filedesc>();
-	int r = desc->init_path(at, path, O_RDWR, 0);
+	int r = desc->init_path(at, path, O_RDWR, 0, flags);
 	return std::make_pair(r, desc);
 }
 
@@ -57,7 +77,9 @@ long twix_cmd_open(queue_client *client, twix_queue_entry *tqe)
 	}
 	auto desc = std::make_shared<filedesc>();
 	int r;
+	fprintf(stderr, ":::: %s\n", path.c_str());
 	if((r = desc->init_path(at, path.c_str(), flags, mode))) {
+		fprintf(stderr, "-> %d\n", r);
 		return r;
 	}
 
@@ -73,8 +95,7 @@ ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int fla
 	if(use_pos) {
 		offset = pos;
 	}
-	fprintf(stderr, "write: %s\n", buffer);
-	ssize_t r = twzio_write(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 0);
+	ssize_t r = twzio_write(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 600);
 	if(r == -ENOTSUP) {
 		/* TODO: bounds check */
 		memcpy((char *)twz_object_base(&obj) + offset, buffer, buflen);
@@ -207,14 +228,19 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 	auto [ok, path] = client->buffer_to_string(tqe->buflen);
 	fprintf(stderr, "STAT %d %d: '%s'\n", fd, flags, path.c_str());
 
-	auto [r, desc] = open_file(at, ok ? path.c_str() : NULL);
+	auto [r, desc] =
+	  open_file(at, ok ? path.c_str() : NULL, (flags & AT_SYMLINK_NOFOLLOW) ? TWZ_HIER_SYM : 0);
 	if(r) {
 		return r;
 	}
-	struct metainfo *mi = twz_object_meta(&desc->obj);
+	size_t sz = 255;
+	if(desc->has_obj) {
+		struct metainfo *mi = twz_object_meta(&desc->obj);
+		sz = mi->sz;
+	}
 	struct stat st = (struct stat){
-		.st_dev = 0,
-		.st_ino = 11,
+		.st_dev = ID_HI(twz_object_guid(&desc->obj)),
+		.st_ino = ID_LO(twz_object_guid(&desc->obj)),
 		.st_nlink = 1,
 
 		.st_mode = 0777,
@@ -222,7 +248,7 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 		.st_gid = 0,
 		.__pad0 = 0,
 		.st_rdev = 0,
-		.st_size = mi->sz,
+		.st_size = sz,
 		.st_blksize = 0,
 		.st_blocks = 0,
 
@@ -231,6 +257,14 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 		.st_ctim = {},
 		.__unused = {},
 	};
+
+	if(desc->dirent.type == NAME_ENT_NAMESPACE) {
+		st.st_mode |= S_IFDIR;
+	} else if(desc->dirent.type == NAME_ENT_SYMLINK) {
+		st.st_mode |= S_IFLNK;
+	} else {
+		st.st_mode |= S_IFREG;
+	}
 
 	client->write_buffer(&st, tqe->buflen);
 
