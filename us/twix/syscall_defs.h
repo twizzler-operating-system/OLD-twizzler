@@ -75,7 +75,7 @@
 #define LINUX_SYS_exit_group 231
 
 #define LINUX_SYS_fstatat 262
-
+#define LINUX_SYS_readlinkat 267
 #define LINUX_SYS_faccessat 269
 #define LINUX_SYS_pselect6 270
 

@@ -280,6 +280,28 @@ long hook_getdents(struct syscall_args *args)
 	return tqe.ret;
 }
 
+long hook_access(struct syscall_args *args)
+{
+	return 0;
+}
+
+long hook_readlink(struct syscall_args *args)
+{
+	int fd = args->num == LINUX_SYS_readlinkat ? args->a0 : -1;
+	const char *pathname = (const char *)(args->num == LINUX_SYS_readlinkat ? args->a1 : args->a0);
+	char *buf = (char *)(args->num == LINUX_SYS_readlinkat ? args->a2 : args->a1);
+	size_t bufsz = args->num == LINUX_SYS_readlinkat ? args->a3 : args->a2;
+
+	size_t pathlen = strlen(pathname) + 1;
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_READLINK, 0, pathlen + bufsz, 2, fd, bufsz);
+	write_bufdata(pathname, pathlen, 0);
+	twix_sync_command(&tqe);
+	if(tqe.ret > 0) {
+		extract_bufdata(buf, tqe.ret, pathlen);
+	}
+	return tqe.ret;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -305,6 +327,9 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_exit] = hook_exit,
 	[LINUX_SYS_exit_group] = hook_exit,
 	[LINUX_SYS_getdents64] = hook_getdents,
+	[LINUX_SYS_access] = hook_access,
+	[LINUX_SYS_readlink] = hook_readlink,
+	[LINUX_SYS_readlinkat] = hook_readlink,
 };
 
 extern const char *syscall_names[];

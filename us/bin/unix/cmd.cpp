@@ -24,6 +24,7 @@ long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_readlink(queue_client *client, twix_queue_entry *tqe);
 
 long twix_cmd_close(queue_client *client, twix_queue_entry *tqe)
 {
@@ -57,6 +58,7 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 	[TWIX_CMD_EXIT] = twix_cmd_exit,
 	[TWIX_CMD_CLOSE] = twix_cmd_close,
 	[TWIX_CMD_GETDENTS] = twix_cmd_getdents,
+	[TWIX_CMD_READLINK] = twix_cmd_readlink,
 };
 
 static const char *cmd_strs[] = {
@@ -70,6 +72,7 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_EXIT] = "exit",
 	[TWIX_CMD_CLOSE] = "close",
 	[TWIX_CMD_GETDENTS] = "getdents",
+	[TWIX_CMD_READLINK] = "readlink",
 };
 
 long queue_client::handle_command(twix_queue_entry *tqe)
