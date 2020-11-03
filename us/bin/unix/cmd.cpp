@@ -78,14 +78,16 @@ static const char *cmd_strs[] = {
 long queue_client::handle_command(twix_queue_entry *tqe)
 {
 	if(tqe->cmd >= 0 && tqe->cmd < NUM_TWIX_COMMANDS && call_table[tqe->cmd]) {
+#if 0
 		fprintf(stderr,
 		  "[twix-server] got command from proc %d, thr %d: %d (%s)\n",
 		  proc->pid,
 		  thr->tid,
 		  tqe->cmd,
 		  cmd_strs[tqe->cmd]);
+#endif
 		long ret = call_table[tqe->cmd](this, tqe);
-		fprintf(stderr, "[twix-server]     return %ld\n", ret);
+		// fprintf(stderr, "[twix-server]     return %ld\n", ret);
 		return ret;
 	}
 	return -ENOSYS;

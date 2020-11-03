@@ -181,13 +181,10 @@ long hook_mmap(struct syscall_args *args)
 	off_t offset = args->a5;
 	objid_t id;
 	int r;
-	twix_log("mmap ::: %p\n", addr);
 
 	ssize_t slot = -1;
 	size_t adj = OBJ_NULLPAGE_SIZE;
 	if(addr && (flags & MAP_FIXED)) {
-		twix_log("here: %ld %d\n", VADDR_TO_SLOT(addr), flags & MAP_ANON);
-
 		adj = (uintptr_t)addr % OBJ_MAXSIZE;
 		slot = VADDR_TO_SLOT(addr);
 		if(__twix_mmap_take_slot(slot) == -1) {
@@ -222,12 +219,13 @@ long hook_mmap(struct syscall_args *args)
 	if(tqe.ret)
 		return tqe.ret;
 	extract_bufdata(&id, sizeof(id), 0);
-	twix_log("twix_v2_mmap: " IDFMT "\n", IDPR(id));
+	/* TODO: tie object */
+	// twix_log("twix_v2_mmap: " IDFMT "\n", IDPR(id));
 
 	if(slot == -1) {
 		slot = __twix_mmap_get_slot();
 	}
-	twix_log("   mmap slot %ld\n", slot);
+	// twix_log("   mmap slot %ld\n", slot);
 	if(slot == -1) {
 		return -ENOMEM;
 	}
@@ -362,7 +360,7 @@ int try_twix_version2(struct twix_register_frame *frame,
 		*ret = -ENOSYS;
 		return -2;
 	}
-	twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
+	// twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 	*ret = syscall_v2_table[num](&args);
 	return *ret == -ENOSYS ? -3 : 0;
 }

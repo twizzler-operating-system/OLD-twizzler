@@ -77,14 +77,12 @@ long twix_cmd_open(queue_client *client, twix_queue_entry *tqe)
 	}
 	auto desc = std::make_shared<filedesc>();
 	int r;
-	fprintf(stderr, ":::: %s\n", path.c_str());
 	if((r = desc->init_path(at, path.c_str(), flags, mode))) {
-		fprintf(stderr, "-> %d\n", r);
 		return r;
 	}
 
 	int fd = client->proc->assign_fd(desc, 0);
-	fprintf(stderr, "OPEN : %d %s -> %d\n", ok, path.c_str(), fd);
+	// fprintf(stderr, "OPEN : %d %s -> %d\n", ok, path.c_str(), fd);
 	return fd;
 }
 
@@ -226,7 +224,7 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 	}
 
 	auto [ok, path] = client->buffer_to_string(tqe->buflen);
-	fprintf(stderr, "STAT %d %d: '%s'\n", fd, flags, path.c_str());
+	// fprintf(stderr, "STAT %d %d: '%s'\n", fd, flags, path.c_str());
 
 	auto [r, desc] =
 	  open_file(at, ok ? path.c_str() : NULL, (flags & AT_SYMLINK_NOFOLLOW) ? TWZ_HIER_SYM : 0);
