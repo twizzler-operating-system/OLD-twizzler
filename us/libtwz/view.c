@@ -57,7 +57,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 {
 	if(slot > TWZSLOT_MAX_SLOT) {
-		libtwz_panic("slot number too large: %ld", slot);
+		libtwz_panic("slot number too large (fixed): %ld", slot);
 	}
 	flags &= ~VE_FIXED;
 	struct viewentry *ves = obj ? ((struct twzthread_ctrl_repr *)twz_object_base(obj))->fixed_points
@@ -91,7 +91,7 @@ void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags)
 {
 	if(slot > TWZSLOT_MAX_SLOT) {
-		libtwz_panic("slot number too large: %ld", slot);
+		libtwz_panic("slot number too large (get): %ld (%p)", slot, __builtin_return_address(1));
 	}
 	struct viewentry *ves;
 	uint32_t extra_flags = 0;

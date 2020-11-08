@@ -812,6 +812,7 @@ static bool secctx_thread_attach(struct sctx *s, struct thread *t)
 			t->sctx_entries[i].attr = 0;
 			__secctx_update_thrdrepr(t, i, true);
 			found = true;
+			ok = true;
 			break;
 		}
 	}

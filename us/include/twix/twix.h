@@ -40,6 +40,8 @@ struct unix_repr {
 #define TWIX_FLAGS_PIO_WRITE 1
 #define TWIX_FLAGS_PIO_POS 2
 
+#define TWIX_FLAGS_CLONE_PROCESS 1
+
 enum twix_command {
 	TWIX_CMD_GET_PROC_INFO,
 	TWIX_CMD_REOPEN_V1_FD,
@@ -52,6 +54,7 @@ enum twix_command {
 	TWIX_CMD_CLOSE,
 	TWIX_CMD_GETDENTS,
 	TWIX_CMD_READLINK,
+	TWIX_CMD_CLONE,
 	NUM_TWIX_COMMANDS,
 };
 

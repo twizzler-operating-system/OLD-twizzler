@@ -68,6 +68,26 @@ long get_proc_info(struct proc_info *info)
 	return 0;
 }
 
+void resetup_queue(void)
+{
+	userver.ok = false;
+	userver.inited = true;
+	objid_t qid, bid;
+	int r = twix_open_queue(&userver.api, 0, &qid, &bid);
+	if(r) {
+		abort();
+	}
+
+	if(twz_object_init_guid(&userver.cmdqueue, qid, FE_READ | FE_WRITE))
+		abort();
+
+	if(twz_object_init_guid(&userver.buffer, bid, FE_READ | FE_WRITE))
+		abort();
+
+	userver.ok = true;
+	userver.inited = true;
+}
+
 static bool setup_queue(void)
 {
 	if(userver.inited)
@@ -378,6 +398,13 @@ long hook_clock_gettime(struct syscall_args *args)
 	}
 	return 0;
 }
+
+long hook_sys_gettid(struct syscall_args *args)
+{
+	args->num = LINUX_SYS_getpid; // TODO
+	return hook_proc_info_syscalls(args);
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -387,6 +414,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_writev] = hook_sys_writev,
 	[LINUX_SYS_preadv2] = hook_sys_preadv2,
 	[LINUX_SYS_preadv] = hook_sys_preadv,
+	[LINUX_SYS_gettid] = hook_sys_gettid,
 	[LINUX_SYS_readv] = hook_sys_readv,
 	[LINUX_SYS_pread] = hook_sys_pread,
 	[LINUX_SYS_pwrite] = hook_sys_pwrite,
@@ -408,6 +436,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_readlinkat] = hook_readlink,
 	[LINUX_SYS_futex] = hook_futex,
 	[LINUX_SYS_clock_gettime] = hook_clock_gettime,
+	[LINUX_SYS_fork] = hook_fork,
 };
 
 extern const char *syscall_names[];

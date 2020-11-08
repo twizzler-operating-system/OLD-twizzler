@@ -247,15 +247,14 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 {
 	(void)flags;
 	queue_client *client = new queue_client();
-	int r = client->init();
+	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
+	int r = twz_object_wire(NULL, &client->thrdobj);
+	(void)r;
+	r = client->init();
 	if(r) {
 		delete client;
 		return r;
 	}
-
-	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
-	r = twz_object_wire(NULL, &client->thrdobj);
-	(void)r;
 
 	{
 		std::lock_guard<std::mutex> _lg(handlers_lock);

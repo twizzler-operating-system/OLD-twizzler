@@ -86,6 +86,7 @@ class descriptor
 enum proc_state {
 	PROC_NORMAL,
 	PROC_EXITED,
+	PROC_FORKED,
 };
 
 class unixprocess
@@ -94,14 +95,18 @@ class unixprocess
 	int pid;
 	int gid;
 	int uid;
-	int ppid;
 	proc_state state = PROC_NORMAL;
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
 
 	std::shared_ptr<filedesc> cwd;
 
+	std::shared_ptr<unixprocess> parent;
+	std::vector<std::shared_ptr<unixprocess>> children;
+
 	std::mutex lock;
+
+	unixprocess(std::shared_ptr<unixprocess> parent);
 
 	size_t add_thread(std::shared_ptr<unixthread> thr)
 	{
@@ -170,12 +175,6 @@ class unixprocess
 
 	unixprocess(int pid)
 	  : pid(pid)
-	{
-	}
-
-	unixprocess(int pid, int ppid)
-	  : pid(pid)
-	  , ppid(ppid)
 	{
 	}
 
@@ -251,3 +250,6 @@ class queue_client
 std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at,
   const char *path,
   int flags = 0);
+
+std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id);
+void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc);

@@ -32,6 +32,12 @@ class refmap
 		map.insert(std::make_pair(k, std::make_shared<V>(k, args...)));
 	}
 
+	void insert_existing(K k, std::shared_ptr<V> v)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		map.insert(std::make_pair(k, v));
+	}
+
 	void remove(K k)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
@@ -41,6 +47,40 @@ class refmap
 
 static refmap<int, unixprocess> proctable;
 static refmap<int, unixthread> thrtable;
+
+static std::mutex forked_lock;
+static std::unordered_map<objid_t, std::shared_ptr<unixprocess>> forked_procs;
+
+void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc)
+{
+	std::lock_guard<std::mutex> _lg(forked_lock);
+	forked_procs.insert(std::make_pair(id, proc));
+}
+
+std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id)
+{
+	/* TODO: also need to clean up this map when a parent exits... */
+	std::lock_guard<std::mutex> _lg(forked_lock);
+	auto it = forked_procs.find(id);
+	if(it == forked_procs.end())
+		return nullptr;
+
+	auto ret = it->second;
+	forked_procs.erase(it);
+	return ret;
+}
+
+unixprocess::unixprocess(std::shared_ptr<unixprocess> parent)
+  : parent(parent)
+{
+	std::lock_guard<std::mutex> _lg(parent->lock);
+	pid = next_taskid.fetch_add(1);
+	fds = parent->fds;
+	cwd = parent->cwd;
+	state = PROC_FORKED;
+	gid = parent->gid;
+	uid = parent->uid;
+}
 
 int queue_client::init()
 {
@@ -56,19 +96,26 @@ int queue_client::init()
 	if(r)
 		return r;
 
-	int taskid = next_taskid.fetch_add(1);
-	proctable.insert(taskid, 1);
-	proc = proctable.lookup(taskid);
-	thrtable.insert(taskid, proc);
-	thr = thrtable.lookup(taskid);
+	std::shared_ptr<unixprocess> existing_proc = procs_lookup_forked(twz_object_guid(&thrdobj));
+	fprintf(stderr, "queue_client_init existing: %p\n", &*existing_proc);
+	if(existing_proc) {
+		proc = existing_proc;
+	} else {
+		int taskid = next_taskid.fetch_add(1);
+		proctable.insert(taskid);
+		proc = proctable.lookup(taskid);
+	}
+	thrtable.insert(proc->pid, proc);
+	thr = thrtable.lookup(proc->pid);
 	proc->add_thread(thr);
 
-	auto [rr, desc] = open_file(nullptr, "/");
-	if(rr) {
-		return rr;
+	if(!existing_proc) {
+		auto [rr, desc] = open_file(nullptr, "/");
+		if(rr) {
+			return rr;
+		}
+		proc->cwd = desc;
 	}
-
-	proc->cwd = desc;
 
 	return 0;
 }
@@ -82,7 +129,7 @@ queue_client::~queue_client()
 	proc->state = PROC_EXITED;
 	thr->exit();
 
-	if(proc->ppid == 0) {
+	if(proc->parent == nullptr) {
 		proctable.remove(proc->pid);
 	}
 }
