@@ -37,6 +37,7 @@
 #define LINUX_SYS_execve 59
 #define LINUX_SYS_exit 60
 #define LINUX_SYS_wait4 61
+#define LINUX_SYS_kill 62
 
 #define LINUX_SYS_uname 63
 

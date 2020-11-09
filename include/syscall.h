@@ -21,6 +21,8 @@ struct timespec {
 	uint64_t tv_nsec;
 };
 
+long syscall_signal(uint64_t tidlo, uint64_t tidhi, long arg0, long arg1, long arg2, long arg3);
+
 long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct timespec *);
 
 long syscall_otie(uint64_t pidlo, uint64_t pidhi, uint64_t cidlo, uint64_t cidhi, int flags);

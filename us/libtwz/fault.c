@@ -14,10 +14,10 @@
 
 #define PRINT(...) fprintf(stderr, ##__VA_ARGS__)
 
-static struct {
+__attribute__((weak)) struct {
 	void (*fn)(int, void *, void *);
 	void *userdata;
-} _fault_table[NUM_FAULTS];
+} _fault_table[NUM_FAULTS] = {};
 
 #if 0
 #define FPR(s)                                                                                     \
@@ -161,6 +161,7 @@ static const char *fault_names[] = {
 	[FAULT_EXCEPTION] = "FAULT_EXCEPTION",
 	[FAULT_PPTR] = "FAULT_PPTR",
 	[FAULT_PAGE] = "FAULT_PAGE",
+	[FAULT_SIGNAL] = "FAULT_SIGNAL",
 };
 
 struct stackframe {
@@ -247,6 +248,7 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
 	/* we provide default handling for FAULT_OBJECT that always runs. We also handle double-faults
 	 * here explicitly. Unlike FAULT_OBJECT, a thread cannot catch double-faults, and they are
 	 * fatal. */
+	debug_printf("handling a fault %d %p\n", fault, _fault_table);
 	if(fault == FAULT_OBJECT) {
 		if(__fault_obj_default(fault, _info) < 0) {
 			_twz_default_exception_handler(fault, _info);
@@ -261,7 +263,10 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
 		twz_thread_exit(EXIT_CODE_FAULT(fault));
 		return;
 	}
+
+	debug_printf("            handling a fault %d %p\n", fault, _fault_table[fault].fn);
 	if((fault >= NUM_FAULTS || !_fault_table[fault].fn) && fault != FAULT_OBJECT) {
+		debug_printf("                              handling a fault %d\n", fault);
 		_twz_default_exception_handler(fault, _info);
 		fprintf(stderr, "  -- FAULT %d: unhandled.\n", fault);
 		__twz_fault_unhandled_print(fault, _info);
@@ -354,6 +359,7 @@ void *twz_fault_get_userdata(int fault)
 
 int twz_fault_set(int fault, void (*fn)(int, void *, void *), void *userdata)
 {
+	debug_printf("setting fault %d -> %p %p\n", fault, _fault_table, fn);
 	_fault_table[fault].fn = fn;
 	_fault_table[fault].userdata = userdata;
 	/*

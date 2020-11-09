@@ -175,8 +175,9 @@ class handler
 		  tqe->buflen,
 		  tqe->flags);
 		  */
-		tqe->ret = client->handle_command(tqe);
-		if(!drain) {
+		auto [ret, respond] = client->handle_command(tqe);
+		tqe->ret = ret;
+		if(!drain && respond) {
 			/* TODO: make this non-blocking, and handle the case where it wants to block */
 			queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
 		}

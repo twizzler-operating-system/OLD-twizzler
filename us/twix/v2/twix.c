@@ -68,8 +68,67 @@ long get_proc_info(struct proc_info *info)
 	return 0;
 }
 
+#include <signal.h>
+#include <twz/fault.h>
+#define SA_DFL                                                                                     \
+	(struct sigaction)                                                                             \
+	{                                                                                              \
+		.sa_handler = SIG_DFL                                                                      \
+	}
+#define NUM_SIG 64
+struct sigaction _signal_actions[NUM_SIG] = { [0 ...(NUM_SIG - 1)] = SA_DFL };
+
+static void __twix_signal_handler(int fault, void *data, void *userdata)
+{
+	struct twix_queue_entry tqe;
+	(void)userdata;
+	struct fault_signal_info *info = data;
+	debug_printf("!!!!! SIGNAL HANDLER: %ld\n", info->args[1]);
+
+	if(info->args[1] < 0 || info->args[1] >= NUM_SIG || info->args[1] == 0) {
+		goto inform_done;
+	}
+	struct sigaction *action = &_signal_actions[info->args[1]];
+
+	if(action->sa_handler == SIG_IGN) {
+		goto inform_done;
+	} else if(action->sa_handler == SIG_DFL) {
+		switch(info->args[1]) {
+			case SIGCHLD:
+			case SIGURG:
+			case SIGWINCH:
+				break;
+			case SIGCONT:
+				break;
+			case SIGTTIN:
+			case SIGTTOU:
+			case SIGSTOP:
+			case SIGTSTP:
+				tqe = build_tqe(TWIX_CMD_SUSPEND, 0, 0, 1, info->args[1]);
+				twix_sync_command(&tqe);
+				break;
+			default: {
+				struct twix_queue_entry tqe = build_tqe(TWIX_CMD_EXIT,
+				  0,
+				  0,
+				  2,
+				  info->args[1],
+				  TWIX_FLAGS_EXIT_THREAD | TWIX_FLAGS_EXIT_SIGNAL);
+				twix_sync_command(&tqe);
+				twz_thread_exit(info->args[1]);
+			}
+		}
+	} else {
+		action->sa_handler(info->args[1]);
+	}
+inform_done:
+	tqe = build_tqe(TWIX_CMD_SIGDONE, 0, 0, 1, info->args[1]);
+	twix_sync_command(&tqe);
+}
+
 void resetup_queue(void)
 {
+	twz_fault_set(FAULT_SIGNAL, __twix_signal_handler, NULL);
 	userver.ok = false;
 	userver.inited = true;
 	objid_t qid, bid;
@@ -128,6 +187,7 @@ static bool setup_queue(void)
 			twix_sync_command(&tqe);
 		}
 	}
+	twz_fault_set(FAULT_SIGNAL, __twix_signal_handler, NULL);
 
 	return true;
 }
@@ -277,8 +337,12 @@ long hook_ioctl(struct syscall_args *args)
 
 long hook_exit(struct syscall_args *args)
 {
-	struct twix_queue_entry tqe =
-	  build_tqe(TWIX_CMD_EXIT, 0, 0, 2, args->a0, args->num == LINUX_SYS_exit_group);
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_EXIT,
+	  0,
+	  0,
+	  2,
+	  args->a0,
+	  args->num == LINUX_SYS_exit_group ? TWIX_FLAGS_EXIT_GROUP : 0);
 	twix_sync_command(&tqe);
 	twz_thread_exit(args->a0);
 	return 0;
@@ -405,6 +469,13 @@ long hook_sys_gettid(struct syscall_args *args)
 	return hook_proc_info_syscalls(args);
 }
 
+long hook_kill(struct syscall_args *args)
+{
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_SEND_SIGNAL, 0, 0, 2, args->a0, args->a1);
+	twix_sync_command(&tqe);
+	return tqe.ret;
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -437,6 +508,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_futex] = hook_futex,
 	[LINUX_SYS_clock_gettime] = hook_clock_gettime,
 	[LINUX_SYS_fork] = hook_fork,
+	[LINUX_SYS_kill] = hook_kill,
 };
 
 extern const char *syscall_names[];

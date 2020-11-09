@@ -25,6 +25,27 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_readlink(queue_client *client, twix_queue_entry *tqe);
 long twix_cmd_clone(queue_client *client, twix_queue_entry *tqe);
+long twix_cmd_send_signal(queue_client *client, twix_queue_entry *tqe);
+
+long twix_cmd_send_signal(queue_client *client, twix_queue_entry *tqe)
+{
+	int pid = tqe->arg0;
+	int sig = tqe->arg1;
+
+	if(pid <= 0) {
+		return -ENOTSUP;
+	}
+
+	auto proc = process_lookup(pid);
+	if(!proc) {
+		return -ESRCH;
+	}
+	/* TODO: check permission */
+
+	proc->send_signal(sig);
+
+	return 0;
+}
 
 long twix_cmd_close(queue_client *client, twix_queue_entry *tqe)
 {
@@ -33,6 +54,7 @@ long twix_cmd_close(queue_client *client, twix_queue_entry *tqe)
 
 long twix_cmd_exit(queue_client *client, twix_queue_entry *tqe)
 {
+	client->proc->exit_status = (tqe->arg0 & 0xff) << 8;
 	return 0;
 }
 
@@ -60,6 +82,7 @@ static long (*call_table[NUM_TWIX_COMMANDS])(queue_client *, twix_queue_entry *t
 	[TWIX_CMD_GETDENTS] = twix_cmd_getdents,
 	[TWIX_CMD_READLINK] = twix_cmd_readlink,
 	[TWIX_CMD_CLONE] = twix_cmd_clone,
+	[TWIX_CMD_SEND_SIGNAL] = twix_cmd_send_signal,
 };
 
 static const char *cmd_strs[] = {
@@ -75,9 +98,10 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_GETDENTS] = "getdents",
 	[TWIX_CMD_READLINK] = "readlink",
 	[TWIX_CMD_CLONE] = "clone",
+	[TWIX_CMD_SEND_SIGNAL] = "send_signal",
 };
 
-long queue_client::handle_command(twix_queue_entry *tqe)
+std::pair<long, bool> queue_client::handle_command(twix_queue_entry *tqe)
 {
 	if(tqe->cmd >= 0 && tqe->cmd < NUM_TWIX_COMMANDS && call_table[tqe->cmd]) {
 #if 0
@@ -90,7 +114,7 @@ long queue_client::handle_command(twix_queue_entry *tqe)
 #endif
 		long ret = call_table[tqe->cmd](this, tqe);
 		// fprintf(stderr, "[twix-server]     return %ld\n", ret);
-		return ret;
+		return std::make_pair(ret, true);
 	}
-	return -ENOSYS;
+	return std::make_pair(-ENOSYS, true);
 }

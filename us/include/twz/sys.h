@@ -27,6 +27,11 @@ static inline long __sys_debug_print(const char *str, size_t len)
 	return __syscall6(SYS_DEBUG_PRINT, (long)str, len, 0, 0, 0, 0);
 }
 
+static inline long sys_signal(objid_t thrdid, long arg0, long arg1, long arg2, long arg3)
+{
+	return __syscall6(SYS_SIGNAL, ID_LO(thrdid), ID_HI(thrdid), arg0, arg1, arg2, arg3);
+}
+
 static inline long sys_ostat(int st, objid_t id, long arg, void *p)
 {
 	return __syscall6(SYS_OSTAT, ID_LO(id), ID_HI(id), st, arg, (long)p, 0);

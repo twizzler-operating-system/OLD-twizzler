@@ -95,6 +95,7 @@ class unixprocess
 	int pid;
 	int gid;
 	int uid;
+	int exit_status;
 	proc_state state = PROC_NORMAL;
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
@@ -108,6 +109,19 @@ class unixprocess
 
 	unixprocess(std::shared_ptr<unixprocess> parent);
 
+	void send_signal(int sig);
+	void child_died(int pid)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		for(size_t i = 0; i < children.size(); i++) {
+			auto c = children[i];
+			if(c->pid == pid) {
+				children.erase(children.begin() + i);
+			}
+		}
+		fprintf(stderr, "TODO: send sigchild\n");
+	}
+
 	size_t add_thread(std::shared_ptr<unixthread> thr)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
@@ -119,6 +133,9 @@ class unixprocess
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		threads.erase(threads.begin() + perproc_tid);
+		if(threads.size() == 0 || perproc_tid == 0) {
+			exit();
+		}
 	}
 
 	int get_file_flags(int fd)
@@ -182,8 +199,12 @@ class unixprocess
 	{
 		fprintf(stderr, "process destructed %d\n", pid);
 	}
+
+  private:
+	void exit();
 };
 
+class queue_client;
 class unixthread
 {
   public:
@@ -191,15 +212,25 @@ class unixthread
 	std::shared_ptr<unixprocess> parent_process;
 	size_t perproc_id;
 
-	unixthread(int tid, std::shared_ptr<unixprocess> proc)
+	queue_client *client;
+
+	unixthread(int tid, std::shared_ptr<unixprocess> proc, queue_client *client)
 	  : tid(tid)
 	  , parent_process(proc)
+	  , client(client)
 	{
 	}
+
+	bool send_signal(int sig, bool);
 
 	void exit()
 	{
 		parent_process->remove_thread(perproc_id);
+	}
+
+	void kill()
+	{
+		fprintf(stderr, "TODO: thread kill\n");
 	}
 
 	~unixthread()
@@ -218,7 +249,7 @@ class queue_client
 	{
 	}
 
-	long handle_command(struct twix_queue_entry *);
+	std::pair<long, bool> handle_command(struct twix_queue_entry *);
 
 	int init();
 	~queue_client();
@@ -253,3 +284,4 @@ std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at
 
 std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id);
 void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc);
+std::shared_ptr<unixprocess> process_lookup(int pid);

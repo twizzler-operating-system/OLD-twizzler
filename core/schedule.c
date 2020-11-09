@@ -480,5 +480,6 @@ void thread_queue_fault(struct thread *thr, int fault, void *info, size_t infole
 	thr->pending_fault = fault;
 	thr->pending_fault_infolen = infolen;
 
+	printk("queueing fault\n");
 	spinlock_release_restore(&thr->lock);
 }

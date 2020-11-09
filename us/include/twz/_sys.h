@@ -22,7 +22,8 @@
 #define SYS_OCOPY 17
 #define SYS_KQUEUE 18
 #define SYS_OSTAT 19
-#define NUM_SYSCALLS 20
+#define SYS_SIGNAL 20
+#define NUM_SYSCALLS 21
 
 #define KCONF_RDRESET 1
 #define KCONF_ARCH_TSC_PSPERIOD 1001
