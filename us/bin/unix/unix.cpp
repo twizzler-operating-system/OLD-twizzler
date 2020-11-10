@@ -22,10 +22,8 @@
 struct handler_queue_entry {
 	struct queue_entry qe;
 	int cmd;
-	union {
-		queue_client *client;
-		size_t client_idx;
-	};
+	std::shared_ptr<queue_client> client;
+	size_t client_idx;
 };
 
 class handler
@@ -49,7 +47,7 @@ class handler
 		cleanup_thread = std::thread(&handler::handler_cleanup_thread, this);
 	}
 
-	void add_client(queue_client *client)
+	void add_client(std::shared_ptr<queue_client> client)
 	{
 		struct handler_queue_entry subhqe;
 		subhqe.client = client;
@@ -59,7 +57,7 @@ class handler
 
   private:
 	twzobj client_add_queue;
-	std::vector<queue_client *> clients;
+	std::vector<std::shared_ptr<queue_client>> clients;
 	std::thread thread, cleanup_thread;
 	std::mutex lock;
 	std::condition_variable cv;
@@ -159,7 +157,9 @@ class handler
 		qspec_len = needed;
 	}
 
-	void handle_client(queue_client *client, struct twix_queue_entry *tqe, bool drain)
+	void handle_client(std::shared_ptr<queue_client> client,
+	  struct twix_queue_entry *tqe,
+	  bool drain)
 	{
 		/*
 		fprintf(stderr,
@@ -175,7 +175,7 @@ class handler
 		  tqe->buflen,
 		  tqe->flags);
 		  */
-		auto [ret, respond] = client->handle_command(tqe);
+		auto [ret, respond] = handle_command(client, tqe);
 		tqe->ret = ret;
 		if(!drain && respond) {
 			/* TODO: make this non-blocking, and handle the case where it wants to block */
@@ -195,7 +195,7 @@ class handler
 				// 1);
 			} break;
 			case HANDLER_QUEUE_DEL_CLIENT: {
-				queue_client *client;
+				std::shared_ptr<queue_client> client;
 				{
 					std::lock_guard<std::mutex> _lg(lock);
 					client = clients[hqe->client_idx];
@@ -208,7 +208,6 @@ class handler
 					handle_client(client, &tqe, true);
 				}
 				fprintf(stderr, "removed client: %d\n", client->proc->pid);
-				delete client;
 				//		fprintf(stderr, "deleted client %ld\n", hqe->client_idx);
 			} break;
 		}
@@ -225,11 +224,12 @@ class handler
 				// fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
 				if(qspec[i].ret != 0) {
 					/* got a message */
-					queue_client *client;
+					std::shared_ptr<queue_client> client;
 					{
 						std::lock_guard<std::mutex> _lg(lock);
 						client = clients[i - 1];
 					}
+					fprintf(stderr, ":: %p\n", qspec[i].result);
 					handle_client(client, (struct twix_queue_entry *)qspec[i].result, false);
 				}
 			}
@@ -247,13 +247,12 @@ extern "C" {
 DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qid, objid_t *bid)
 {
 	(void)flags;
-	queue_client *client = new queue_client();
+	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
 	int r = twz_object_wire(NULL, &client->thrdobj);
 	(void)r;
-	r = client->init();
+	r = client_init(client);
 	if(r) {
-		delete client;
 		return r;
 	}
 

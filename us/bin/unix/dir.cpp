@@ -44,7 +44,7 @@ static struct linux_dirent64 *__copy_to_dirp(struct linux_dirent64 *dirp,
 	return (struct linux_dirent64 *)((char *)dirp + *sz);
 }
 
-long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_getdents(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	size_t count = tqe->buflen;
@@ -52,7 +52,7 @@ long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe)
 
 	auto desc = client->proc->get_file(fd);
 	if(desc == nullptr) {
-		return -EBADF;
+		return R_S(-EBADF);
 	}
 
 	size_t bytes = 0;
@@ -62,16 +62,16 @@ long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe)
 		ssize_t sz_h;
 		sz_h = twz_hier_get_entry(&desc->obj, desc->pos, &ent);
 		if(sz_h == 0) {
-			return bytes;
+			return R_S(bytes);
 		} else if(sz_h < 0) {
-			return sz_h;
+			return R_S(sz_h);
 		}
 
 		if(ent->flags & NAME_ENT_VALID) {
 			ssize_t sz_l;
 			dirp = __copy_to_dirp(dirp, ent, count, desc->pos + sz_h, &sz_l);
 			if(!dirp) {
-				return bytes;
+				return R_S(bytes);
 			}
 			bytes += sz_l;
 			count -= sz_l;
@@ -80,16 +80,16 @@ long twix_cmd_getdents(queue_client *client, twix_queue_entry *tqe)
 	}
 }
 
-long twix_cmd_readlink(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_readlink(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	size_t bufsz = tqe->arg1;
 	if(bufsz > tqe->buflen) {
-		return -EINVAL;
+		return R_S(-EINVAL);
 	}
 	auto at = fd >= 0 ? client->proc->get_file(fd) : client->proc->cwd;
 	auto [ok, path] = client->buffer_to_string(tqe->buflen - bufsz);
 
 	char *buf = (char *)client->buffer_base() + (tqe->buflen - bufsz);
-	return twz_hier_readlink(&at->obj, path.c_str(), buf, bufsz);
+	return R_S(twz_hier_readlink(&at->obj, path.c_str(), buf, bufsz));
 }

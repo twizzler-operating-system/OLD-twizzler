@@ -264,8 +264,10 @@ long hook_fork(struct syscall_args *args)
 		goto cleanup_stack;
 	}
 
+	fprintf(stderr, "waiting for fork\n");
 	struct twix_queue_entry tqe2 = build_tqe(TWIX_CMD_WAIT_READY, 0, 0, 1, tqe.ret);
 	twix_sync_command(&tqe2);
+	fprintf(stderr, "waiting for fork: done\n");
 
 	return tqe.ret;
 

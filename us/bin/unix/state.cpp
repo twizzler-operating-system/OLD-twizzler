@@ -139,41 +139,45 @@ unixprocess::unixprocess(std::shared_ptr<unixprocess> parent)
 	uid = parent->uid;
 }
 
-int queue_client::init()
+int client_init(std::shared_ptr<queue_client> client)
 {
-	int r =
-	  twz_object_new(&queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
+	int r = twz_object_new(
+	  &client->queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
 	if(r)
 		return r;
-	r = twz_object_new(&buffer, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
+	r = twz_object_new(
+	  &client->buffer, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
 	if(r)
 		return r;
 	r = queue_init_hdr(
-	  &queue, 12, sizeof(struct twix_queue_entry), 12, sizeof(struct twix_queue_entry));
+	  &client->queue, 12, sizeof(struct twix_queue_entry), 12, sizeof(struct twix_queue_entry));
 	if(r)
 		return r;
 
-	std::shared_ptr<unixprocess> existing_proc = procs_lookup_forked(twz_object_guid(&thrdobj));
+	std::shared_ptr<unixprocess> existing_proc =
+	  procs_lookup_forked(twz_object_guid(&client->thrdobj));
 	if(existing_proc != nullptr) {
 		fprintf(stderr, "queue_client_init existing\n");
-		proc = existing_proc;
+		client->proc = existing_proc;
 		proctable.insert_existing(existing_proc->pid, existing_proc);
 	} else {
 		int taskid = next_taskid.fetch_add(1);
 		proctable.insert(taskid);
-		proc = proctable.lookup(taskid);
+		client->proc = proctable.lookup(taskid);
 	}
-	thrtable.insert(proc->pid, proc, this);
-	thr = thrtable.lookup(proc->pid);
-	proc->add_thread(thr);
+	thrtable.insert(client->proc->pid, client->proc, client);
+	client->thr = thrtable.lookup(client->proc->pid);
+	client->proc->add_thread(client->thr);
 
 	if(!existing_proc) {
 		auto [rr, desc] = open_file(nullptr, "/");
 		if(rr) {
 			return rr;
 		}
-		proc->cwd = desc;
+		client->proc->cwd = desc;
 	}
+
+	client->proc->mark_ready();
 
 	return 0;
 }

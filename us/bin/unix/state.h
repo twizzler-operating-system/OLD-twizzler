@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -97,6 +98,9 @@ class unixprocess
 	int uid;
 	int exit_status;
 	proc_state state = PROC_NORMAL;
+
+	std::condition_variable state_cv;
+
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
 
@@ -110,6 +114,23 @@ class unixprocess
 	unixprocess(std::shared_ptr<unixprocess> parent);
 
 	void send_signal(int sig);
+
+	void wait_ready()
+	{
+		std::unique_lock<std::mutex> _lg(lock);
+		while(state == PROC_FORKED) {
+			state_cv.wait(_lg);
+		}
+	}
+
+	void mark_ready()
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		state = PROC_NORMAL;
+		exit_status = 0;
+		state_cv.notify_all();
+	}
+
 	void child_died(int pid)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
@@ -212,9 +233,9 @@ class unixthread
 	std::shared_ptr<unixprocess> parent_process;
 	size_t perproc_id;
 
-	queue_client *client;
+	std::shared_ptr<queue_client> client;
 
-	unixthread(int tid, std::shared_ptr<unixprocess> proc, queue_client *client)
+	unixthread(int tid, std::shared_ptr<unixprocess> proc, std::shared_ptr<queue_client> client)
 	  : tid(tid)
 	  , parent_process(proc)
 	  , client(client)
@@ -226,6 +247,7 @@ class unixthread
 	void exit()
 	{
 		parent_process->remove_thread(perproc_id);
+		client = nullptr;
 	}
 
 	void kill()
@@ -248,8 +270,6 @@ class queue_client
 	queue_client()
 	{
 	}
-
-	std::pair<long, bool> handle_command(struct twix_queue_entry *);
 
 	int init();
 	~queue_client();
@@ -285,3 +305,21 @@ std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at
 std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id);
 void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc);
 std::shared_ptr<unixprocess> process_lookup(int pid);
+
+std::pair<long, bool> twix_cmd_open(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_fcntl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_stat(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_getdents(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_readlink(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_clone(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_send_signal(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe);
+
+#define R_S(r) std::make_pair(r, true)
+#define R_A(r) std::make_pair(r, false)
+std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+int client_init(std::shared_ptr<queue_client> client);

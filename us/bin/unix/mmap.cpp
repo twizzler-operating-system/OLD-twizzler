@@ -7,7 +7,7 @@
 
 #include <sys/mman.h>
 
-long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	int prot = tqe->arg1;
@@ -25,14 +25,14 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 		//	fprintf(stderr, "    shared\n");
 		shared = true;
 	} else {
-		return -EINVAL;
+		return R_S(-EINVAL);
 	}
 
 	if(flags & MAP_FIXED) {
 		//	fprintf(stderr, "    fixed\n");
 		if(map_offset == 0 || (map_offset & (OBJ_NULLPAGE_SIZE - 1))
 		   || (size_t)map_offset > OBJ_TOPDATA) {
-			return -EINVAL;
+			return R_S(-EINVAL);
 		}
 	} else {
 		map_offset = OBJ_NULLPAGE_SIZE;
@@ -43,7 +43,7 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 	if(fd >= 0) {
 		auto desc = client->proc->get_file(fd);
 		if(!desc) {
-			return -EBADF;
+			return R_S(-EBADF);
 		}
 		struct metainfo *mi = twz_object_meta(&desc->obj);
 		if(mi->flags & MIF_SZ) {
@@ -59,9 +59,9 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 			  0,
 			  &id);
 			if(r)
-				return r;
+				return R_S(r);
 		} else {
-			return -ENOTSUP;
+			return R_S(-ENOTSUP);
 		}
 
 #if 0
@@ -78,12 +78,12 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 		      offset + OBJ_NULLPAGE_SIZE,
 		      (length + 0xfff) & ~0xfff,
 		      0))) {
-			return r;
+			return R_S(r);
 		}
 
 	} else {
 		if(!(flags & MAP_ANON))
-			return -EINVAL;
+			return R_S(-EINVAL);
 		// fprintf(stderr, "    anon\n");
 		r = twz_object_create(
 		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE,
@@ -91,10 +91,10 @@ long twix_cmd_mmap(queue_client *client, twix_queue_entry *tqe)
 		  0,
 		  &id);
 		if(r)
-			return r;
+			return R_S(r);
 	}
 
 	client->write_buffer(&id);
 
-	return 0;
+	return R_S(0);
 }

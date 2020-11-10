@@ -30,7 +30,7 @@ int main()
 	}
 	fprintf(stderr, "fork! parent: %d\n", pid);
 
-	for(long i = 0; i < 100000; i++) {
+	for(long i = 0; i < 1000000; i++) {
 		__syscall6(0, 0, 0, 0, 0, 0, 0);
 	}
 	fprintf(stderr, "killing %d\n", pid);

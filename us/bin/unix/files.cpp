@@ -61,7 +61,7 @@ std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at
 }
 
 /* buf: path, a0: dirfd, a1: flags, a2: mode (create) */
-long twix_cmd_open(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_open(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int mode = tqe->arg2;
 	int flags = tqe->arg1 + 1;
@@ -72,18 +72,18 @@ long twix_cmd_open(queue_client *client, twix_queue_entry *tqe)
 	if(dirfd >= 0) {
 		at = client->proc->get_file(dirfd);
 		if(at == nullptr) {
-			return -EBADF;
+			return R_S(-EBADF);
 		}
 	}
 	auto desc = std::make_shared<filedesc>();
 	int r;
 	if((r = desc->init_path(at, path.c_str(), flags, mode))) {
-		return r;
+		return R_S(r);
 	}
 
 	int fd = client->proc->assign_fd(desc, 0);
 	// fprintf(stderr, "OPEN : %d %s -> %d\n", ok, path.c_str(), fd);
-	return fd;
+	return R_S(fd);
 }
 
 ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int flags, bool use_pos)
@@ -149,7 +149,7 @@ ssize_t filedesc::read(void *buffer, size_t buflen, off_t offset, int flags, boo
 
 /* buf: data buffer, buflen: data buffer length *
  * a0: fd, a1: offset, a2: flags, a3: flags2 */
-long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	off_t off = tqe->arg1;
@@ -162,12 +162,10 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 
 	auto filedesc = client->proc->get_file(fd);
 	if(filedesc == nullptr) {
-		fprintf(stderr, "A\n");
-		return -EBADF;
+		return R_S(-EBADF);
 	}
 	if(!filedesc->access(writing ? W_OK : R_OK)) {
-		fprintf(stderr, "B\n");
-		return -EACCES;
+		return R_S(-EACCES);
 	}
 
 	ssize_t ret;
@@ -179,48 +177,51 @@ long twix_cmd_pio(queue_client *client, twix_queue_entry *tqe)
 		  client->buffer_base(), tqe->buflen, off, preadv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
 	}
 
-	return ret;
+	return R_S(ret);
 }
 
-long twix_cmd_fcntl(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_fcntl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	int cmd = tqe->arg1;
 	int arg = tqe->arg2;
 
+	long ret = 0;
 	switch(cmd) {
 		case F_GETFD:
-			return client->proc->get_file_flags(fd);
+			ret = client->proc->get_file_flags(fd);
 			break;
 		case F_SETFD:
-			return client->proc->set_file_flags(fd, arg);
+			ret = client->proc->set_file_flags(fd, arg);
 			break;
 		case F_GETFL: {
 			auto desc = client->proc->get_file(fd);
 			if(desc == nullptr)
-				return -EBADF;
-			return desc->fcntl_flags - 1;
+				ret = -EBADF;
+			else
+				ret = desc->fcntl_flags - 1;
 		} break;
 		case F_SETFL: {
 			auto desc = client->proc->get_file(fd);
 			if(desc == nullptr)
-				return -EBADF;
-			desc->fcntl_flags = arg & ~(O_ACCMODE);
-			return 0;
+				ret = -EBADF;
+			else
+				desc->fcntl_flags = arg & ~(O_ACCMODE);
 		} break;
 		default:
-			return -EINVAL;
+			ret = -EINVAL;
 	}
+	return R_S(ret);
 }
 
 #include <sys/stat.h>
-long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
+std::pair<long, bool> twix_cmd_stat(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	int flags = tqe->arg1;
 	auto at = fd >= 0 ? client->proc->get_file(fd) : client->proc->cwd;
 	if(!at) {
-		return -EBADF;
+		return R_S(-EBADF);
 	}
 
 	auto [ok, path] = client->buffer_to_string(tqe->buflen);
@@ -229,7 +230,7 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 	auto [r, desc] =
 	  open_file(at, ok ? path.c_str() : NULL, (flags & AT_SYMLINK_NOFOLLOW) ? TWZ_HIER_SYM : 0);
 	if(r) {
-		return r;
+		return R_S(r);
 	}
 	size_t sz = 255;
 	if(desc->has_obj) {
@@ -266,5 +267,5 @@ long twix_cmd_stat(queue_client *client, twix_queue_entry *tqe)
 
 	client->write_buffer(&st, tqe->buflen);
 
-	return 0;
+	return R_S(0);
 }

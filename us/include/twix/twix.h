@@ -5,6 +5,10 @@
 #include <twz/queue.h>
 #include <twz/security.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TWIX_GATE_OPEN_QUEUE 1
 static inline int twix_open_queue(struct secure_api *api, int flags, objid_t *_qid, objid_t *_bid)
 {
@@ -24,6 +28,9 @@ struct twix_queue_entry {
 	long arg0, arg1, arg2, arg3, arg4, arg5;
 	long buflen;
 	long ret;
+#if __cplusplus
+	twix_queue_entry() = default;
+#endif
 };
 
 struct unix_repr {
@@ -72,3 +79,7 @@ struct proc_info {
 	int uid;
 	int gid;
 };
+
+#ifdef __cplusplus
+}
+#endif

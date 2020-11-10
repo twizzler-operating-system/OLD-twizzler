@@ -128,6 +128,11 @@ inform_done:
 
 void resetup_queue(void)
 {
+	debug_printf("child: here!\n");
+	for(long i = 0; i < 100000; i++) {
+		__syscall6(0, 0, 0, 0, 0, 0, 0);
+	}
+	debug_printf("child: done\n");
 	twz_fault_set(FAULT_SIGNAL, __twix_signal_handler, NULL);
 	userver.ok = false;
 	userver.inited = true;
