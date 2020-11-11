@@ -14,7 +14,7 @@
 
 #define PRINT(...) fprintf(stderr, ##__VA_ARGS__)
 
-__attribute__((weak)) struct {
+struct {
 	void (*fn)(int, void *, void *);
 	void *userdata;
 } _fault_table[NUM_FAULTS] = {};
@@ -243,6 +243,7 @@ static void __twz_fault_unhandled(struct fault_fault_info *info, struct fault_fr
 	libtwz_do_backtrace();
 }
 
+void __twix_signal_handler(int fault, void *data, void *userdata);
 __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fault_frame *frame)
 {
 	/* we provide default handling for FAULT_OBJECT that always runs. We also handle double-faults
@@ -266,6 +267,10 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
 
 	debug_printf("            handling a fault %d %p\n", fault, _fault_table[fault].fn);
 	if((fault >= NUM_FAULTS || !_fault_table[fault].fn) && fault != FAULT_OBJECT) {
+		if(fault == 7) {
+			__twix_signal_handler(fault, _info, NULL);
+			return;
+		}
 		debug_printf("                              handling a fault %d\n", fault);
 		_twz_default_exception_handler(fault, _info);
 		fprintf(stderr, "  -- FAULT %d: unhandled.\n", fault);

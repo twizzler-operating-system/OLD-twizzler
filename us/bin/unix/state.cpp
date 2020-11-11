@@ -100,6 +100,22 @@ void unixprocess::exit()
 	}
 }
 
+void unixprocess::kill_all_threads(int except)
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	for(auto t : threads) {
+		if(except == -1 || (t->tid != except)) {
+			t->kill();
+		}
+	}
+}
+
+void unixthread::kill()
+{
+	fprintf(stderr, "TODO: thread kill\n");
+	sys_signal(twz_object_guid(&client->thrdobj), -1ul, SIGKILL, 0, 0);
+	/* TODO: actually kill thread */
+}
 bool unixthread::send_signal(int sig, bool allow_pending)
 {
 	fprintf(stderr, "sending signal %d to %d\n", sig, tid);
@@ -107,6 +123,7 @@ bool unixthread::send_signal(int sig, bool allow_pending)
 	if(r) {
 		fprintf(stderr, "WARNING: send_signal %ld\n", r);
 	}
+	resume();
 	return true;
 }
 
@@ -182,11 +199,44 @@ int client_init(std::shared_ptr<queue_client> client)
 	return 0;
 }
 
+void unixthread::resume()
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	if(suspended_tqe) {
+		client->complete(suspended_tqe);
+		suspended_tqe = nullptr;
+	}
+}
+
+void unixprocess::change_status(proc_state _state, int status)
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	state = _state;
+	exit_status = status;
+	for(auto w : state_waiters) {
+		w.first->complete(w.second);
+		delete w.second;
+	}
+	state_waiters.clear();
+}
+
+void unixprocess::mark_ready()
+{
+	change_status(PROC_NORMAL, 0);
+}
+
+void queue_client::exit()
+{
+	fprintf(stderr, ":::: %p\n", thr.get());
+	thr->exit();
+}
+
 queue_client::~queue_client()
 {
+	fprintf(stderr, "client destructed! (tid %d)\n", thr->tid);
 	twz_object_delete(&queue, 0);
 	twz_object_delete(&buffer, 0);
 	twz_object_unwire(NULL, &thrdobj);
 	thrtable.remove(thr->tid);
-	thr->exit();
+	// thr->exit();
 }

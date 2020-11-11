@@ -333,6 +333,11 @@ struct thread *thread_create(void)
 	struct thread *t = slabcache_alloc(&_sc_thread);
 	// printk("THREAD_CREATE: %ld: %p\n", t->id, t);
 	// krc_init(&t->refs);
+	if(t->pending_fault_info) {
+		kfree(t->pending_fault_info);
+		t->pending_fault_info = NULL;
+	}
+	assert(t->pending_fault_info == NULL);
 	t->priority = 10;
 	spinlock_acquire_save(&allthreads_lock);
 	list_insert(&allthreads, &t->all_entry);
@@ -425,6 +430,12 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	struct object *to = kso_get_obj(t->ctx->view, view);
 	if(!to) {
 		panic("No repr");
+	}
+	if(fault == FAULT_SIGNAL) {
+		struct fault_signal_info *fsi = info;
+		if(fsi->args[0] == -1 && fsi->args[1] == 9) {
+			thread_exit();
+		}
 	}
 	void *handler;
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);

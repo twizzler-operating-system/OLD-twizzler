@@ -30,13 +30,20 @@ int main()
 	}
 	fprintf(stderr, "fork! parent: %d\n", pid);
 
+	// for(long i = 0; i < 1000000; i++) {
+	//	__syscall6(0, 0, 0, 0, 0, 0, 0);
+	//}
+	fprintf(stderr, "killing %d\n", pid);
+	int r = kill(pid, SIGINT);
+	if(r == -1)
+		err(1, "kill");
+
 	for(long i = 0; i < 1000000; i++) {
 		__syscall6(0, 0, 0, 0, 0, 0, 0);
 	}
-	fprintf(stderr, "killing %d\n", pid);
-	int r = kill(pid, 9);
-	if(r == -1)
-		err(1, "kill");
+	fprintf(stderr, "resume %d\n", pid);
+	r = kill(pid, SIGCONT);
+	fprintf(stderr, ":: resume: %d\n", r);
 
 	return 0;
 }

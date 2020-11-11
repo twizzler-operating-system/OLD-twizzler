@@ -70,7 +70,17 @@ long linux_sys_unlink(char *path)
 	return r;
 }
 
+#define LINUX_SYS_mremap 25
+
+long linux_sys_mremap(void *old, size_t old_sz, size_t new_sz, int flags, void *new)
+{
+	twix_log("mremap: %p %lx %lx %x %p\n", old, old_sz, new_sz, flags, new);
+	return (long)old;
+	return -ENOSYS;
+}
+
 static long (*syscall_table[])() = {
+	[LINUX_SYS_mremap] = linux_sys_mremap,
 	[LINUX_SYS_arch_prctl] = linux_sys_arch_prctl,
 	[LINUX_SYS_set_tid_address] = linux_sys_set_tid_address,
 	[LINUX_SYS_set_thread_area] = linux_sys_set_thread_area,

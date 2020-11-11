@@ -29,6 +29,22 @@ struct twix_queue_entry {
 	long buflen;
 	long ret;
 #if __cplusplus
+	twix_queue_entry(twix_queue_entry &other)
+	{
+		qe.cmd_id = other.qe.cmd_id.load();
+		qe.info = other.qe.info;
+		cmd = other.cmd;
+		flags = other.flags;
+		arg0 = other.arg0;
+		arg1 = other.arg1;
+		arg2 = other.arg2;
+		arg3 = other.arg3;
+		arg4 = other.arg4;
+		arg5 = other.arg5;
+		buflen = other.buflen;
+		ret = other.ret;
+	}
+
 	twix_queue_entry() = default;
 #endif
 };
@@ -70,6 +86,7 @@ enum twix_command {
 	TWIX_CMD_WAIT_READY,
 	TWIX_CMD_SIGDONE,
 	TWIX_CMD_SUSPEND,
+	TWIX_CMD_WAIT,
 	NUM_TWIX_COMMANDS,
 };
 

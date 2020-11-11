@@ -584,12 +584,33 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 	if(prot & PROT_EXEC)
 		ve |= VE_EXEC;
 
-	if(len > OBJ_TOPDATA) {
-		len = OBJ_TOPDATA;
-	}
 	twzobj __fobj;
 	if(addr) {
 		__fobj = twz_object_from_ptr(addr);
+	}
+
+#if 0
+	twix_log(":::: %p\n", addr);
+	if(addr == (void *)0x20000000000 || addr == (void *)0x640000010000 || addr == (void *)0x740000010000
+	   || addr == (void *)0x10000000f000 || addr == (void *)0x140000012000) {
+		fprintf(stderr, "addr: %p\n", addr);
+		fprintf(stderr, "ASAN: %lx\n", len);
+		size_t start_slot = VADDR_TO_SLOT(addr);
+		size_t end_slot = start_slot + VADDR_TO_SLOT((void *)len) + 1;
+			twix_log("%ld -> %ld :: %lx -> %lx\n", start_slot, end_slot, start_slot, end_slot);
+		for(size_t i = start_slot; i< end_slot;i++) {
+		objid_t nid = 0;
+		if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW, 0, 0, &nid)) {
+			return -ENOMEM;
+		}
+		twz_view_set(NULL, i, nid, FE_READ | FE_WRITE);
+		}
+		return addr;
+	}
+#endif
+
+	if(len > OBJ_TOPDATA) {
+		len = OBJ_TOPDATA;
 	}
 	twzobj *fobj = file ? &file->obj : &__fobj;
 	struct metainfo *mi = twz_object_meta(fobj);

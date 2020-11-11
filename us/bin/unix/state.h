@@ -90,6 +90,7 @@ enum proc_state {
 	PROC_FORKED,
 };
 
+class queue_client;
 class unixprocess
 {
   public:
@@ -99,7 +100,7 @@ class unixprocess
 	int exit_status;
 	proc_state state = PROC_NORMAL;
 
-	std::condition_variable state_cv;
+	std::vector<std::pair<std::shared_ptr<queue_client>, twix_queue_entry *>> state_waiters;
 
 	std::vector<std::shared_ptr<unixthread>> threads;
 	std::vector<descriptor> fds;
@@ -115,21 +116,18 @@ class unixprocess
 
 	void send_signal(int sig);
 
-	void wait_ready()
+	std::pair<proc_state, int> wait_ready(std::shared_ptr<queue_client> client,
+	  twix_queue_entry *tqe)
 	{
 		std::unique_lock<std::mutex> _lg(lock);
-		while(state == PROC_FORKED) {
-			state_cv.wait(_lg);
+		if(state == PROC_FORKED) {
+			state_waiters.push_back(std::make_pair(client, new twix_queue_entry(*tqe)));
 		}
+		return std::make_pair(state, exit_status);
 	}
 
-	void mark_ready()
-	{
-		std::lock_guard<std::mutex> _lg(lock);
-		state = PROC_NORMAL;
-		exit_status = 0;
-		state_cv.notify_all();
-	}
+	void mark_ready();
+	void change_status(proc_state state, int status);
 
 	void child_died(int pid)
 	{
@@ -149,6 +147,8 @@ class unixprocess
 		threads.push_back(thr);
 		return threads.size() - 1;
 	}
+
+	void kill_all_threads(int);
 
 	void remove_thread(size_t perproc_tid)
 	{
@@ -225,6 +225,7 @@ class unixprocess
 	void exit();
 };
 
+#include <signal.h>
 class queue_client;
 class unixthread
 {
@@ -250,15 +251,24 @@ class unixthread
 		client = nullptr;
 	}
 
-	void kill()
-	{
-		fprintf(stderr, "TODO: thread kill\n");
-	}
+	void kill();
 
 	~unixthread()
 	{
 		fprintf(stderr, "thread destructed %d\n", tid);
 	}
+
+	void suspend(twix_queue_entry *tqe)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		suspended_tqe = new twix_queue_entry(*tqe);
+	}
+
+	void resume();
+
+  private:
+	twix_queue_entry *suspended_tqe = nullptr;
+	std::mutex lock;
 };
 
 class queue_client
@@ -271,11 +281,18 @@ class queue_client
 	{
 	}
 
+	void exit();
 	int init();
 	~queue_client();
 	void *buffer_base()
 	{
 		return twz_object_base(&buffer);
+	}
+
+	void complete(twix_queue_entry *tqe)
+	{
+		// fprintf(stderr, "COMPLETING %d\n", tqe->qe.info);
+		queue_complete(&queue, (struct queue_entry *)tqe, 0);
 	}
 
 	auto buffer_to_string(size_t buflen)

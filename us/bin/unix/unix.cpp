@@ -178,6 +178,7 @@ class handler
 		auto [ret, respond] = handle_command(client, tqe);
 		tqe->ret = ret;
 		if(!drain && respond) {
+			//		fprintf(stderr, "respond COMPLETING %d\n", tqe->qe.info);
 			/* TODO: make this non-blocking, and handle the case where it wants to block */
 			queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
 		}
@@ -199,6 +200,7 @@ class handler
 				{
 					std::lock_guard<std::mutex> _lg(lock);
 					client = clients[hqe->client_idx];
+					fprintf(stderr, "erase %ld / %ld\n", hqe->client_idx, clients.size());
 					clients.erase(clients.begin() + hqe->client_idx);
 					queue_complete(&client_add_queue, (struct queue_entry *)hqe, 0);
 				}
@@ -207,8 +209,8 @@ class handler
 				  queue_receive(&client->queue, (struct queue_entry *)&tqe, QUEUE_NONBLOCK) == 0) {
 					handle_client(client, &tqe, true);
 				}
-				fprintf(stderr, "removed client: %d\n", client->proc->pid);
-				//		fprintf(stderr, "deleted client %ld\n", hqe->client_idx);
+				fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
+				client->exit();
 			} break;
 		}
 		qspec_build();
@@ -221,7 +223,6 @@ class handler
 			/* TODO: check ret */
 			(void)ret;
 			for(size_t i = 1; i < qspec_len; i++) {
-				// fprintf(stderr, "   -> %ld: %d\n", i, qspec[i].ret);
 				if(qspec[i].ret != 0) {
 					/* got a message */
 					std::shared_ptr<queue_client> client;
@@ -229,7 +230,6 @@ class handler
 						std::lock_guard<std::mutex> _lg(lock);
 						client = clients[i - 1];
 					}
-					fprintf(stderr, ":: %p\n", qspec[i].result);
 					handle_client(client, (struct twix_queue_entry *)qspec[i].result, false);
 				}
 			}

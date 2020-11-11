@@ -51,8 +51,8 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
   bool was_userspace,
   bool ignored)
 {
-//if(frame->int_no != 32)
-//printk(":: e: %ld\n", frame->int_no);
+	// if(frame->int_no != 32)
+	// printk(":: e: %ld\n", frame->int_no);
 	if(!ignored) {
 		if(was_userspace) {
 			current_thread->arch.was_syscall = false;
@@ -142,7 +142,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 	} else if(current_thread && current_thread->processor) {
 		current_thread->processor->stats.int_intr++;
 	}
-//printk(":: %ld %d %d :: %lx\n", frame->int_no, was_userspace, ignored, frame->rip);
+	// printk(":: %ld %d %d :: %lx\n", frame->int_no, was_userspace, ignored, frame->rip);
 	if(was_userspace) {
 		thread_schedule_resume();
 	}
@@ -246,10 +246,13 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 
 	spinlock_acquire_save(&thread->lock);
 	if(thread->pending_fault_info) {
+		printk("RAISE PENDING\n");
 		thread_raise_fault(
 		  thread, thread->pending_fault, thread->pending_fault_info, thread->pending_fault_infolen);
-		kfree(thread->pending_fault_info);
-		thread->pending_fault_info = NULL;
+		if(thread->pending_fault_info) {
+			kfree(thread->pending_fault_info);
+			thread->pending_fault_info = NULL;
+		}
 	}
 	uint64_t return_addr =
 	  thread->arch.was_syscall ? thread->arch.syscall.rcx : thread->arch.exception.rip;
