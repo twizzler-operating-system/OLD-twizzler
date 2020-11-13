@@ -7,45 +7,136 @@
 #include "sys.h"
 #include "v2.h"
 
-struct unix_server {
+twzobj state_object;
+
+struct twix_conn {
 	twzobj cmdqueue, buffer;
+
+	_Atomic int block_count;
+	_Atomic size_t pending_count;
+	struct {
+		_Atomic long flags;
+		long args[3];
+	} pending_sigs[];
+};
+
+struct unix_server {
 	struct secure_api api;
 	_Atomic bool inited;
 	_Atomic bool ok;
-
-	struct {
-		long args[4];
-	} __backup_siginfo;
-	_Atomic int siginfo_state;
 };
+
+#include <signal.h>
+#include <twz/fault.h>
+#define SA_DFL                                                                                     \
+	(struct sigaction)                                                                             \
+	{                                                                                              \
+		.sa_handler = SIG_DFL                                                                      \
+	}
+#define NUM_SIG 64
+struct sigaction _signal_actions[NUM_SIG] = { [0 ...(NUM_SIG - 1)] = SA_DFL };
+
+static void __twix_do_handler(long *args)
+{
+	struct twix_queue_entry tqe;
+	if(args[0] < 0 || args[0] >= NUM_SIG || args[0] == 0) {
+		goto inform_done;
+	}
+	struct sigaction *action = &_signal_actions[args[0]];
+
+	if(action->sa_handler == SIG_IGN) {
+		goto inform_done;
+	} else if(action->sa_handler == SIG_DFL) {
+		switch(args[0]) {
+			case SIGCHLD:
+			case SIGURG:
+			case SIGWINCH:
+				break;
+			case SIGCONT:
+				break;
+			case SIGTTIN:
+			case SIGTTOU:
+			case SIGSTOP:
+			case SIGTSTP:
+				tqe = build_tqe(TWIX_CMD_SUSPEND, 0, 0, 1, args[0]);
+				twix_sync_command(&tqe);
+				break;
+			default: {
+				struct twix_queue_entry tqe = build_tqe(
+				  TWIX_CMD_EXIT, 0, 0, 2, args[0], TWIX_FLAGS_EXIT_THREAD | TWIX_FLAGS_EXIT_SIGNAL);
+				twix_sync_command(&tqe);
+				twz_thread_exit(args[0]);
+			}
+		}
+	} else {
+		action->sa_handler(args[0]);
+	}
+inform_done:
+	tqe = build_tqe(TWIX_CMD_SIGDONE, 0, 0, 1, args[0]);
+	twix_sync_command(&tqe);
+}
+
+static void check_signals(struct twix_conn *conn)
+{
+	for(size_t i = 0; i < conn->pending_count; i++) {
+		long ex = 2;
+		long args[3];
+		args[0] = conn->pending_sigs[i].args[0];
+		args[1] = conn->pending_sigs[i].args[1];
+		args[2] = conn->pending_sigs[i].args[2];
+		if(atomic_compare_exchange_strong(&conn->pending_sigs[i].flags, &ex, 0)) {
+			__twix_do_handler(args);
+		}
+	}
+}
+
+static void append_signal(struct twix_conn *conn, long *args)
+{
+	for(size_t i = 0; i < conn->pending_count; i++) {
+		long ex = 0;
+		if(atomic_compare_exchange_strong(&conn->pending_sigs[i].flags, &ex, 1)) {
+			conn->pending_sigs[i].args[0] = args[1];
+			conn->pending_sigs[i].args[1] = args[2];
+			conn->pending_sigs[i].args[2] = args[3];
+			conn->pending_sigs[i].flags = 2;
+			return;
+		}
+	}
+
+	size_t new = conn->pending_count++;
+	conn->pending_sigs[new].flags = 1;
+	conn->pending_sigs[new].args[0] = args[1];
+	conn->pending_sigs[new].args[1] = args[2];
+	conn->pending_sigs[new].args[2] = args[3];
+	conn->pending_sigs[new].flags = 2;
+}
 
 static struct unix_server userver = {};
 
-static void __twix_do_handler(void);
 void twix_sync_command(struct twix_queue_entry *tqe)
 {
 	static uint32_t info = 0;
 	uint32_t _info = info++;
 	tqe->qe.info = _info;
 
-	userver.siginfo_state |= 1;
+	struct twix_conn *conn = twz_object_base(&state_object);
 
-	queue_submit(&userver.cmdqueue, (struct queue_entry *)tqe, 0);
-	queue_get_finished(&userver.cmdqueue, (struct queue_entry *)tqe, 0);
+	conn->block_count++;
+
+	queue_submit(&conn->cmdqueue, (struct queue_entry *)tqe, 0);
+	queue_get_finished(&conn->cmdqueue, (struct queue_entry *)tqe, 0);
+
+	conn->block_count--;
 
 	if(tqe->qe.info != _info) {
 		twix_log("WARNING - out of sync " IDFMT " (%u %u)\n",
-		  IDPR(twz_object_guid(&userver.cmdqueue)),
+		  IDPR(twz_object_guid(&conn->cmdqueue)),
 		  tqe->qe.info,
 		  _info);
 	}
 
-	/* TODO: this isn't safe */
-	if(userver.siginfo_state & 2) {
-		userver.siginfo_state = 0;
-		__twix_do_handler();
-	} else {
-		userver.siginfo_state = 0;
+	if(conn->block_count == 0) {
+		check_signals(conn);
 	}
 }
 
@@ -76,13 +167,15 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 
 void extract_bufdata(void *ptr, size_t len, size_t off)
 {
-	void *base = twz_object_base(&userver.buffer);
+	struct twix_conn *conn = twz_object_base(&state_object);
+	void *base = twz_object_base(&conn->buffer);
 	memcpy(ptr, (char *)base + off, len);
 }
 
 void write_bufdata(const void *ptr, size_t len, size_t off)
 {
-	void *base = twz_object_base(&userver.buffer);
+	struct twix_conn *conn = twz_object_base(&state_object);
+	void *base = twz_object_base(&conn->buffer);
 	memcpy((char *)base + off, ptr, len);
 }
 
@@ -95,76 +188,17 @@ long get_proc_info(struct proc_info *info)
 	return 0;
 }
 
-#include <signal.h>
-#include <twz/fault.h>
-#define SA_DFL                                                                                     \
-	(struct sigaction)                                                                             \
-	{                                                                                              \
-		.sa_handler = SIG_DFL                                                                      \
-	}
-#define NUM_SIG 64
-struct sigaction _signal_actions[NUM_SIG] = { [0 ...(NUM_SIG - 1)] = SA_DFL };
-
-static void __twix_do_handler(void)
-{
-	struct twix_queue_entry tqe;
-	if(userver.__backup_siginfo.args[1] < 0 || userver.__backup_siginfo.args[1] >= NUM_SIG
-	   || userver.__backup_siginfo.args[1] == 0) {
-		goto inform_done;
-	}
-	struct sigaction *action = &_signal_actions[userver.__backup_siginfo.args[1]];
-
-	if(action->sa_handler == SIG_IGN) {
-		goto inform_done;
-	} else if(action->sa_handler == SIG_DFL) {
-		switch(userver.__backup_siginfo.args[1]) {
-			case SIGCHLD:
-			case SIGURG:
-			case SIGWINCH:
-				break;
-			case SIGCONT:
-				break;
-			case SIGTTIN:
-			case SIGTTOU:
-			case SIGSTOP:
-			case SIGTSTP:
-				tqe = build_tqe(TWIX_CMD_SUSPEND, 0, 0, 1, userver.__backup_siginfo.args[1]);
-				twix_sync_command(&tqe);
-				break;
-			default: {
-				struct twix_queue_entry tqe = build_tqe(TWIX_CMD_EXIT,
-				  0,
-				  0,
-				  2,
-				  userver.__backup_siginfo.args[1],
-				  TWIX_FLAGS_EXIT_THREAD | TWIX_FLAGS_EXIT_SIGNAL);
-				twix_sync_command(&tqe);
-				twz_thread_exit(userver.__backup_siginfo.args[1]);
-			}
-		}
-	} else {
-		action->sa_handler(userver.__backup_siginfo.args[1]);
-	}
-inform_done:
-	tqe = build_tqe(TWIX_CMD_SIGDONE, 0, 0, 1, userver.__backup_siginfo.args[1]);
-	twix_sync_command(&tqe);
-}
-
 void __twix_signal_handler(int fault, void *data, void *userdata)
 {
 	(void)userdata;
 	struct fault_signal_info *info = data;
 	debug_printf("!!!!! SIGNAL HANDLER: %ld\n", info->args[1]);
 
-	userver.__backup_siginfo.args[0] = info->args[0];
-	userver.__backup_siginfo.args[1] = info->args[1];
-	userver.__backup_siginfo.args[2] = info->args[2];
-	userver.__backup_siginfo.args[3] = info->args[3];
+	struct twix_conn *conn = twz_object_base(&state_object);
+	append_signal(conn, info->args);
 
-	if(!userver.siginfo_state) {
-		__twix_do_handler();
-	} else {
-		userver.siginfo_state |= 2;
+	if(conn->block_count == 0) {
+		check_signals(conn);
 	}
 }
 
@@ -186,10 +220,20 @@ void resetup_queue(void)
 
 	twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
-	if(twz_object_init_guid(&userver.cmdqueue, qid, FE_READ | FE_WRITE))
+	objid_t stateid;
+	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE, 0, 0, &stateid)) {
+		abort();
+	}
+
+	twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
+	state_object = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_UNIX));
+
+	struct twix_conn *conn = twz_object_base(&state_object);
+
+	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
 		abort();
 
-	if(twz_object_init_guid(&userver.buffer, bid, FE_READ | FE_WRITE))
+	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
 		abort();
 
 	userver.ok = true;
@@ -211,10 +255,20 @@ static bool setup_queue(void)
 		return false;
 	}
 
-	if(twz_object_init_guid(&userver.cmdqueue, qid, FE_READ | FE_WRITE))
+	objid_t stateid;
+	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE, 0, 0, &stateid)) {
+		return false;
+	}
+
+	twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
+	state_object = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_UNIX));
+
+	struct twix_conn *conn = twz_object_base(&state_object);
+
+	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
 		return false;
 
-	if(twz_object_init_guid(&userver.buffer, bid, FE_READ | FE_WRITE))
+	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
 		return false;
 
 	userver.ok = true;
