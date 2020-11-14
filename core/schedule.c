@@ -333,6 +333,11 @@ struct thread *thread_create(void)
 	struct thread *t = slabcache_alloc(&_sc_thread);
 	// printk("THREAD_CREATE: %ld: %p\n", t->id, t);
 	// krc_init(&t->refs);
+	if(t->pending_fault_info) {
+		kfree(t->pending_fault_info);
+		t->pending_fault_info = NULL;
+	}
+	assert(t->pending_fault_info == NULL);
 	t->priority = 10;
 	spinlock_acquire_save(&allthreads_lock);
 	list_insert(&allthreads, &t->all_entry);
@@ -426,6 +431,12 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	if(!to) {
 		panic("No repr");
 	}
+	if(fault == FAULT_SIGNAL) {
+		struct fault_signal_info *fsi = info;
+		if(fsi->args[0] == -1 && fsi->args[1] == 9) {
+			thread_exit();
+		}
+	}
 	void *handler;
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
 	//__print_fault_info(t, fault, info);
@@ -480,5 +491,6 @@ void thread_queue_fault(struct thread *thr, int fault, void *info, size_t infole
 	thr->pending_fault = fault;
 	thr->pending_fault_infolen = infolen;
 
+	printk("queueing fault\n");
 	spinlock_release_restore(&thr->lock);
 }

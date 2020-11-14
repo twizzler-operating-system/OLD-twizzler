@@ -9,31 +9,41 @@
 
 #include <twz/security.h>
 
+#include <err.h>
+#include <signal.h>
 #include <twz/queue.h>
+#include <unistd.h>
 
 int main()
 {
-	struct secure_api api;
-	if(twz_secure_api_open_name("/dev/unix", &api)) {
-		fprintf(stderr, "couldn't open twix API\n");
-		return 1;
+	fprintf(stderr, "Hello, World!\n");
+
+	int pid;
+	if(!(pid = fork())) {
+		for(;;) {
+			fprintf(stderr, "fork! child\n");
+			for(long i = 0; i < 10000; i++) {
+				__syscall6(0, 0, 0, 0, 0, 0, 0);
+			}
+		}
+		exit(0);
 	}
-	objid_t id = 0, bid;
-	int r = twix_open_queue(&api, 0, &id, &bid);
-	printf("::: %d : " IDFMT "\n", r, IDPR(id));
+	fprintf(stderr, "fork! parent: %d\n", pid);
 
-	// printf("logtest thr id : " IDFMT "\n", IDPR(twz_thread_repr_base()->reprid));
-	twzobj queue;
-	twz_object_init_guid(&queue, id, FE_READ | FE_WRITE);
+	// for(long i = 0; i < 1000000; i++) {
+	//	__syscall6(0, 0, 0, 0, 0, 0, 0);
+	//}
+	fprintf(stderr, "killing %d\n", pid);
+	int r = kill(pid, SIGINT);
+	if(r == -1)
+		err(1, "kill");
 
-	struct twix_queue_entry tqe;
-	tqe.cmd = 1234;
-	for(int i = 0; i < 1000; i++) {
-		queue_submit(&queue, (struct queue_entry *)&tqe, 0);
-		queue_get_finished(&queue, (struct queue_entry *)&tqe, 0);
+	for(long i = 0; i < 1000000; i++) {
+		__syscall6(0, 0, 0, 0, 0, 0, 0);
 	}
-
-	printf("here\n");
+	fprintf(stderr, "resume %d\n", pid);
+	r = kill(pid, SIGCONT);
+	fprintf(stderr, ":: resume: %d\n", r);
 
 	return 0;
 }

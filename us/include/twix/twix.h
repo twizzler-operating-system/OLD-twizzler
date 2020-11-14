@@ -5,6 +5,10 @@
 #include <twz/queue.h>
 #include <twz/security.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define TWIX_GATE_OPEN_QUEUE 1
 static inline int twix_open_queue(struct secure_api *api, int flags, objid_t *_qid, objid_t *_bid)
 {
@@ -24,6 +28,25 @@ struct twix_queue_entry {
 	long arg0, arg1, arg2, arg3, arg4, arg5;
 	long buflen;
 	long ret;
+#if __cplusplus
+	twix_queue_entry(twix_queue_entry &other)
+	{
+		qe.cmd_id = other.qe.cmd_id.load();
+		qe.info = other.qe.info;
+		cmd = other.cmd;
+		flags = other.flags;
+		arg0 = other.arg0;
+		arg1 = other.arg1;
+		arg2 = other.arg2;
+		arg3 = other.arg3;
+		arg4 = other.arg4;
+		arg5 = other.arg5;
+		buflen = other.buflen;
+		ret = other.ret;
+	}
+
+	twix_queue_entry() = default;
+#endif
 };
 
 struct unix_repr {
@@ -40,6 +63,12 @@ struct unix_repr {
 #define TWIX_FLAGS_PIO_WRITE 1
 #define TWIX_FLAGS_PIO_POS 2
 
+#define TWIX_FLAGS_CLONE_PROCESS 1
+
+#define TWIX_FLAGS_EXIT_THREAD 1
+#define TWIX_FLAGS_EXIT_SIGNAL 2
+#define TWIX_FLAGS_EXIT_GROUP 4
+
 enum twix_command {
 	TWIX_CMD_GET_PROC_INFO,
 	TWIX_CMD_REOPEN_V1_FD,
@@ -48,6 +77,16 @@ enum twix_command {
 	TWIX_CMD_FCNTL,
 	TWIX_CMD_STAT,
 	TWIX_CMD_MMAP,
+	TWIX_CMD_EXIT,
+	TWIX_CMD_CLOSE,
+	TWIX_CMD_GETDENTS,
+	TWIX_CMD_READLINK,
+	TWIX_CMD_CLONE,
+	TWIX_CMD_SEND_SIGNAL,
+	TWIX_CMD_WAIT_READY,
+	TWIX_CMD_SIGDONE,
+	TWIX_CMD_SUSPEND,
+	TWIX_CMD_WAIT,
 	NUM_TWIX_COMMANDS,
 };
 
@@ -57,3 +96,7 @@ struct proc_info {
 	int uid;
 	int gid;
 };
+
+#ifdef __cplusplus
+}
+#endif

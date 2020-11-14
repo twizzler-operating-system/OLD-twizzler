@@ -4,7 +4,7 @@
 
 typedef unsigned __int128 objid_t;
 
-#define MKID(hi, lo) ({ (((objid_t)(hi)) << 64) | (objid_t)(lo); })
+#define MKID(hi, lo) ({ (((objid_t)((uint64_t)(hi))) << 64) | (objid_t)((uint64_t)(lo)); })
 
 #define ID_LO(id) ({ (uint64_t) id; })
 #define ID_HI(id) ({ (uint64_t)(id >> 64); })

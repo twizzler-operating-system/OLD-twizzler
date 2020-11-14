@@ -1,10 +1,10 @@
-UNIX_SRCS=$(addprefix us/bin/unix/,unix.cpp cmd.cpp state.cpp files.cpp mmap.cpp)
+UNIX_SRCS=$(addprefix us/bin/unix/,unix.cpp cmd.cpp state.cpp files.cpp mmap.cpp dir.cpp clone.cpp)
 UNIX_OBJS=$(addprefix $(BUILDDIR)/,$(UNIX_SRCS:.cpp=.o))
 
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 #NETWORK_CFLAGS=-DLOOPBACK_TESTING
 
-UNIX_LIBS=-ltwzsec -ltommath -ltomcrypt
+UNIX_LIBS=-ltwzsec -ltommath -ltomcrypt -lubsan
 
 $(BUILDDIR)/us/sysroot/usr/bin/unix: $(UNIX_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
 	@mkdir -p $(dir $@)
@@ -14,7 +14,7 @@ $(BUILDDIR)/us/sysroot/usr/bin/unix: $(UNIX_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(
 $(BUILDDIR)/us/bin/unix/%.o: us/bin/unix/%.cpp $(MUSL_HDRS)
 	@mkdir -p $(dir $@)
 	@echo "[CC]	$@"
-	@$(TWZCXX) $(TWZCFLAGS) $(UNIX_CFLAGS) -std=gnu++17 -o $@ -c -MD $< -Ius/include
+	@$(TWZCXX) $(TWZCFLAGS) $(UNIX_CFLAGS) -std=gnu++17 -o $@ -c -MD $< -Ius/include -fsanitize=undefined -fno-omit-frame-pointer -g -Og
 
 -include $(UNIX_OBJS:.o=.d)
 

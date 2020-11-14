@@ -7,6 +7,10 @@
 #include <twz/_objid.h>
 #include <twz/_types.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum name_ent_type {
 	NAME_ENT_REGULAR,
 	NAME_ENT_NAMESPACE,
@@ -46,3 +50,7 @@ int twz_hier_namespace_new(twzobj *ns, twzobj *parent, const char *name, uint64_
 ssize_t twz_hier_get_entry(twzobj *ns, size_t pos, struct twz_name_ent **ent);
 int twz_hier_readlink(twzobj *ns, const char *path, char *buf, size_t bufsz);
 int twz_hier_remove_name(twzobj *ns, const char *name);
+
+#ifdef __cplusplus
+}
+#endif

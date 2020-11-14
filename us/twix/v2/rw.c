@@ -40,12 +40,13 @@ HOOK5(sys_preadv2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off, 
 		count = OBJ_TOPDATA;
 
 	struct twix_queue_entry tqe =
-	  build_tqe(TWIX_CMD_PIO, 0, count, fd, off, flags, (off < 0) ? TWIX_FLAGS_PIO_POS : 0);
+	  build_tqe(TWIX_CMD_PIO, 0, count, 4, fd, off, flags, (off < 0) ? TWIX_FLAGS_PIO_POS : 0);
 	twix_sync_command(&tqe);
 	if(tqe.ret <= 0) {
 		return tqe.ret;
 	}
 	count = 0;
+	/* TODO: limit result */
 	for(int i = 0; i < iovcnt; i++) {
 		size_t thisiov_len = iov[i].iov_len;
 		if(count + thisiov_len > (size_t)tqe.ret) {
@@ -55,6 +56,7 @@ HOOK5(sys_preadv2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off, 
 			}
 		}
 		extract_bufdata(iov[i].iov_base, thisiov_len, count);
+		count += thisiov_len;
 	}
 
 	return tqe.ret;
@@ -96,11 +98,13 @@ HOOK5(sys_pwritev2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off,
 			}
 		}
 		write_bufdata(iov[i].iov_base, thisiov_len, count);
+		count += thisiov_len;
 	}
 
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_PIO,
 	  0,
 	  count,
+	  4,
 	  fd,
 	  off,
 	  flags,
@@ -137,7 +141,7 @@ long hook_sys_fcntl(struct syscall_args *args)
 	int cmd = args->a1;
 	int arg = args->a2;
 
-	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_FCNTL, 0, 0, fd, cmd, arg);
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_FCNTL, 0, 0, 3, fd, cmd, arg);
 	twix_sync_command(&tqe);
 	return tqe.ret;
 }
@@ -150,7 +154,7 @@ static long twix_sys_fstatat(int fd, const char *path, struct stat *st, int flag
 	if(path) {
 		write_bufdata(path, buflen, 0);
 	}
-	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_STAT, 0, buflen, fd, flag);
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_STAT, 0, buflen, 2, fd, flag);
 	twix_sync_command(&tqe);
 	extract_bufdata(st, sizeof(*st), buflen);
 	return tqe.ret;

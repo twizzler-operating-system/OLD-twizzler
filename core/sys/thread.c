@@ -226,3 +226,26 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 
 	return 0;
 }
+
+long syscall_signal(uint64_t tidlo, uint64_t tidhi, long arg0, long arg1, long arg2, long arg3)
+{
+	objid_t tid = MKID(tidhi, tidlo);
+	struct object *repr = obj_lookup(tid, 0);
+
+	if(!repr) {
+		return -ENOENT;
+	}
+
+	if(repr->kso_type != KSO_THREAD) {
+		obj_put(repr);
+		return -EINVAL;
+	}
+
+	struct thread *thread = repr->thr.thread;
+	struct fault_signal_info info = { { arg0, arg1, arg2, arg3 } };
+	/* TODO: locking */
+	thread_queue_fault(thread, FAULT_SIGNAL, &info, sizeof(info));
+	obj_put(repr);
+
+	return 0;
+}

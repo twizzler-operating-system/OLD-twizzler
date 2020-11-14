@@ -37,6 +37,7 @@
 #define LINUX_SYS_execve 59
 #define LINUX_SYS_exit 60
 #define LINUX_SYS_wait4 61
+#define LINUX_SYS_kill 62
 
 #define LINUX_SYS_uname 63
 
@@ -75,7 +76,7 @@
 #define LINUX_SYS_exit_group 231
 
 #define LINUX_SYS_fstatat 262
-
+#define LINUX_SYS_readlinkat 267
 #define LINUX_SYS_faccessat 269
 #define LINUX_SYS_pselect6 270
 

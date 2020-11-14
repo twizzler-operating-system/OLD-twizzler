@@ -10,8 +10,13 @@ enum {
 	FAULT_FAULT,
 	FAULT_PAGE,
 	FAULT_PPTR,
+	FAULT_SIGNAL,
 	NUM_FAULTS,
 };
+
+struct fault_signal_info {
+	long args[4];
+} __attribute__((packed));
 
 struct faultinfo {
 	objid_t view;

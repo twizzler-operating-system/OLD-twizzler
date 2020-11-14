@@ -63,6 +63,7 @@ long (*syscall_table[NUM_SYSCALLS])() = {
 	[SYS_OCOPY] = syscall_ocopy,
 	[SYS_KQUEUE] = syscall_kqueue,
 	[SYS_OSTAT] = syscall_ostat,
+	[SYS_SIGNAL] = syscall_signal,
 };
 
 long syscall_prelude(int num)
