@@ -9,12 +9,12 @@
 void eth_tx(const char* interface_name,
             mac_addr_t dst_mac,
             uint16_t eth_type,
-            void *pkt_ptr,
-            int pkt_size)
+            void* eth_pkt_ptr,
+            uint16_t eth_pkt_size)
 {
     interface_t* interface = get_interface_by_name(interface_name);
 
-    eth_hdr_t* eth_hdr = (eth_hdr_t *)pkt_ptr;
+    eth_hdr_t* eth_hdr = (eth_hdr_t *)eth_pkt_ptr;
 
     /* source MAC */
     memcpy(eth_hdr->src_mac.mac, interface->mac.mac, MAC_ADDR_SIZE);
@@ -28,16 +28,16 @@ void eth_tx(const char* interface_name,
     /* create a pointer to the packet */
     struct packet_queue_entry pqe;
     pqe.qe.info = get_id();
-    pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, pkt_ptr, FE_READ);
-    pqe.len = pkt_size;
+    pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, eth_pkt_ptr, FE_READ);
+    pqe.len = eth_pkt_size;
 
     /* enqueue packet (pointer) to primary tx queue */
     queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
     /* for debugging */
     //fprintf(stderr, "[debug] Tx ETH Frame: ");
-    //for (int i = 0; i < pkt_size; ++i) {
-    //    fprintf(stderr, "%02X ", *((uint8_t *)pkt_ptr + i));
+    //for (uint16_t i = 0; i < eth_pkt_size; ++i) {
+    //    fprintf(stderr, "%02X ", *((uint8_t *)eth_pkt_ptr + i));
     //}
     //fprintf(stderr, "\n");
 }
@@ -48,7 +48,7 @@ void eth_rx(const char* interface_name)
     interface_t* interface = get_interface_by_name(interface_name);
     twzobj* rx_queue_obj = &interface->rx_queue_obj;
 
-    fprintf(stderr, "Started the packet receive thread for interface %s\n",
+    fprintf(stderr, "Started packet receive thread for interface %s\n",
             interface_name);
 
     while (true) {
@@ -65,10 +65,10 @@ void eth_rx(const char* interface_name)
         ph += 1;
 
         /* decapsulate then send to higher layers */
-        eth_hdr_t* pkt_ptr = (eth_hdr_t *)ph;
-        mac_addr_t src_mac = pkt_ptr->src_mac;
-        mac_addr_t dst_mac = pkt_ptr->dst_mac;
-        uint16_t eth_type = ntohs(pkt_ptr->type);
+        eth_hdr_t* eth_pkt_ptr = (eth_hdr_t *)ph;
+        mac_addr_t src_mac = eth_pkt_ptr->src_mac;
+        mac_addr_t dst_mac = eth_pkt_ptr->dst_mac;
+        uint16_t eth_type = ntohs(eth_pkt_ptr->type);
 
         if (!compare_mac_addr(dst_mac, interface->mac)) {
             fprintf(stderr, "eth_rx: wrong destination; packet dropped (");
@@ -81,7 +81,7 @@ void eth_rx(const char* interface_name)
             fprintf(stderr, "TYPE: 0x%04X)\n", eth_type);
 
         } else {
-            char* payload = (char *)pkt_ptr;
+            char* payload = (char *)eth_pkt_ptr;
             payload += ETH_HDR_SIZE;
 
             remote_info_t remote_info;

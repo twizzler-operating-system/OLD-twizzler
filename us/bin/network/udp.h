@@ -14,11 +14,11 @@ typedef struct __attribute__((__packed__)) udp_hdr {
 
 void udp_tx(uint16_t src_port,
             uint16_t dst_port,
-            void* pkt_ptr,
-            int pkt_size);
+            void* udp_pkt_ptr,
+            uint16_t udp_pkt_size);
 
 void udp_rx(const char* interface_name,
             remote_info_t* remote_info,
-            void* pkt_ptr);
+            void* udp_pkt_ptr);
 
 #endif

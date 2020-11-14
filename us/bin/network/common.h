@@ -3,8 +3,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>
+#include <assert.h>
+#include <pthread.h>
+
 #include <iostream>
 #include <vector>
 #include <map>
@@ -17,12 +22,20 @@
 #include <twz/driver/nic.h>
 #include <twz/driver/queue.h>
 
-#define LITTLEENDIAN 1
-#define BIGENDIAN 2
+typedef enum {
+    LITTLEENDIAN,
+    BIGENDIAN
+} endianess_t;
 
+#define MAX_INTERFACE_NAME_SIZE 248
 #define MAC_ADDR_SIZE 6 //bytes
 #define IP_ADDR_SIZE 4 //bytes
 #define OBJECT_ID_SIZE 16 //bytes
+
+//error codes
+#define EMAXFRAMESIZE 1
+#define EARPFAILED 2
+#define ETCPCONNFAILED 3
 
 typedef struct __attribute__((__packed__)) mac_addr {
     uint8_t mac[MAC_ADDR_SIZE];
@@ -42,9 +55,10 @@ typedef struct remote_info {
     uint8_t twz_op;
     ip_addr_t remote_ip;
     uint16_t remote_port;
+    uint16_t ip_payload_size;
 } remote_info_t;
 
-uint8_t check_machine_endianess();
+endianess_t check_machine_endianess();
 
 uint32_t ntohl(uint32_t n);
 
@@ -66,11 +80,11 @@ mac_addr_t string_to_mac_addr(char* mac_addr);
 ip_addr_t string_to_ip_addr(char* ip_addr);
 
 uint16_t checksum(unsigned char* data,
-                  int8_t len);
+                  uint16_t len);
 
 uint64_t get_id();
 
-void* allocate_packet_buffer_object(int pkt_size);
+void* allocate_packet_buffer_object(uint16_t pkt_size);
 
 void free_packet_buffer_object(twzobj* queue_obj);
 

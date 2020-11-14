@@ -21,8 +21,8 @@ typedef struct __attribute__((__packed__)) eth_hdr {
 void eth_tx(const char* interface_name,
             mac_addr_t dst_mac,
             uint16_t eth_type,
-            void *pkt_ptr,
-            int pkt_size);
+            void* eth_pkt_ptr,
+            uint16_t eth_pkt_size);
 
 void eth_rx(const char* interface_name);
 

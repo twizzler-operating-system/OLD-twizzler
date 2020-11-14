@@ -3,8 +3,6 @@
 
 #include "common.h"
 
-#define MAX_INTERFACE_NAME_SIZE 248
-
 typedef struct interface {
     char name[MAX_INTERFACE_NAME_SIZE];
     mac_addr_t mac;
@@ -20,5 +18,7 @@ void init_interface(const char* interface_name,
                     ip_addr_t interface_bcast_ip);
 
 interface_t* get_interface_by_name(const char* interface_name);
+
+void bind_to_ip(ip_addr_t ip);
 
 #endif

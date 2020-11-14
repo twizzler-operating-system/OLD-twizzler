@@ -77,8 +77,8 @@ void init_interface(const char* interface_name,
     }
     /* initialize ARP table */
     uint8_t bcast_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    arp_table_insert(interface->bcast_ip.ip, bcast_mac);
-    arp_table_insert(interface->ip.ip, interface->mac.mac);
+    arp_table_put(interface->bcast_ip.ip, bcast_mac);
+    arp_table_put(interface->ip.ip, interface->mac.mac);
 
     /* add new interface to interface list */
     interface_list.insert(std::make_pair(interface_name, interface));
@@ -89,12 +89,40 @@ interface_t* get_interface_by_name(const char* interface_name)
 {
     std::map<const char*,interface_t*>::iterator it;
 
-    it = interface_list.find(interface_name);
-    if (it == interface_list.end()) {
-        fprintf(stderr, "Error get_interface_by_name: interface %s not exist\n",
-                interface_name);
-        exit(1);
+    for (it = interface_list.begin(); it != interface_list.end(); ++it) {
+        if (!strcmp(it->first, interface_name)) {
+            return it->second;
+        }
     }
 
-    return it->second;
+    fprintf(stderr, "Error get_interface_by_name: interface %s not exist\n",
+            interface_name);
+    exit(1);
 }
+
+
+void bind_to_ip(ip_addr_t ip)
+{
+    std::map<const char*,interface_t*>::iterator it;
+
+    uint16_t sum = 0;
+    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+        sum += ip.ip[i];
+    }
+
+    if (sum != 0) {
+        for (it = interface_list.begin(); it != interface_list.end(); ++it) {
+            interface_t* interface = it->second;
+            int count = 0;
+            for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+                if (interface->ip.ip[i] == ip.ip[i]) ++count;
+                else break;
+            }
+            if (count == IP_ADDR_SIZE) return;
+        }
+        fprintf(stderr, "Error bind_to_ip: ip address does not exist\n");
+        exit(1);
+    }
+}
+
+

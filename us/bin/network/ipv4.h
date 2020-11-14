@@ -23,14 +23,32 @@ typedef struct __attribute__((__packed__)) ip_hdr {
     ip_addr_t dst_ip;
 } ip_hdr_t;
 
+typedef struct ip_table_entry {
+    ip_addr_t dst_ip;
+    ip_addr_t netmask;
+    ip_addr_t gateway;
+    char tx_interface_name[MAX_INTERFACE_NAME_SIZE];
+} ip_table_entry_t;
+
+void ip_table_put(ip_table_entry_t entry);
+
+void ip_table_get(ip_addr_t dst_ip,
+                  char* tx_interface_name);
+
+void ip_table_delete(ip_table_entry_t entry);
+
+void ip_table_view();
+
+void ip_table_clear();
+
 void ip_tx(const char* interface_name,
            ip_addr_t dst_ip,
            uint8_t ip_type,
-           void* pkt_ptr,
-           int pkt_size);
+           void* ip_pkt_ptr,
+           uint16_t ip_pkt_size);
 
 void ip_rx(const char* interface_name,
            remote_info_t* remote_info,
-           void* pkt_ptr);
+           void* ip_pkt_ptr);
 
 #endif

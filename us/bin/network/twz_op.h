@@ -16,16 +16,6 @@
 #define EINVALID_TWZ_OP 11
 #define EINVALID_RESOURCE_DISCOVERY_PROTOCOL 12
 
-int twz_op_send(const char* interface_name,
-                object_id_t object_id,
-                uint8_t twz_op,
-                char* data,
-                uint8_t resource_discovery_protocol);
-
-void twz_op_recv(const char* interface_name,
-                 remote_info_t* remote_info,
-                 char* payload);
-
 void obj_mapping_insert(uint8_t* object_id,
                         uint8_t* mac_addr);
 
@@ -39,5 +29,16 @@ void obj_mapping_clear();
 
 bool object_exists_locally(const char* interface_name,
                            object_id_t object_id);
+
+int twz_op_send(const char* interface_name,
+                object_id_t object_id,
+                uint8_t twz_op,
+                char* data,
+                uint16_t data_size,
+                uint8_t resource_discovery_protocol);
+
+void twz_op_recv(const char* interface_name,
+                 remote_info_t* remote_info,
+                 char* payload);
 
 #endif

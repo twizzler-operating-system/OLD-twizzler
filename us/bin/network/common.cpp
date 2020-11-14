@@ -6,7 +6,7 @@ static uint64_t id_counter = 0;
 static std::mutex mtx;
 
 
-uint8_t check_machine_endianess()
+endianess_t check_machine_endianess()
 {
     int32_t n = 1;
     if (*(char *)&n == 1) {
@@ -166,7 +166,7 @@ ip_addr_t string_to_ip_addr(char* ip_addr)
 
 
 uint16_t checksum(unsigned char* data,
-                  int8_t len)
+                  uint16_t len)
 {
     uint32_t sum = 0;
     int i = 0;
@@ -198,7 +198,7 @@ uint64_t get_id()
 }
 
 
-void* allocate_packet_buffer_object(int pkt_size)
+void* allocate_packet_buffer_object(uint16_t pkt_size)
 {
     twzobj pkt_buffer_obj;
     if (twz_object_new(&pkt_buffer_obj, NULL, NULL,
