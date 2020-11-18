@@ -32,7 +32,8 @@ class handler
   public:
 	handler()
 	{
-		int r = twz_object_new(&client_add_queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+		int r = twz_object_new(
+		  &client_add_queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE);
 		if(r)
 			throw(r);
 		r = queue_init_hdr(&client_add_queue,
@@ -226,24 +227,49 @@ static std::mutex handlers_lock;
 
 int net_client::init_objects()
 {
+	/* TODO: failure cleanup; tie to view (?) */
 	int r;
-	if((r = twz_object_new(
-	      &txq_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))) {
+	if((r = twz_object_new(&txq_obj,
+	      NULL,
+	      NULL,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
-	if((r = twz_object_new(
-	      &txbuf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))) {
+	if((r = twz_object_new(&txbuf_obj,
+	      NULL,
+	      NULL,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
-	if((r = twz_object_new(
-	      &rxq_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))) {
+	if((r = twz_object_new(&rxq_obj,
+	      NULL,
+	      NULL,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
-	if((r = twz_object_new(
-	      &rxbuf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))) {
+	if((r = twz_object_new(&rxbuf_obj,
+	      NULL,
+	      NULL,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
+		return r;
+	}
+
+	if((r = queue_init_hdr(&txq_obj,
+	      12,
+	      sizeof(struct nstack_queue_entry),
+	      12,
+	      sizeof(struct nstack_queue_entry)))) {
+		return r;
+	}
+
+	if((r = queue_init_hdr(&rxq_obj,
+	      12,
+	      sizeof(struct nstack_queue_entry),
+	      12,
+	      sizeof(struct nstack_queue_entry)))) {
 		return r;
 	}
 
@@ -256,10 +282,7 @@ DECLARE_SAPI_ENTRY(open_client,
   int,
   int flags,
   const char *name,
-  objid_t *txq_id,
-  objid_t *txbuf_id,
-  objid_t *rxq_id,
-  objid_t *rxbuf_id)
+  struct nstack_open_ret *ret)
 {
 	(void)flags;
 	std::shared_ptr<net_client> client = std::make_shared<net_client>(flags, name);
@@ -281,10 +304,10 @@ DECLARE_SAPI_ENTRY(open_client,
 		handler *handler = handlers[0]; // TODO: maybe we can have more than 1 handler?
 		handler->add_client(client);
 	}
-	*txq_id = twz_object_guid(&client->txq_obj);
-	*rxq_id = twz_object_guid(&client->rxq_obj);
-	*txbuf_id = twz_object_guid(&client->txbuf_obj);
-	*rxbuf_id = twz_object_guid(&client->rxbuf_obj);
+	ret->txq_id = twz_object_guid(&client->txq_obj);
+	ret->rxq_id = twz_object_guid(&client->rxq_obj);
+	ret->txbuf_id = twz_object_guid(&client->txbuf_obj);
+	ret->rxbuf_id = twz_object_guid(&client->rxbuf_obj);
 	return 0;
 }
 }

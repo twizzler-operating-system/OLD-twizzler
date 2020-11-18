@@ -10,8 +10,8 @@ extern "C" {
 
 /* TODO: figure out how we want to represent an address */
 struct netaddr {
-	int type;
-	char addr[32];
+	uint32_t type;
+	char addr[28];
 };
 
 enum {
@@ -40,7 +40,7 @@ struct nstack_queue_entry {
 		int64_t ret;
 		int64_t args[4];
 		/* optional address */
-		struct netaddr addr;
+		// struct netaddr addr;
 	};
 
 	/* a persistent pointer to the packet data. */
@@ -51,27 +51,23 @@ struct nstack_queue_entry {
 	uint32_t _resv;
 };
 
+struct nstack_open_ret {
+	objid_t txq_id, rxq_id;
+	objid_t txbuf_id, rxbuf_id;
+};
+
 /* Clients can call this, and it will jump to the networking stack and perform the client setup */
 static inline int nstack_open_client(struct secure_api *api,
   int flags,
   const char *_name,
-  objid_t *_txq,
-  objid_t *_txbuf,
-  objid_t *_rxq,
-  objid_t *_rxbuf)
+  struct nstack_open_ret *_ret)
 {
 	size_t ctx = 0;
-	void *tqid = twz_secure_api_alloc_stackarg(sizeof(*_txq), &ctx);
-	void *rqid = twz_secure_api_alloc_stackarg(sizeof(*_rxq), &ctx);
-	void *tbid = twz_secure_api_alloc_stackarg(sizeof(*_txbuf), &ctx);
-	void *rbid = twz_secure_api_alloc_stackarg(sizeof(*_rxbuf), &ctx);
+	void *ret = twz_secure_api_alloc_stackarg(sizeof(struct nstack_open_ret), &ctx);
 	char *name = (char *)twz_secure_api_alloc_stackarg(strlen(_name) + 1, &ctx);
-	int r =
-	  twz_secure_api_call6(api->hdr, NSTACK_GATE_OPEN_CLIENT, flags, name, tqid, tbid, rqid, rbid);
-	*_txq = *(objid_t *)tqid;
-	*_txbuf = *(objid_t *)tbid;
-	*_rxq = *(objid_t *)rqid;
-	*_rxbuf = *(objid_t *)rbid;
+	strcpy(name, _name);
+	int r = twz_secure_api_call3(api->hdr, NSTACK_GATE_OPEN_CLIENT, flags, name, ret);
+	*_ret = *(struct nstack_open_ret *)ret;
 	return r;
 }
 
