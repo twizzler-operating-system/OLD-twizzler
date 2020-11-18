@@ -30,6 +30,7 @@ void eth_tx(const char* interface_name,
     pqe.qe.info = get_id();
     pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, eth_pkt_ptr, FE_READ);
     pqe.len = eth_pkt_size;
+	pqe.flags = PACKET_FLAGS_EOP;
 
     /* enqueue packet (pointer) to primary tx queue */
     queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
