@@ -1,10 +1,12 @@
-PLAYGROUND_PROGS=example queue net logtest ut
+PLAYGROUND_PROGS=example queue net logtest ut netapi
 
 PLAYGROUND_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 
 PLAYGROUND_CFLAGS=-g -fno-omit-frame-pointer -O3 -Ius/include
 
 LIBS_logtest=-ltwzsec -ltomcrypt -ltommath
+
+LIBS_netapi=-ltwznet
 
 $(BUILDDIR)/us/sysroot/usr/bin/%: $(BUILDDIR)/us/playground/%.o $(SYSROOT_READY) $(SYSLIBS) $(UTILS) $(ALL_EXTRAS)
 	@echo "[LD]      $@"
