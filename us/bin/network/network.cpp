@@ -8,6 +8,7 @@
 #include "char_ring_buffer.h"
 #include "tcp_conn.h"
 #include "twz_op.h"
+#include "client.h"
 
 int main(int argc, char* argv[])
 {
@@ -23,6 +24,8 @@ int main(int argc, char* argv[])
                 "<program_name> <args>\n");
         exit(1);
     }
+
+	client_handlers_init();
 
     /* initialize a new network interface */
     init_interface("/dev/e1000", "/dev/e1000-info",
