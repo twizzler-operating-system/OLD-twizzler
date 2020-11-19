@@ -4,7 +4,7 @@ NETWORK_OBJS=$(addprefix $(BUILDDIR)/,$(NETWORK_SRCS:.cpp=.o))
 #NETWORK_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 #NETWORK_CFLAGS=-DLOOPBACK_TESTING
 
-NETWORK_LIBS=-ltwzsec -ltommath -ltomcrypt
+NETWORK_LIBS=-ltwzsec -ltommath -ltomcrypt  
 
 $(BUILDDIR)/us/sysroot/usr/bin/network: $(NETWORK_OBJS) $(SYSROOT_READY) $(SYSLIBS) $(UTILS)
 	@mkdir -p $(dir $@)

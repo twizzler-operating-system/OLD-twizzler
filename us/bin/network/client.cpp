@@ -23,7 +23,6 @@
 struct handler_queue_entry {
 	struct queue_entry qe;
 	int cmd;
-	std::shared_ptr<net_client> client;
 	size_t client_idx;
 };
 
@@ -32,8 +31,10 @@ class handler
   public:
 	handler()
 	{
-		int r = twz_object_new(
-		  &client_add_queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE);
+		int r = twz_object_new(&client_add_queue,
+		  NULL,
+		  NULL,
+		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE);
 		if(r)
 			throw(r);
 		r = queue_init_hdr(&client_add_queue,
@@ -51,15 +52,18 @@ class handler
 
 	void add_client(std::shared_ptr<net_client> client)
 	{
+		fprintf(stderr, "adding client : %p\n", client.get());
 		struct handler_queue_entry subhqe;
-		subhqe.client = client;
 		subhqe.cmd = HANDLER_QUEUE_ADD_CLIENT;
+		std::lock_guard<std::mutex> _lg(lock);
+		adding_clients.push_back(client);
 		queue_submit(&client_add_queue, (struct queue_entry *)&subhqe, 0);
 	}
 
   private:
 	twzobj client_add_queue;
 	std::vector<std::shared_ptr<net_client>> clients;
+	std::vector<std::shared_ptr<net_client>> adding_clients;
 	std::thread thread, cleanup_thread;
 	std::mutex lock;
 	std::condition_variable cv;
@@ -134,7 +138,7 @@ class handler
 	void qspec_build()
 	{
 		std::lock_guard<std::mutex> _lg(lock);
-		size_t needed = clients.size() + 1;
+		size_t needed = clients.size() * 2 + 1;
 		if(needed > qspec_len || !qspec || !nqe) {
 			if(qspec) {
 				delete[] qspec;
@@ -151,9 +155,15 @@ class handler
 
 		size_t i = 1;
 		for(auto client : clients) {
+			/* odd indicies are tx, even are rx */
 			qspec[i].obj = &client->txq_obj;
 			qspec[i].result = (struct queue_entry *)&nqe[i - 1];
 			qspec[i].sq = SUBQUEUE_SUBM;
+			i++;
+
+			qspec[i].obj = &client->rxq_obj;
+			qspec[i].result = (struct queue_entry *)&nqe[i - 1];
+			qspec[i].sq = SUBQUEUE_CMPL;
 			i++;
 		}
 		qspec_len = needed;
@@ -161,11 +171,17 @@ class handler
 
 	void handle_client(std::shared_ptr<net_client> client,
 	  struct nstack_queue_entry *nqe,
-	  bool drain)
+	  bool drain,
+	  bool is_incoming)
 	{
-		if(handle_command(client, nqe) && !drain) {
-			/* TODO: make this non-blocking, and handle the case where it wants to block */
-			queue_complete(&client->txq_obj, (struct queue_entry *)nqe, 0);
+		if(is_incoming) {
+			if(handle_command(client, nqe) && !drain) {
+				/* TODO: make this non-blocking, and handle the case where it wants to block */
+				queue_complete(&client->txq_obj, (struct queue_entry *)nqe, 0);
+			}
+		} else {
+			/* got a completion for one of our commands */
+			handle_completion(client, nqe);
 		}
 	}
 
@@ -174,9 +190,12 @@ class handler
 		switch(hqe->cmd) {
 			case HANDLER_QUEUE_ADD_CLIENT: {
 				std::lock_guard<std::mutex> _lg(lock);
-				clients.push_back(hqe->client);
+				for(auto client : adding_clients) {
+					fprintf(stderr, "added client: %s\n", client->name.c_str());
+					clients.push_back(client);
+				}
+				adding_clients.clear();
 				cv.notify_all();
-				fprintf(stderr, "added client: %s\n", hqe->client->name.c_str());
 			} break;
 			case HANDLER_QUEUE_DEL_CLIENT: {
 				std::shared_ptr<net_client> client;
@@ -190,7 +209,12 @@ class handler
 				struct nstack_queue_entry nqe;
 				while(queue_receive(&client->txq_obj, (struct queue_entry *)&nqe, QUEUE_NONBLOCK)
 				      == 0) {
-					handle_client(client, &nqe, true);
+					handle_client(client, &nqe, true, true);
+				}
+				while(
+				  queue_get_finished(&client->rxq_obj, (struct queue_entry *)&nqe, QUEUE_NONBLOCK)
+				  == 0) {
+					handle_client(client, &nqe, true, false);
 				}
 				fprintf(stderr, "removed client: %s\n", client->name.c_str());
 			} break;
@@ -207,12 +231,17 @@ class handler
 			for(size_t i = 1; i < qspec_len; i++) {
 				if(qspec[i].ret != 0) {
 					/* got a message */
+					size_t client_idx = (i - 1) / 2;
+					bool is_tx = !!(i % 2);
+					//	fprintf(stderr, "got a message on queue %ld: %ld %d\n", i, client_idx,
+					// is_tx);
 					std::shared_ptr<net_client> client;
 					{
 						std::lock_guard<std::mutex> _lg(lock);
-						client = clients[i - 1];
+						client = clients[client_idx];
 					}
-					handle_client(client, (struct nstack_queue_entry *)qspec[i].result, false);
+					handle_client(
+					  client, (struct nstack_queue_entry *)qspec[i].result, false, is_tx);
 				}
 			}
 			if(qspec[0].ret != 0) {
@@ -286,6 +315,7 @@ DECLARE_SAPI_ENTRY(open_client,
 {
 	(void)flags;
 	std::shared_ptr<net_client> client = std::make_shared<net_client>(flags, name);
+	fprintf(stderr, "open client : %p\n", client.get());
 	int r = twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
 	if(r) {
 		return r;
@@ -299,15 +329,15 @@ DECLARE_SAPI_ENTRY(open_client,
 		return r;
 	}
 
+	ret->txq_id = twz_object_guid(&client->txq_obj);
+	ret->rxq_id = twz_object_guid(&client->rxq_obj);
+	ret->txbuf_id = twz_object_guid(&client->txbuf_obj);
+	ret->rxbuf_id = twz_object_guid(&client->rxbuf_obj);
 	{
 		std::lock_guard<std::mutex> _lg(handlers_lock);
 		handler *handler = handlers[0]; // TODO: maybe we can have more than 1 handler?
 		handler->add_client(client);
 	}
-	ret->txq_id = twz_object_guid(&client->txq_obj);
-	ret->rxq_id = twz_object_guid(&client->rxq_obj);
-	ret->txbuf_id = twz_object_guid(&client->txbuf_obj);
-	ret->rxbuf_id = twz_object_guid(&client->rxbuf_obj);
 	return 0;
 }
 }

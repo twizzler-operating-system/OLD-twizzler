@@ -1,5 +1,6 @@
 #pragma once
 
+#include <twz/gate.h>
 #include <twz/queue.h>
 
 #define NSTACK_GATE_OPEN_CLIENT 1
@@ -40,7 +41,7 @@ struct nstack_queue_entry {
 		int64_t ret;
 		int64_t args[4];
 		/* optional address */
-		// struct netaddr addr;
+		struct netaddr addr;
 	};
 
 	/* a persistent pointer to the packet data. */
