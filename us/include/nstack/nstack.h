@@ -17,8 +17,10 @@ struct netaddr {
 
 enum {
 	/* these are commands that the client can send to the networking stack */
-	NSTACK_CMD_CONNECT,
-	NSTACK_CMD_BIND,
+	NSTACK_CMD_CONNECT, /* create a persistent connection, connecting to an end point */
+	NSTACK_CMD_BIND,    /* create a persistent accepting connection */
+	NSTACK_CMD_ACCEPT,  /* accept a new connection on a persistent accepting connection, creating a
+	                       new persistent connection */
 	NSTACK_CMD_SEND,
 	NSTACK_CMD_PUSH,
 
@@ -32,9 +34,14 @@ struct nstack_queue_entry {
 	 * completion) */
 	struct queue_entry qe;
 	/* the command is filled from the enum above */
-	uint32_t cmd;
+	uint16_t cmd;
 	/* flags contain any flags that modify the operation of the command */
-	uint32_t flags;
+	uint16_t flags;
+	/* the networking stack will maintain a set of persistent connections, and this ID will specify
+	 * which one is it. The NSTACK_CMD_CONNECT, NSTACK_CMD_BIND, and NSTACK_CMD_ACCEPT commands
+	 * return persistent connection IDs. */
+	uint16_t connid;
+	uint16_t _resv16;
 	union {
 		/* optional larger arguments, including return value (filled out for completion). We might
 		 * consider having a simpler completion structure that just contains qe and ret. */
