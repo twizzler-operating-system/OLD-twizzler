@@ -9,11 +9,7 @@
 extern "C" {
 #endif
 
-/* TODO: figure out how we want to represent an address */
-struct netaddr {
-	uint32_t type;
-	char addr[28];
-};
+#include <nstack/_types.h>
 
 enum {
 	/* these are commands that the client can send to the networking stack */

@@ -3,12 +3,23 @@
 #include <twz/gate.h>
 #include <twz/obj.h>
 
+#include <nstack/net.h>
 #include <nstack/nstack.h>
 
 int main()
 {
 	printf("Hello, World!\n");
 
+	struct netmgr *mgr = netmgr_create("test-program", 0);
+
+	for(int i = 0; i < 1000; i++) {
+		netmgr_echo(mgr);
+	}
+	netmgr_wait_all_tx_complete(mgr);
+
+	netmgr_destroy(mgr);
+
+#if 0
 	struct secure_api api;
 	if(twz_secure_api_open_name("/dev/nstack", &api)) {
 		fprintf(stderr, "couldn't open network stack API\n");
@@ -45,4 +56,5 @@ int main()
 	fprintf(stderr, "got %d; sending completion\n", nqe.qe.info);
 	queue_complete(&rxq_obj, (struct queue_entry *)&nqe, 0);
 	fprintf(stderr, "client done!\n");
+#endif
 }
