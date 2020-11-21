@@ -12,11 +12,25 @@ int main()
 
 	struct netmgr *mgr = netmgr_create("test-program", 0);
 
+	/*
 	for(int i = 0; i < 1000; i++) {
-		netmgr_echo(mgr);
+	    netmgr_echo(mgr);
 	}
 	netmgr_wait_all_tx_complete(mgr);
+	*/
 
+	pbuf_init(&mgr->txbuf_obj, 5000);
+
+	struct pbuf *pb1 = pbuf_alloc(&mgr->txbuf_obj);
+	printf("%p\n", pb1);
+
+	struct pbuf *pb2 = pbuf_alloc(&mgr->txbuf_obj);
+	printf("%p\n", pb2);
+
+	pbuf_release(&mgr->txbuf_obj, pb2);
+
+	struct pbuf *pb3 = pbuf_alloc(&mgr->txbuf_obj);
+	printf("%p\n", pb3);
 	netmgr_destroy(mgr);
 
 #if 0

@@ -1,4 +1,4 @@
-LIBTWZNET_SRC=$(addprefix us/libtwznet/,net.c)
+LIBTWZNET_SRC=$(addprefix us/libtwznet/,net.c buf.c)
 
 LIBTWZNET_OBJ=$(addprefix $(BUILDDIR)/,$(LIBTWZNET_SRC:.c=.o))
 

@@ -8,7 +8,6 @@ struct netreq {
 	struct nstack_queue_entry nqe;
 	void (*callback)(struct netreq *req);
 	void *data;
-
 	struct netreq *next;
 };
 
@@ -220,4 +219,58 @@ void netmgr_destroy(struct netmgr *mgr)
 
 	free(mgr->idlist);
 	free(mgr);
+}
+
+struct send_callback_info {
+	struct pbuf *buf;
+	pthread_mutex_t lock;
+	pthread_cond_t cv;
+};
+
+static void __send_callback(struct netreq *req)
+{
+	struct send_callback_info *info = req->data;
+	pthread_mutex_lock(&info->lock);
+	pthread_cond_signal(&info->cv);
+	pthread_mutex_unlock(&info->lock);
+}
+
+static struct nstack_queue_entry nqe_build_send(struct netcon *con, void *vptr, size_t len)
+{
+	struct nstack_queue_entry nqe = {
+		.cmd = NSTACK_CMD_SEND,
+		.flags = 0,
+		.connid = con->id,
+		.data_ptr = twz_ptr_swizzle(&con->mgr->txq_obj, vptr, FE_READ),
+		.data_len = len,
+	};
+	return nqe;
+}
+
+ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
+{
+	size_t count = 0;
+	size_t buflen = pbuf_datalen(&con->mgr->txbuf_obj);
+	while(count < len) {
+		struct pbuf *buf = pbuf_alloc(&con->mgr->txbuf_obj);
+		size_t thislen = len - count;
+		if(thislen > buflen) {
+			thislen = buflen;
+		}
+		memcpy(buf->data, buf + count, thislen);
+		struct nstack_queue_entry nqe = nqe_build_send(con, buf->data, thislen);
+
+		struct send_callback_info info;
+		pthread_mutex_init(&info.lock, NULL);
+		pthread_mutex_lock(&info.lock);
+		pthread_cond_init(&info.cv, NULL);
+		submit_tx(con->mgr, &nqe, __send_callback, &info);
+		pthread_cond_wait(&info.cv, &info.lock);
+		pthread_mutex_unlock(&info.lock);
+		pthread_mutex_destroy(&info.lock);
+		pthread_cond_destroy(&info.cv);
+		count += thislen;
+	}
+
+	return count;
 }

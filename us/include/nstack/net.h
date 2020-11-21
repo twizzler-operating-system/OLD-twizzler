@@ -6,6 +6,7 @@
 #include <twz/obj.h>
 
 struct netreq;
+struct netcon;
 struct netmgr {
 	twzobj txq_obj, rxq_obj;
 	twzobj txbuf_obj, rxbuf_obj;
@@ -14,12 +15,30 @@ struct netmgr {
 	uint32_t maxid, idlistend, idlistlen;
 
 	struct netreq *outstanding;
+	struct netcon *conlist;
+};
+
+struct netcon {
+	struct netmgr *mgr;
+	uint16_t id;
+
+	struct netcon *next;
+};
+
+struct pbuf {
+	struct pbuf *next;
+	char data[];
 };
 
 struct netmgr *netmgr_create(const char *name, int flags);
 void netmgr_destroy(struct netmgr *mgr);
+
+struct pbuf;
+
+size_t pbuf_datalen(twzobj *bufobj);
 void pbuf_release(twzobj *bufobj, struct pbuf *buf);
 struct pbuf *pbuf_alloc(twzobj *bufobj);
+void pbuf_init(twzobj *bufobj, size_t datalen);
 
 /* TESTING */
 void netmgr_echo(struct netmgr *);

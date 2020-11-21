@@ -1,7 +1,8 @@
-struct pbuf {
-	struct pbuf *next;
-	char data[];
-};
+#include <stddef.h>
+#include <twz/mutex.h>
+#include <twz/obj.h>
+
+#include <nstack/net.h>
 
 struct pbuf_header {
 	struct pbuf *first;
@@ -9,6 +10,23 @@ struct pbuf_header {
 	struct mutex lock;
 	char *next;
 };
+
+size_t pbuf_datalen(twzobj *bufobj)
+{
+	struct pbuf_header *hdr = twz_object_base(bufobj);
+	return hdr->datalen;
+}
+
+void pbuf_init(twzobj *bufobj, size_t datalen)
+{
+	struct pbuf_header *hdr = twz_object_base(bufobj);
+	mutex_init(&hdr->lock);
+	hdr->first = NULL;
+	datalen = (datalen & ~15) + 16;
+	hdr->datalen = datalen;
+
+	hdr->next = (char *)twz_ptr_local(hdr + 1);
+}
 
 struct pbuf *pbuf_alloc(twzobj *bufobj)
 {
@@ -38,6 +56,6 @@ void pbuf_release(twzobj *bufobj, struct pbuf *buf)
 	struct pbuf_header *hdr = twz_object_base(bufobj);
 	mutex_acquire(&hdr->lock);
 	buf->next = hdr->first;
-	hdr->first = twz_object_local(buf);
+	hdr->first = twz_ptr_local(buf);
 	mutex_release(&hdr->lock);
 }
