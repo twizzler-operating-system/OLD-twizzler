@@ -37,7 +37,7 @@ struct pbuf *pbuf_alloc(twzobj *bufobj)
 		struct pbuf *ret = hdr->first;
 		hdr->first = hdr->first->next;
 		mutex_release(&hdr->lock);
-		return ret;
+		return twz_object_lea(bufobj, ret);
 	}
 
 	if((uintptr_t)twz_ptr_local(hdr->next) >= OBJ_TOPDATA) {
@@ -48,7 +48,7 @@ struct pbuf *pbuf_alloc(twzobj *bufobj)
 	hdr->next += sizeof(*buf) + hdr->datalen;
 
 	mutex_release(&hdr->lock);
-	return buf;
+	return twz_object_lea(bufobj, buf);
 }
 
 void pbuf_release(twzobj *bufobj, struct pbuf *buf)

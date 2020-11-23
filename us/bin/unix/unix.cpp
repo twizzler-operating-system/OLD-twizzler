@@ -22,7 +22,6 @@
 struct handler_queue_entry {
 	struct queue_entry qe;
 	int cmd;
-	std::shared_ptr<queue_client> client;
 	size_t client_idx;
 };
 
@@ -50,14 +49,15 @@ class handler
 	void add_client(std::shared_ptr<queue_client> client)
 	{
 		struct handler_queue_entry subhqe;
-		subhqe.client = client;
 		subhqe.cmd = HANDLER_QUEUE_ADD_CLIENT;
+		std::lock_guard<std::mutex> _lg(lock);
+		add_clients.push_back(client);
 		queue_submit(&client_add_queue, (struct queue_entry *)&subhqe, 0);
 	}
 
   private:
 	twzobj client_add_queue;
-	std::vector<std::shared_ptr<queue_client>> clients;
+	std::vector<std::shared_ptr<queue_client>> clients, add_clients;
 	std::thread thread, cleanup_thread;
 	std::mutex lock;
 	std::condition_variable cv;
@@ -176,8 +176,8 @@ class handler
 		  tqe->flags);
 		  */
 		auto [ret, respond] = handle_command(client, tqe);
-		tqe->ret = ret;
 		if(!drain && respond) {
+			tqe->ret = ret;
 			//		fprintf(stderr, "respond COMPLETING %d\n", tqe->qe.info);
 			/* TODO: make this non-blocking, and handle the case where it wants to block */
 			queue_complete(&client->queue, (struct queue_entry *)tqe, 0);
@@ -189,9 +189,12 @@ class handler
 		switch(hqe->cmd) {
 			case HANDLER_QUEUE_ADD_CLIENT: {
 				std::lock_guard<std::mutex> _lg(lock);
-				clients.push_back(hqe->client);
+				for(auto client : add_clients) {
+					clients.push_back(client);
+					fprintf(stderr, "added client: %d\n", client->proc->pid);
+				}
+				add_clients.clear();
 				cv.notify_all();
-				fprintf(stderr, "added client: %d\n", hqe->client->proc->pid);
 				//		fprintf(stderr, "added client %p -> %ld\n", hqe->client, clients.size() -
 				// 1);
 			} break;

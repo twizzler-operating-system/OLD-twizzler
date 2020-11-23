@@ -33,6 +33,14 @@ struct pbuf {
 struct netmgr *netmgr_create(const char *name, int flags);
 void netmgr_destroy(struct netmgr *mgr);
 
+struct timespec;
+struct netcon *netmgr_connect(struct netmgr *mgr,
+  struct netaddr *addr,
+  int flags,
+  struct timespec *timeout);
+
+ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags);
+
 struct pbuf;
 
 size_t pbuf_datalen(twzobj *bufobj);

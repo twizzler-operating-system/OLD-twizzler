@@ -6,7 +6,7 @@
 
 struct netreq {
 	struct nstack_queue_entry nqe;
-	void (*callback)(struct netreq *req);
+	void (*callback)(struct netreq *req, struct nstack_queue_entry *nqe);
 	void *data;
 	struct netreq *next;
 };
@@ -65,7 +65,7 @@ static void handle_completion_from_tx(struct netmgr *mgr, struct nstack_queue_en
 				mgr->outstanding = req->next;
 			pthread_mutex_unlock(&mgr->lock);
 			if(req->callback) {
-				req->callback(req);
+				req->callback(req, nqe);
 			}
 			release_id(mgr, req->nqe.qe.info);
 			free(req);
@@ -108,7 +108,7 @@ static void get_rx_commands(struct netmgr *mgr, int flags)
 
 static void submit_tx(struct netmgr *mgr,
   struct nstack_queue_entry *nqe,
-  void (*callback)(struct netreq *),
+  void (*callback)(struct netreq *, struct nstack_queue_entry *),
   void *data)
 {
 	struct netreq *req = malloc(sizeof(*req));
@@ -144,7 +144,7 @@ void netmgr_housekeeping(struct netmgr *mgr)
 	get_rx_commands(mgr, RX_NONBLOCK | RX_LIMIT);
 }
 
-static void __echo_callback(struct netreq *req)
+static void __echo_callback(struct netreq *req, struct nstack_queue_entry *nqe)
 {
 	fprintf(stderr, ":: echo callback %p\n", req->data);
 }
@@ -155,6 +155,27 @@ void netmgr_echo(struct netmgr *mgr)
 	submit_tx(mgr, &nqe, __echo_callback, (void *)1234);
 
 	complete_tx(mgr);
+}
+
+void netmgr_wait_all_tx_complete_until(struct netmgr *mgr, bool (*pred)(void *), void *data)
+{
+	struct nstack_queue_entry nqe;
+	while(1) {
+		pthread_mutex_lock(&mgr->lock);
+
+		if(pred(data)) {
+			pthread_mutex_unlock(&mgr->lock);
+			break;
+		}
+
+		if(!mgr->outstanding) {
+			pthread_mutex_unlock(&mgr->lock);
+			break;
+		}
+		queue_get_finished(&mgr->txq_obj, (struct queue_entry *)&nqe, 0);
+		pthread_mutex_unlock(&mgr->lock);
+		handle_completion_from_tx(mgr, &nqe);
+	}
 }
 
 void netmgr_wait_all_tx_complete(struct netmgr *mgr)
@@ -205,6 +226,10 @@ struct netmgr *netmgr_create(const char *name, int flags)
 
 	mgr->outstanding = NULL;
 
+	mgr->conlist = NULL;
+
+	pbuf_init(&mgr->txbuf_obj, 1000 /* TODO: MTU */);
+
 	return mgr;
 }
 
@@ -221,18 +246,77 @@ void netmgr_destroy(struct netmgr *mgr)
 	free(mgr);
 }
 
-struct send_callback_info {
-	struct pbuf *buf;
+struct waiter_callback_info {
 	pthread_mutex_t lock;
-	pthread_cond_t cv;
+	long ret;
+	bool done;
 };
 
-static void __send_callback(struct netreq *req)
+static inline void waiter_callback_init(struct waiter_callback_info *info)
 {
-	struct send_callback_info *info = req->data;
+	pthread_mutex_init(&info->lock, NULL);
+	info->ret = 0;
+	info->done = false;
+}
+
+static inline void waiter_callback_destroy(struct waiter_callback_info *info)
+{
+	pthread_mutex_destroy(&info->lock);
+}
+
+static void __waiter_callback(struct netreq *req, struct nstack_queue_entry *nqe)
+{
+	struct waiter_callback_info *info = req->data;
 	pthread_mutex_lock(&info->lock);
-	pthread_cond_signal(&info->cv);
+	info->done = true;
+	info->ret = nqe->ret;
 	pthread_mutex_unlock(&info->lock);
+}
+
+static bool __waiter_pred(void *data)
+{
+	struct waiter_callback_info *info = data;
+	pthread_mutex_lock(&info->lock);
+	bool ret = info->done;
+	pthread_mutex_unlock(&info->lock);
+	return ret;
+}
+
+static struct nstack_queue_entry nqe_build_connect(struct netaddr *addr, int flags)
+{
+	struct nstack_queue_entry nqe = {
+		.cmd = NSTACK_CMD_CONNECT,
+		.flags = flags,
+		.addr = *addr,
+	};
+	return nqe;
+}
+
+struct netcon *netmgr_connect(struct netmgr *mgr,
+  struct netaddr *addr,
+  int flags,
+  struct timespec *timeout)
+{
+	struct waiter_callback_info info;
+	struct nstack_queue_entry nqe = nqe_build_connect(addr, flags);
+	waiter_callback_init(&info);
+	submit_tx(mgr, &nqe, __waiter_callback, &info);
+	netmgr_wait_all_tx_complete_until(mgr, __waiter_pred, &info);
+
+	if(info.ret < 0) {
+		errno = -info.ret;
+		return NULL;
+	}
+
+	struct netcon *con = malloc(sizeof(*con));
+	con->id = info.ret;
+	con->mgr = mgr;
+	pthread_mutex_lock(&mgr->lock);
+	con->next = mgr->conlist;
+	mgr->conlist = con;
+	pthread_mutex_unlock(&mgr->lock);
+
+	return con;
 }
 
 static struct nstack_queue_entry nqe_build_send(struct netcon *con, void *vptr, size_t len)
@@ -252,23 +336,27 @@ ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
 	size_t count = 0;
 	size_t buflen = pbuf_datalen(&con->mgr->txbuf_obj);
 	while(count < len) {
-		struct pbuf *buf = pbuf_alloc(&con->mgr->txbuf_obj);
+		fprintf(stderr, "alloc buf\n");
+		struct pbuf *pb = pbuf_alloc(&con->mgr->txbuf_obj);
+		fprintf(stderr, "send: pbuf: %p\n", pb);
 		size_t thislen = len - count;
 		if(thislen > buflen) {
 			thislen = buflen;
 		}
-		memcpy(buf->data, buf + count, thislen);
-		struct nstack_queue_entry nqe = nqe_build_send(con, buf->data, thislen);
+		fprintf(stderr, "send: thislen = %ld\n", thislen);
+		memcpy(pb->data, buf + count, thislen);
+		struct nstack_queue_entry nqe = nqe_build_send(con, pb->data, thislen);
 
-		struct send_callback_info info;
-		pthread_mutex_init(&info.lock, NULL);
-		pthread_mutex_lock(&info.lock);
-		pthread_cond_init(&info.cv, NULL);
-		submit_tx(con->mgr, &nqe, __send_callback, &info);
-		pthread_cond_wait(&info.cv, &info.lock);
-		pthread_mutex_unlock(&info.lock);
-		pthread_mutex_destroy(&info.lock);
-		pthread_cond_destroy(&info.cv);
+		struct waiter_callback_info info;
+		waiter_callback_init(&info);
+		info.done = false;
+		submit_tx(con->mgr, &nqe, __waiter_callback, &info);
+
+		netmgr_wait_all_tx_complete_until(con->mgr, __waiter_pred, &info);
+
+		fprintf(stderr, "ret = %ld\n", info.ret);
+
+		waiter_callback_destroy(&info);
 		count += thislen;
 	}
 

@@ -14,36 +14,34 @@
 #include <twz/queue.h>
 #include <unistd.h>
 
+#include <sys/wait.h>
+
 int main()
 {
 	fprintf(stderr, "Hello, World!\n");
 
 	int pid;
 	if(!(pid = fork())) {
-		for(;;) {
-			fprintf(stderr, "fork! child\n");
-			for(long i = 0; i < 10000; i++) {
-				__syscall6(0, 0, 0, 0, 0, 0, 0);
-			}
+		fprintf(stderr, "fork! child\n");
+		for(long i = 0; i < 10000; i++) {
+			__syscall6(0, 0, 0, 0, 0, 0, 0);
 		}
-		exit(0);
+		fprintf(stderr, "child exit\n");
+		exit(123);
 	}
 	fprintf(stderr, "fork! parent: %d\n", pid);
 
-	// for(long i = 0; i < 1000000; i++) {
-	//	__syscall6(0, 0, 0, 0, 0, 0, 0);
-	//}
-	fprintf(stderr, "killing %d\n", pid);
-	int r = kill(pid, SIGINT);
-	if(r == -1)
-		err(1, "kill");
-
-	for(long i = 0; i < 1000000; i++) {
-		__syscall6(0, 0, 0, 0, 0, 0, 0);
+	int status;
+	int res;
+	while((res = wait(&status)) <= 0) {
+		fprintf(stderr, "wait returned %d %d\n", res, status);
 	}
-	fprintf(stderr, "resume %d\n", pid);
-	r = kill(pid, SIGCONT);
-	fprintf(stderr, ":: resume: %d\n", r);
+
+	fprintf(stderr, "wait returned %d %d\n", res, status);
+	fprintf(stderr, "  %d %d\n", WIFEXITED(status), WEXITSTATUS(status));
+	fprintf(stderr, "  %d %d\n", WIFSIGNALED(status), WTERMSIG(status));
+	fprintf(stderr, "  %d %d\n", WIFSTOPPED(status), WSTOPSIG(status));
+	fprintf(stderr, "  %d\n", WIFCONTINUED(status));
 
 	return 0;
 }

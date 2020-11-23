@@ -25,9 +25,9 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 	  nqe->cmd);
 
 	/* testing */
-	struct nstack_queue_entry newnqe;
-	newnqe.cmd = 789;
-	submit_command(client, &newnqe);
+	// struct nstack_queue_entry newnqe;
+	// newnqe.cmd = 789;
+	// submit_command(client, &newnqe);
 
 	return true;
 }
