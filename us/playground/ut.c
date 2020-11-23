@@ -23,7 +23,7 @@ int main()
 	int pid;
 	if(!(pid = fork())) {
 		fprintf(stderr, "fork! child\n");
-		for(long i = 0; i < 10000; i++) {
+		for(long i = 0; i < 100000; i++) {
 			__syscall6(0, 0, 0, 0, 0, 0, 0);
 		}
 		fprintf(stderr, "child exit\n");
@@ -31,8 +31,21 @@ int main()
 	}
 	fprintf(stderr, "fork! parent: %d\n", pid);
 
+	kill(pid, SIGSTOP);
 	int status;
 	int res;
+	while((res = wait(&status)) <= 0) {
+		fprintf(stderr, "wait returned %d %d\n", res, status);
+	}
+
+	fprintf(stderr, "wait returned %d %d\n", res, status);
+	fprintf(stderr, "  %d %d\n", WIFEXITED(status), WEXITSTATUS(status));
+	fprintf(stderr, "  %d %d\n", WIFSIGNALED(status), WTERMSIG(status));
+	fprintf(stderr, "  %d %d\n", WIFSTOPPED(status), WSTOPSIG(status));
+	fprintf(stderr, "  %d\n", WIFCONTINUED(status));
+
+	fprintf(stderr, "KILL CONT\n");
+	kill(pid, SIGCONT);
 	while((res = wait(&status)) <= 0) {
 		fprintf(stderr, "wait returned %d %d\n", res, status);
 	}

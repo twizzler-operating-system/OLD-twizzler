@@ -236,7 +236,7 @@ int client_init(std::shared_ptr<queue_client> client)
 	}
 	thrtable.insert(client->proc->pid, client->proc, client);
 	client->thr = thrtable.lookup(client->proc->pid);
-	client->proc->add_thread(client->thr);
+	client->thr->perproc_id = client->proc->add_thread(client->thr);
 
 	if(!existing_proc) {
 		auto [rr, desc] = open_file(nullptr, "/");

@@ -278,6 +278,11 @@ class unixthread
 	{
 	}
 
+	bool is_leader()
+	{
+		return perproc_id == 0;
+	}
+
 	bool send_signal(int sig, bool);
 
 	void exit()

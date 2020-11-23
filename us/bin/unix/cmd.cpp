@@ -74,7 +74,9 @@ std::pair<long, bool> twix_cmd_exit(std::shared_ptr<queue_client> client, twix_q
 {
 	int opts = tqe->arg1;
 	if(!(opts & TWIX_FLAGS_EXIT_THREAD) || client->thr->tid == client->proc->pid) {
-		client->proc->change_status(PROC_EXITED, (tqe->arg0 & 0xff) << 8);
+		int status =
+		  (opts & TWIX_FLAGS_EXIT_SIGNAL) ? (tqe->arg0 & 0xff) : ((tqe->arg0 & 0xff) << 8);
+		client->proc->change_status(PROC_EXITED, status);
 	}
 	/* TODO: futex write the tid? */
 	if((opts & TWIX_FLAGS_EXIT_GROUP) || (client->thr->tid == client->proc->pid)) {
@@ -91,8 +93,14 @@ std::pair<long, bool> twix_cmd_sigdone(std::shared_ptr<queue_client> client, twi
 std::pair<long, bool> twix_cmd_suspend(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	client->thr->suspend(tqe);
+	fprintf(stderr, "doing suspend %d\n", client->thr->is_leader());
+	if(client->thr->is_leader()) {
+		client->proc->change_status(PROC_NORMAL, 0x7f | ((tqe->arg0 & 0xff) << 8));
+	}
 	return R_A(0);
 }
+
+#include <sys/wait.h>
 
 std::pair<long, bool> twix_cmd_wait(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
@@ -101,6 +109,11 @@ std::pair<long, bool> twix_cmd_wait(std::shared_ptr<queue_client> client, twix_q
 	if(pid < -1 || pid == 0) {
 		fprintf(stderr, "TODO: implement pgid wait\n");
 		return R_S(-ENOTSUP);
+	}
+
+	if(options & WCONTINUED) {
+		fprintf(stderr, "TODO: implement WCONTINUED\n");
+		return R_S(-EINVAL);
 	}
 
 	if(options & WNOHANG) {
