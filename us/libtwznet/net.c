@@ -11,6 +11,36 @@ struct netreq {
 	struct netreq *next;
 };
 
+struct netevent *netevent_create(struct nstack_queue_entry *nqe,
+  int event,
+  int flags,
+  void *ptr,
+  size_t len)
+{
+	struct netevent *ev = malloc(sizeof(*ev));
+	ev->event = event;
+	ev->flags = flags;
+	ev->data_ptr = ptr;
+	ev->data_len = len;
+	ev->nqe = *nqe;
+	return ev;
+}
+
+static void __netevent_append(struct netevent *sentry, struct netevent *ne)
+{
+	ne->next = sentry;
+	ne->prev = sentry->prev;
+	sentry->prev->next = ne;
+	sentry->prev = ne;
+}
+
+static void __netevent_remove(struct netevent *ev)
+{
+	ev->prev->next = ev->next;
+	ev->next->prev = ev->prev;
+	ev->next = ev->prev = NULL;
+}
+
 static uint32_t alloc_id(struct netmgr *mgr)
 {
 	pthread_mutex_lock(&mgr->lock);
@@ -76,12 +106,44 @@ static void handle_completion_from_tx(struct netmgr *mgr, struct nstack_queue_en
 	fprintf(stderr, "could not find outstanding request for ID %d\n", nqe->qe.info);
 }
 
+struct netcon *netmgr_lookup_netcon(struct netmgr *mgr, uint16_t id)
+{
+	pthread_mutex_lock(&mgr->lock);
+	for(struct netcon *con = mgr->conlist; con; con = con->next) {
+		if(con->id == id) {
+			pthread_mutex_unlock(&mgr->lock);
+			return con;
+		}
+	}
+
+	pthread_mutex_unlock(&mgr->lock);
+	return NULL;
+}
+
 static void handle_cmd(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 {
+	bool complete = true;
+	switch(nqe->cmd) {
+		case NSTACK_CMD_RECV: {
+			fprintf(stderr, "got recv event!\n");
+			struct netcon *con = netmgr_lookup_netcon(mgr, nqe->connid);
+			struct netevent *ev = netevent_create(
+			  nqe, NETEVENT_RX, 0, twz_object_lea(&mgr->rxq_obj, nqe->data_ptr), nqe->data_len);
+			pthread_mutex_lock(&con->lock);
+			__netevent_append(&con->eventlist_sentry, ev);
+			pthread_cond_signal(&con->event_cv);
+			pthread_mutex_unlock(&con->lock);
+			complete = false;
+		} break;
+	}
+	if(complete) {
+		queue_complete(&mgr->rxq_obj, (struct queue_entry *)nqe, 0);
+	}
 }
 
 #define RX_NONBLOCK 1
 #define RX_LIMIT 2
+#define RX_ATLEASTONE 4
 
 #define THRESH 64
 
@@ -90,16 +152,20 @@ static void get_rx_commands(struct netmgr *mgr, int flags)
 	struct nstack_queue_entry nqe;
 	size_t i = 0;
 	bool non_block = !!(flags & RX_NONBLOCK);
+	/* TODO: we're assuming that we're single threaded here */
 	while(1) {
-		pthread_mutex_lock(&mgr->lock);
+		// pthread_mutex_lock(&mgr->lock);
 		if(queue_receive(&mgr->rxq_obj, (struct queue_entry *)&nqe, non_block ? QUEUE_NONBLOCK : 0)
 		   == 0) {
 		} else if(!non_block) {
-			pthread_mutex_unlock(&mgr->lock);
+			//	pthread_mutex_unlock(&mgr->lock);
 			return;
 		}
-		pthread_mutex_unlock(&mgr->lock);
+		// pthread_mutex_unlock(&mgr->lock);
 		handle_cmd(mgr, &nqe);
+		if(flags & RX_ATLEASTONE) {
+			return;
+		}
 		if((i++ > THRESH) && (flags & RX_LIMIT)) {
 			return;
 		}
@@ -115,7 +181,9 @@ static void submit_tx(struct netmgr *mgr,
 	req->callback = callback;
 	req->data = data;
 	req->nqe = *nqe;
+	fprintf(stderr, "!! adding out\n");
 	add_outstanding_tx(mgr, req);
+	fprintf(stderr, "!! doing submit\n");
 	queue_submit(&mgr->txq_obj, (struct queue_entry *)&req->nqe, 0);
 }
 
@@ -141,7 +209,6 @@ static void complete_tx(struct netmgr *mgr)
 void netmgr_housekeeping(struct netmgr *mgr)
 {
 	complete_tx(mgr);
-	get_rx_commands(mgr, RX_NONBLOCK | RX_LIMIT);
 }
 
 static void __echo_callback(struct netreq *req, struct nstack_queue_entry *nqe)
@@ -193,6 +260,15 @@ void netmgr_wait_all_tx_complete(struct netmgr *mgr)
 	}
 }
 
+static void *__netmgr_worker_main(void *data)
+{
+	struct netmgr *mgr = data;
+	while(1) {
+		get_rx_commands(mgr, 0);
+	}
+	return NULL;
+}
+
 struct netmgr *netmgr_create(const char *name, int flags)
 {
 	struct secure_api api;
@@ -229,6 +305,8 @@ struct netmgr *netmgr_create(const char *name, int flags)
 	mgr->conlist = NULL;
 
 	pbuf_init(&mgr->txbuf_obj, 1000 /* TODO: MTU */);
+
+	pthread_create(&mgr->worker, NULL, __netmgr_worker_main, mgr);
 
 	return mgr;
 }
@@ -311,6 +389,10 @@ struct netcon *netmgr_connect(struct netmgr *mgr,
 	struct netcon *con = malloc(sizeof(*con));
 	con->id = info.ret;
 	con->mgr = mgr;
+	con->eventlist_sentry.next = &con->eventlist_sentry;
+	con->eventlist_sentry.prev = &con->eventlist_sentry;
+	pthread_mutex_init(&con->lock, NULL);
+	pthread_cond_init(&con->event_cv, NULL);
 	pthread_mutex_lock(&mgr->lock);
 	con->next = mgr->conlist;
 	mgr->conlist = con;
@@ -356,9 +438,45 @@ ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
 
 		fprintf(stderr, "ret = %ld\n", info.ret);
 
+		pbuf_release(&con->mgr->txbuf_obj, pb);
 		waiter_callback_destroy(&info);
 		count += thislen;
 	}
 
+	return count;
+}
+
+ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags)
+{
+	size_t count = 0;
+	pthread_mutex_lock(&con->lock);
+	while(count < len) {
+		size_t rem = len - count;
+
+		struct netevent *ev, *next;
+		for(ev = con->eventlist_sentry.next; ev != &con->eventlist_sentry; ev = next) {
+			next = ev->next;
+			if(ev->event == NETEVENT_RX) {
+				size_t thislen = rem;
+				if(thislen > ev->data_len) {
+					thislen = ev->data_len;
+				}
+				memcpy((char *)buf + count, ev->data_ptr, thislen);
+				if(ev->data_len > thislen) {
+					ev->data_ptr = (char *)ev->data_ptr + thislen;
+					ev->data_len -= thislen;
+				} else {
+					__netevent_remove(ev);
+				}
+				count += thislen;
+			}
+		}
+		if(count == 0) {
+			pthread_cond_wait(&con->event_cv, &con->lock);
+		} else {
+			break;
+		}
+	}
+	pthread_mutex_unlock(&con->lock);
 	return count;
 }

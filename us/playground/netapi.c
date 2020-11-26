@@ -13,13 +13,22 @@ int main()
 	struct netmgr *mgr = netmgr_create("test-program", 0);
 
 	fprintf(stderr, "connecting\n");
-	struct netcon *con = netmgr_connect(mgr, NULL, 0, NULL);
+	struct netaddr addr;
+	struct netcon *con = netmgr_connect(mgr, &addr, 0, NULL);
 	fprintf(stderr, "sending\n");
 
-	const char *hw = "hello, world!\n";
-	ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
+	while(1) {
+		const char *hw = "hello, world!\n";
+		ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
 
-	printf("send returned %ld\n", ret);
+		printf("send returned %ld\n", ret);
+
+		char buf[1024];
+		memset(buf, 0, sizeof(buf));
+		ret = netcon_recv(con, buf, 1024, 0);
+
+		printf("recv got :: %ld :: <%s>\n", ret, buf);
+	}
 
 	/*
 	for(int i = 0; i < 1000; i++) {

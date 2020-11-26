@@ -16,6 +16,21 @@ struct netmgr {
 
 	struct netreq *outstanding;
 	struct netcon *conlist;
+
+	pthread_t worker; // TODO get rid of this
+};
+
+#define NETEVENT_RX 1
+
+#include <nstack/nstack.h>
+
+struct netevent {
+	int event;
+	int flags;
+	void *data_ptr;
+	size_t data_len;
+	struct nstack_queue_entry nqe;
+	struct netevent *next, *prev;
 };
 
 struct netcon {
@@ -23,6 +38,10 @@ struct netcon {
 	uint16_t id;
 
 	struct netcon *next;
+
+	pthread_mutex_t lock;
+	pthread_cond_t event_cv;
+	struct netevent eventlist_sentry;
 };
 
 struct pbuf {

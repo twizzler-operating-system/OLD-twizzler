@@ -53,6 +53,22 @@ struct nstack_queue_entry {
 	uint32_t data_len;
 	/* reserved for struct padding */
 	uint32_t _resv;
+
+#ifdef __cplusplus
+	nstack_queue_entry(nstack_queue_entry &other)
+	{
+		qe.info = other.qe.info;
+		qe.cmd_id = other.qe.cmd_id.load();
+		cmd = other.cmd;
+		flags = other.flags;
+		connid = other.connid;
+		addr = other.addr;
+		data_ptr = other.data_ptr;
+		data_len = other.data_len;
+	}
+
+	nstack_queue_entry() = default;
+#endif
 };
 
 struct nstack_open_ret {
