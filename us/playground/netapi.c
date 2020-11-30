@@ -6,6 +6,20 @@
 #include <nstack/net.h>
 #include <nstack/nstack.h>
 
+#include <time.h>
+
+void timespec_diff(struct timespec *start, struct timespec *stop, struct timespec *result)
+{
+	if((stop->tv_nsec - start->tv_nsec) < 0) {
+		result->tv_sec = stop->tv_sec - start->tv_sec - 1;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec + 1000000000ul;
+	} else {
+		result->tv_sec = stop->tv_sec - start->tv_sec;
+		result->tv_nsec = stop->tv_nsec - start->tv_nsec;
+	}
+	return;
+}
+
 int main()
 {
 	printf("Hello, World!\n");
@@ -17,17 +31,25 @@ int main()
 	struct netcon *con = netmgr_connect(mgr, &addr, 0, NULL);
 	fprintf(stderr, "sending\n");
 
+	struct timespec t0, t1, t2, d1, d2;
+	char buf[128] = {};
+	size_t len = sizeof(buf);
+	size_t i = 0;
 	while(1) {
-		const char *hw = "hello, world!\n";
-		ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
+		clock_gettime(CLOCK_MONOTONIC, &t0);
+		ssize_t ret = netcon_send(con, buf, len, 0);
+		clock_gettime(CLOCK_MONOTONIC, &t1);
+		// printf("send returned %ld\n", ret);
+		ret = netcon_recv(con, buf, len, 0);
+		clock_gettime(CLOCK_MONOTONIC, &t2);
+		// printf("recv got :: %ld :: <%s>\n", ret, buf);
 
-		printf("send returned %ld\n", ret);
-
-		char buf[1024];
-		memset(buf, 0, sizeof(buf));
-		ret = netcon_recv(con, buf, 1024, 0);
-
-		printf("recv got :: %ld :: <%s>\n", ret, buf);
+		timespec_diff(&t0, &t1, &d1);
+		timespec_diff(&t1, &t2, &d2);
+		i++;
+		if(i % 10 == 0) {
+			printf("%ld: %ld %ld\n", len, d1.tv_nsec, d2.tv_nsec);
+		}
 	}
 
 	/*

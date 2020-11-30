@@ -24,12 +24,14 @@ struct netmgr {
 
 #include <nstack/nstack.h>
 
+struct netmgr;
 struct netevent {
 	int event;
 	int flags;
 	void *data_ptr;
 	size_t data_len;
 	struct nstack_queue_entry nqe;
+	struct netmgr *mgr;
 	struct netevent *next, *prev;
 };
 

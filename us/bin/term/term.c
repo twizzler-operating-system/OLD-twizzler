@@ -583,7 +583,7 @@ void init_fb(struct fb *fb)
 					((char *)fb->background_buffer)[dpos + 0] = data[spos + 2];
 					((char *)fb->background_buffer)[dpos + 1] = data[spos + 1];
 					((char *)fb->background_buffer)[dpos + 2] = data[spos + 0];
-					((char *)fb->background_buffer)[dpos + 3] = 0x55;
+					((char *)fb->background_buffer)[dpos + 3] = 0xaa;
 				}
 			}
 		}

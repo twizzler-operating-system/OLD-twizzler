@@ -1,5 +1,7 @@
 #include "client.h"
 
+#define DEBUG 0
+
 void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
 {
 	/* TODO: handle error, non-blocking (?) */
@@ -14,7 +16,9 @@ void submit_command(std::shared_ptr<net_client> client,
 	uint32_t id = client->outstanding_idalloc.get();
 	auto cmd = std::make_shared<outstanding_command>(id, client, nqe, fn, data);
 	nqe->qe.info = id;
+#if DEBUG
 	fprintf(stderr, "submitting command to client %s: %d\n", client->name.c_str(), id);
+#endif
 	client->push_outstanding(cmd, id);
 	client->enqueue_cmd(nqe);
 }
@@ -31,11 +35,13 @@ static void __callback_complete(std::shared_ptr<net_client> client,
 
 bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entry *nqe)
 {
+#if DEBUG
 	fprintf(stderr,
 	  "handling command from client %s: %d %d\n",
 	  client->name.c_str(),
 	  nqe->qe.info,
 	  nqe->cmd);
+#endif
 
 	switch(nqe->cmd) {
 		case NSTACK_CMD_CONNECT: {
@@ -52,7 +58,6 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 		} break;
 
 		case NSTACK_CMD_SEND: {
-			fprintf(stderr, "doing send\n");
 			struct nstack_queue_entry newnqe = *nqe;
 			newnqe.cmd = NSTACK_CMD_RECV;
 			size_t off = client->testing_rxb_off;
@@ -64,7 +69,6 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 			  nqe->data_len); // should sanity check ptr
 			newnqe.data_ptr = twz_ptr_swizzle(&client->rxq_obj, buf, FE_READ | FE_WRITE);
 			submit_command(client, &newnqe, nullptr, nullptr);
-			fprintf(stderr, "send done\n");
 			return true;
 		} break;
 	}
@@ -86,7 +90,9 @@ void handle_completion(std::shared_ptr<net_client> client, struct nstack_queue_e
 
 	cmd->complete();
 
+#if DEBUG
 	fprintf(
 	  stderr, "got notified of completion from client %s: %d\n", client->name.c_str(), cmd->id);
+#endif
 	client->outstanding_idalloc.put(cmd->id);
 }

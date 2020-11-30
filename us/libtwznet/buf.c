@@ -34,10 +34,10 @@ struct pbuf *pbuf_alloc(twzobj *bufobj)
 	mutex_acquire(&hdr->lock);
 
 	if(hdr->first) {
-		struct pbuf *ret = hdr->first;
-		hdr->first = hdr->first->next;
+		struct pbuf *ret = twz_object_lea(bufobj, hdr->first);
+		hdr->first = twz_ptr_local(ret->next);
 		mutex_release(&hdr->lock);
-		return twz_object_lea(bufobj, ret);
+		return ret;
 	}
 
 	if((uintptr_t)twz_ptr_local(hdr->next) >= OBJ_TOPDATA) {

@@ -3,6 +3,12 @@
 #include <nstack/nstack.h>
 #include <stdio.h>
 #include <stdlib.h>
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
 
 struct netreq {
 	struct nstack_queue_entry nqe;
@@ -11,7 +17,8 @@ struct netreq {
 	struct netreq *next;
 };
 
-struct netevent *netevent_create(struct nstack_queue_entry *nqe,
+struct netevent *netevent_create(struct netmgr *mgr,
+  struct nstack_queue_entry *nqe,
   int event,
   int flags,
   void *ptr,
@@ -19,6 +26,7 @@ struct netevent *netevent_create(struct nstack_queue_entry *nqe,
 {
 	struct netevent *ev = malloc(sizeof(*ev));
 	ev->event = event;
+	ev->mgr = mgr;
 	ev->flags = flags;
 	ev->data_ptr = ptr;
 	ev->data_len = len;
@@ -39,6 +47,14 @@ static void __netevent_remove(struct netevent *ev)
 	ev->prev->next = ev->next;
 	ev->next->prev = ev->prev;
 	ev->next = ev->prev = NULL;
+}
+
+#include <assert.h>
+void netevent_destroy(struct netevent *ev)
+{
+	assert(ev->next == NULL);
+	queue_complete(&ev->mgr->rxq_obj, (struct queue_entry *)&ev->nqe, 0);
+	free(ev);
 }
 
 static uint32_t alloc_id(struct netmgr *mgr)
@@ -125,10 +141,13 @@ static void handle_cmd(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 	bool complete = true;
 	switch(nqe->cmd) {
 		case NSTACK_CMD_RECV: {
-			fprintf(stderr, "got recv event!\n");
 			struct netcon *con = netmgr_lookup_netcon(mgr, nqe->connid);
-			struct netevent *ev = netevent_create(
-			  nqe, NETEVENT_RX, 0, twz_object_lea(&mgr->rxq_obj, nqe->data_ptr), nqe->data_len);
+			struct netevent *ev = netevent_create(mgr,
+			  nqe,
+			  NETEVENT_RX,
+			  0,
+			  twz_object_lea(&mgr->rxq_obj, nqe->data_ptr),
+			  nqe->data_len);
 			pthread_mutex_lock(&con->lock);
 			__netevent_append(&con->eventlist_sentry, ev);
 			pthread_cond_signal(&con->event_cv);
@@ -177,14 +196,22 @@ static void submit_tx(struct netmgr *mgr,
   void (*callback)(struct netreq *, struct nstack_queue_entry *),
   void *data)
 {
+	long a, b;
+	a = rdtsc();
 	struct netreq *req = malloc(sizeof(*req));
 	req->callback = callback;
 	req->data = data;
 	req->nqe = *nqe;
-	fprintf(stderr, "!! adding out\n");
+	b = rdtsc();
+	printf("stx init: %ld\n", b - a);
+	a = rdtsc();
 	add_outstanding_tx(mgr, req);
-	fprintf(stderr, "!! doing submit\n");
+	b = rdtsc();
+	printf("stx outs: %ld\n", b - a);
+	a = rdtsc();
 	queue_submit(&mgr->txq_obj, (struct queue_entry *)&req->nqe, 0);
+	b = rdtsc();
+	printf("stx qsub: %ld\n", b - a);
 }
 
 static void complete_tx(struct netmgr *mgr)
@@ -326,20 +353,44 @@ void netmgr_destroy(struct netmgr *mgr)
 
 struct waiter_callback_info {
 	pthread_mutex_t lock;
+	struct netmgr *mgr;
+	struct pbuf *pbuf;
 	long ret;
+	int flags;
 	bool done;
 };
 
-static inline void waiter_callback_init(struct waiter_callback_info *info)
+#define WAITER_INFO_ALLOC 1
+#define WAITER_INFO_AUTODESTROY 2
+
+static inline void waiter_callback_init(struct waiter_callback_info *info,
+  struct netmgr *mgr,
+  int flags)
 {
 	pthread_mutex_init(&info->lock, NULL);
 	info->ret = 0;
 	info->done = false;
+	info->pbuf = NULL;
+	info->flags = flags;
+	info->mgr = mgr;
+}
+
+static inline struct waiter_callback_info *waiter_callback_create(struct netmgr *mgr, int flags)
+{
+	struct waiter_callback_info *info = malloc(sizeof(*info));
+	waiter_callback_init(info, mgr, flags | WAITER_INFO_ALLOC);
+	return info;
 }
 
 static inline void waiter_callback_destroy(struct waiter_callback_info *info)
 {
 	pthread_mutex_destroy(&info->lock);
+	if(info->pbuf) {
+		pbuf_release(&info->mgr->txbuf_obj, info->pbuf);
+	}
+	if(info->flags & WAITER_INFO_ALLOC) {
+		free(info);
+	}
 }
 
 static void __waiter_callback(struct netreq *req, struct nstack_queue_entry *nqe)
@@ -349,6 +400,9 @@ static void __waiter_callback(struct netreq *req, struct nstack_queue_entry *nqe
 	info->done = true;
 	info->ret = nqe->ret;
 	pthread_mutex_unlock(&info->lock);
+	if(info->flags & WAITER_INFO_AUTODESTROY) {
+		waiter_callback_destroy(info);
+	}
 }
 
 static bool __waiter_pred(void *data)
@@ -377,7 +431,7 @@ struct netcon *netmgr_connect(struct netmgr *mgr,
 {
 	struct waiter_callback_info info;
 	struct nstack_queue_entry nqe = nqe_build_connect(addr, flags);
-	waiter_callback_init(&info);
+	waiter_callback_init(&info, mgr, 0);
 	submit_tx(mgr, &nqe, __waiter_callback, &info);
 	netmgr_wait_all_tx_complete_until(mgr, __waiter_pred, &info);
 
@@ -417,29 +471,44 @@ ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
 {
 	size_t count = 0;
 	size_t buflen = pbuf_datalen(&con->mgr->txbuf_obj);
+	long a, b;
+	// a = rdtsc();
+	complete_tx(con->mgr);
+	// b = rdtsc();
+	// printf("cmpl: %ld\n", b - a); //SLOW
+	/* TODO: check connection state */
 	while(count < len) {
-		fprintf(stderr, "alloc buf\n");
+		// a = rdtsc();
 		struct pbuf *pb = pbuf_alloc(&con->mgr->txbuf_obj);
-		fprintf(stderr, "send: pbuf: %p\n", pb);
+		// b = rdtsc();
+		// printf("pbuf: %ld\n", b - a);
 		size_t thislen = len - count;
 		if(thislen > buflen) {
 			thislen = buflen;
 		}
-		fprintf(stderr, "send: thislen = %ld\n", thislen);
+		// a = rdtsc();
 		memcpy(pb->data, buf + count, thislen);
+		// b = rdtsc();
+		// printf("data: %ld\n", b - a);
+		// a = rdtsc();
 		struct nstack_queue_entry nqe = nqe_build_send(con, pb->data, thislen);
+		// b = rdtsc();
+		// printf("bild: %ld\n", b - a); //SLOW
 
-		struct waiter_callback_info info;
-		waiter_callback_init(&info);
-		info.done = false;
-		submit_tx(con->mgr, &nqe, __waiter_callback, &info);
+		// a = rdtsc();
+		struct waiter_callback_info *info;
+		info = waiter_callback_create(con->mgr, WAITER_INFO_AUTODESTROY);
+		info->pbuf = pb;
+		// b = rdtsc();
+		// printf("info: %ld\n", b - a);
+		// a = rdtsc();
+		submit_tx(con->mgr, &nqe, __waiter_callback, info);
+		// b = rdtsc();
+		// printf("subm: %ld\n", b - a); //SLOW
+		// netmgr_wait_all_tx_complete_until(con->mgr, __waiter_pred, &info);
 
-		netmgr_wait_all_tx_complete_until(con->mgr, __waiter_pred, &info);
-
-		fprintf(stderr, "ret = %ld\n", info.ret);
-
-		pbuf_release(&con->mgr->txbuf_obj, pb);
-		waiter_callback_destroy(&info);
+		// pbuf_release(&con->mgr->txbuf_obj, pb);
+		// waiter_callback_destroy(&info);
 		count += thislen;
 	}
 
@@ -467,6 +536,7 @@ ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags)
 					ev->data_len -= thislen;
 				} else {
 					__netevent_remove(ev);
+					netevent_destroy(ev);
 				}
 				count += thislen;
 			}
