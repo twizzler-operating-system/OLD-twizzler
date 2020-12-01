@@ -159,7 +159,6 @@ void obj_assign_id(struct object *obj, objid_t id)
 
 struct object *obj_create_clone(uint128_t id, struct object *src, enum kso_type ksot)
 {
-	assert(src->lock.data);
 	struct object *obj = __obj_alloc(ksot, id);
 
 	obj_clone_cow(src, obj);

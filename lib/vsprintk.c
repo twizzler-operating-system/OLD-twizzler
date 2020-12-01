@@ -171,6 +171,8 @@ static void vbufprintk(char *buffer, const char *fmt, va_list args)
 					break;
 				case 's':
 					str = va_arg(args, char *);
+					if(str == NULL)
+						str = "(nil)";
 					size_t len = strlen(str);
 					if(precision && precision < len)
 						len = precision;

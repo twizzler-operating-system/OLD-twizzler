@@ -4,21 +4,26 @@
 
 struct thread;
 struct spinlock {
-	_Atomic int data;
+	_Atomic uint32_t current_ticket;
 	bool fl;
 #if CONFIG_DEBUG_LOCKS
 	const char *holder_file;
 	int holder_line;
 	struct thread *holder_thread;
 #endif
+#if 0
+	_Alignas(64 /* TODO: constant */)
+#endif
+	_Atomic uint32_t next_ticket;
+	_Atomic uint32_t holder;
 };
 
-#define DECLARE_SPINLOCK(name) struct spinlock name = { .data = 0 }
+#define DECLARE_SPINLOCK(name) struct spinlock name = { .current_ticket = 0, .next_ticket = 0 }
 
 #define SPINLOCK_INIT                                                                              \
 	(struct spinlock)                                                                              \
 	{                                                                                              \
-		.data = 0                                                                                  \
+		.current_ticket = 0, .next_ticket = 0                                                      \
 	}
 
 bool __spinlock_acquire(struct spinlock *lock, const char *, int);

@@ -247,6 +247,7 @@ POST_INIT(__init_processor_objects, NULL);
 
 void processor_update_stats(void)
 {
+	// printk("processor_update_stats\n");
 	for(int i = 0; i < PROCESSOR_MAX_CPUS; i++) {
 		if((processors[i].flags & PROCESSOR_UP)) {
 			struct object *d = processors[i].obj;

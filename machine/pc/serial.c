@@ -318,6 +318,7 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 					mm_print_stats();
 					obj_print_stats();
 					slabcache_all_print_stats();
+					thread_print_all_threads();
 				}
 				long tmp = c;
 				device_signal_sync(ser_obj, 0, tmp);

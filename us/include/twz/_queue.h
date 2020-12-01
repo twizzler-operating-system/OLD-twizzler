@@ -195,6 +195,15 @@ static inline struct queue_entry *__get_entry(
 	                                 * hdr->subqueue[sq].stride));
 }
 
+static __inline__ unsigned long long _rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
+#include <twz/debug.h>
+
 #endif
 
 static inline _Bool is_turn(struct queue_hdr *hdr, int sq, uint32_t tail, struct queue_entry *entry)
@@ -284,9 +293,18 @@ static inline int queue_sub_enqueue(
 	/* ring the bell! If the consumer isn't waiting, don't bother the kernel. */
 	hdr->subqueue[sq].bell++;
 	if(D_ISWAITING(hdr, sq)) {
+#ifndef __KERNEL__
+		long long a = _rdtsc();
+#endif
+
 		if((r = __wake_up(obj, &hdr->subqueue[sq].bell, 1, 0)) < 0) {
 			return r;
 		}
+
+#ifndef __KERNEL__
+		long long b = _rdtsc();
+		//	debug_printf(":::-> %ld\n", b - a);
+#endif
 	}
 	return 0;
 }
@@ -378,6 +396,26 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 	if(count > 128)
 		return -EINVAL;
 	size_t sleep_count = 0;
+
+#if 1
+	size_t tries = 100;
+	while(tries > 0) {
+		size_t ready = 0;
+		for(size_t i = 0; i < count; i++) {
+			struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
+			if(queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true) == 0) {
+				ready++;
+				specs[i].ret = 1;
+			}
+		}
+
+		if(ready > 0) {
+			return ready;
+		}
+		tries--;
+	}
+#endif
+
 	struct sys_thread_sync_args tsa[count];
 	for(size_t i = 0; i < count; i++) {
 		struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
@@ -408,6 +446,7 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 		} else {
 		try_dequeue:
 			queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true);
+			/* TODO: what if this returned -EAGAIN */
 			specs[i].ret = 1;
 		}
 	}

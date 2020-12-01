@@ -26,7 +26,7 @@ static void thread_resume(struct thread *thr, uint64_t timeout)
 __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 {
 	uint64_t ji = clksrc_get_nanoseconds();
-	mm_update_stats();
+	// mm_update_stats();
 
 	if(0 && ++proc->ctr % 10 == 0) {
 		uint32_t lom, him, loa, hia;
@@ -126,6 +126,9 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 		} else {
 			proc->flags &= ~PROCESSOR_HASWORK;
 			spinlock_release(&proc->sched_lock, 1);
+
+			processor_update_stats();
+			mm_update_stats();
 			/* we're halting here, but the arch_processor_halt function will return
 			 * after an interrupt is fired. Since we're in kernel-space, any interrupt
 			 * we get will not invoke the scheduler. */
@@ -225,6 +228,7 @@ void thread_wake(struct thread *t)
 	spinlock_acquire_save(&t->processor->sched_lock);
 	int old = atomic_exchange(&t->state, THREADSTATE_RUNNING);
 	if(old == THREADSTATE_BLOCKED) {
+		/*
 		struct object *obj = kso_get_obj(t->throbj, thr);
 		obj_write_data_atomic64(
 		  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
@@ -232,7 +236,7 @@ void thread_wake(struct thread *t)
 		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
 		  INT_MAX);
 		obj_put(obj);
-
+*/
 		list_insert(&t->processor->runqueue, &t->rq_entry);
 		t->processor->stats.running++;
 		t->processor->flags |= PROCESSOR_HASWORK;
@@ -323,6 +327,7 @@ void thread_print_all_threads(void)
 		printk("thread %ld\n", t->id);
 		printk("  CPU: %d\n", t->processor ? (int)t->processor->id : -1);
 		printk("  state: %d\n", t->state);
+		arch_thread_print_info(t);
 		spinlock_release_restore(&t->lock);
 	}
 	spinlock_release_restore(&allthreads_lock);

@@ -58,7 +58,9 @@ void arch_processor_scheduler_wakeup(struct processor *proc)
 		/* if we don't have mwait, the sleeping processor is in HLT loop, which means we must send
 		 * it an IPI to wake it. */
 		/* TODO: check if processor is halted */
+		// if(proc->flags & PROCESSOR_HALTING) {
 		processor_send_ipi(proc->id, PROCESSOR_IPI_RESUME, NULL, PROCESSOR_IPI_NOWAIT);
+		//}
 	}
 }
 
@@ -83,9 +85,20 @@ __noinstrument void arch_processor_halt(struct processor *proc)
 
 		asm volatile("mwait" ::"a"(mw), "c"(0x1) : "memory");
 	} else {
-		/* note the race-condition: HASWORK is checked before the halt and not after. this is okay;
-		 * if we fall-back to the halt loop, we also use the RESUME IPI. */
-		asm volatile("sti; hlt");
+		int tries = 1000 /* TODO (major): calibrate this */;
+		while(--tries > 0) {
+			if(proc->flags & PROCESSOR_HASWORK)
+				break;
+			asm volatile("pause");
+		}
+		if(tries == 0) {
+			proc->flags |= PROCESSOR_HALTING;
+			if(atomic_fetch_and(&proc->flags, ~PROCESSOR_HASWORK) & PROCESSOR_HASWORK) {
+				proc->flags &= ~PROCESSOR_HALTING;
+				return;
+			}
+			asm volatile("sti; hlt");
+		}
 	}
 
 wakeup:
@@ -94,7 +107,7 @@ wakeup:
 	} else {
 		proc->arch.mwait_info = 0;
 	}
-	proc->flags &= ~PROCESSOR_HASWORK;
+	proc->flags &= ~(PROCESSOR_HASWORK | PROCESSOR_HALTING);
 
 	// asm volatile("sti; hlt");
 	// for(long i = 0; i < 10000000; i++) {

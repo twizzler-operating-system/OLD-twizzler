@@ -239,7 +239,7 @@ void page_print_stats(void)
 void page_init_bootstrap(void)
 {
 	/* bootstrap page allocator */
-	for(int c = 0; c < 128; c++) {
+	for(int c = 0; c < 1024; c++) {
 		struct page *pages = mm_virtual_early_alloc();
 		size_t nrpages = mm_page_size(0) / sizeof(struct page);
 		static bool did_init = false;
@@ -557,6 +557,11 @@ size_t PG_ZERO_THRESH[] = {
 
 void page_idle_zero(void)
 {
+	static _Atomic int idlers = 0;
+	if(idlers++ > 0) {
+		idlers--;
+		return;
+	}
 	_Atomic bool *recur_flag = per_cpu_get(page_recur_crit_flag);
 	bool rf = atomic_exchange(recur_flag, true);
 
@@ -567,6 +572,7 @@ void page_idle_zero(void)
 		struct page *p = page_alloc(PM_TYPE_DRAM, PAGE_ZERO, 0);
 		__do_page_dealloc(crit, p);
 	}
+
 	for(unsigned i = 0; i < array_len(all_pgs); i++) {
 		if(processor_has_threads(current_processor))
 			break;
@@ -619,4 +625,6 @@ void page_idle_zero(void)
 	}
 
 	*recur_flag = rf;
+
+	idlers--;
 }

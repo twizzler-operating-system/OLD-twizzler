@@ -127,7 +127,6 @@ void slot_release(struct slot *s)
 
 void object_space_map_slot(struct object_space *space, struct slot *slot, uint64_t flags)
 {
-	assert(slot->lock.data);
 	if(!space)
 		space =
 		  current_thread && current_thread->active_sc ? &current_thread->active_sc->space : NULL;

@@ -150,16 +150,23 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 	 * properly restore the frame and continue */
 }
 
+static __inline__ unsigned long long krdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
 extern long (*syscall_table[])();
 __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 {
+	long num = frame->rax;
+#if CONFIG_PRINT_SYSCALLS
+	long long a = krdtsc();
+#endif
 	current_thread->arch.was_syscall = true;
 	arch_interrupt_set(true);
 	current_thread->processor->stats.syscalls++;
-#if CONFIG_PRINT_SYSCALLS
-	if(frame->rax != SYS_DEBUG_PRINT)
-		printk("%ld: SYSCALL %ld (%lx)\n", current_thread->id, frame->rax, frame->rcx);
-#endif
 	if(frame->rax < NUM_SYSCALLS) {
 		if(syscall_table[frame->rax]) {
 			long r = syscall_prelude(frame->rax);
@@ -178,8 +185,16 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		frame->rax = -EINVAL;
 	}
 
-	/* TODO: do this somewhere better */
-	processor_update_stats();
+#if CONFIG_PRINT_SYSCALLS
+	long long b = krdtsc();
+	if(frame->rax != SYS_DEBUG_PRINT)
+		printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
+		  current_thread->id,
+		  num,
+		  frame->rcx,
+		  frame->rax,
+		  b - a);
+#endif
 	arch_interrupt_set(false);
 	thread_schedule_resume();
 }

@@ -105,8 +105,10 @@ void obj_release_kaddr(struct object *obj)
 	}
 	if(krc_put(&obj->kaddr_count)) {
 		/* TODO: but make these reclaimable */
-		if(obj->kso_type)
-			goto done;
+		if(obj->kso_type) {
+			spinlock_release_restore(&obj->lock);
+			return;
+		}
 		struct slot *slot = obj->kslot;
 		obj->kslot = NULL;
 		obj->kaddr = NULL;
@@ -119,9 +121,9 @@ void obj_release_kaddr(struct object *obj)
 		obj_put(o);
 		object_space_release_slot(slot);
 		slot_release(slot);
+	} else {
+		spinlock_release_restore(&obj->lock);
 	}
-done:
-	spinlock_release_restore(&obj->lock);
 }
 
 void obj_read_data(struct object *obj, size_t start, size_t len, void *ptr)

@@ -196,22 +196,22 @@ static void submit_tx(struct netmgr *mgr,
   void (*callback)(struct netreq *, struct nstack_queue_entry *),
   void *data)
 {
-	long a, b;
-	a = rdtsc();
+	// long a, b;
+	// a = rdtsc();
 	struct netreq *req = malloc(sizeof(*req));
 	req->callback = callback;
 	req->data = data;
 	req->nqe = *nqe;
-	b = rdtsc();
-	printf("stx init: %ld\n", b - a);
-	a = rdtsc();
+	// b = rdtsc();
+	// printf("stx init: %ld\n", b - a);
+	// a = rdtsc();
 	add_outstanding_tx(mgr, req);
-	b = rdtsc();
-	printf("stx outs: %ld\n", b - a);
-	a = rdtsc();
+	// b = rdtsc();
+	// printf("stx outs: %ld\n", b - a);
+	// a = rdtsc();
 	queue_submit(&mgr->txq_obj, (struct queue_entry *)&req->nqe, 0);
-	b = rdtsc();
-	printf("stx qsub: %ld\n", b - a);
+	// b = rdtsc();
+	// printf("stx qsub: %ld\n", b - a);
 }
 
 static void complete_tx(struct netmgr *mgr)

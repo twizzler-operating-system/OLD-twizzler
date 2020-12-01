@@ -125,7 +125,6 @@ static struct objpage *objpage_clone(struct object *newobj, struct objpage *op, 
 
 void obj_clone_cow(struct object *src, struct object *nobj)
 {
-	assert(src->lock.data);
 	arch_object_remap_cow(src);
 	for(struct rbnode *node = rb_first(&src->pagecache_root); node; node = rb_next(node)) {
 		struct objpage *pg = rb_entry(node, struct objpage, node);
@@ -152,6 +151,7 @@ int obj_copy_pages(struct object *dest, struct object *src, size_t doff, size_t 
 	if(src) {
 		spinlock_acquire_save(&src->lock);
 		arch_object_remap_cow(src);
+		spinlock_release_restore(&src->lock);
 	}
 	spinlock_acquire_save(&dest->lock);
 
@@ -178,6 +178,7 @@ int obj_copy_pages(struct object *dest, struct object *src, size_t doff, size_t 
 #endif
 	}
 
+	/* TODO (perf): do this lazily */
 	for(size_t i = 0; i < len / mm_page_size(0); i++) {
 		size_t dst_idx = doff / mm_page_size(0) + i;
 
@@ -194,6 +195,7 @@ int obj_copy_pages(struct object *dest, struct object *src, size_t doff, size_t 
 		}
 
 		if(src) {
+			spinlock_acquire_save(&src->lock);
 			size_t src_idx = soff / mm_page_size(0) + i;
 			struct rbnode *node =
 			  rb_search(&src->pagecache_root, src_idx, struct objpage, node, __objpage_compar_key);
@@ -209,12 +211,12 @@ int obj_copy_pages(struct object *dest, struct object *src, size_t doff, size_t 
 			}
 			new_op->idx = dst_idx;
 			rb_insert(&dest->pagecache_root, new_op, struct objpage, node, __objpage_compar);
+			spinlock_release_restore(&src->lock);
 		}
 	}
 
 	spinlock_release_restore(&dest->lock);
 	if(src) {
-		spinlock_release_restore(&src->lock);
 	}
 	return 0;
 }

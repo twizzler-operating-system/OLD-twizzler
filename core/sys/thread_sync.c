@@ -8,6 +8,13 @@
 
 #define MAX_SLEEPS 1024
 
+static __inline__ unsigned long long krdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
 struct syncpoint {
 	struct object *obj;
 	size_t off;
@@ -155,14 +162,13 @@ static int sp_wake(struct syncpoint *sp, long arg)
 		for(size_t i = 0; i < thr->sleep_count; i++) {
 			if(thr->sleep_entries[i].active && se != &thr->sleep_entries[i]) {
 				struct syncpoint *op = thr->sleep_entries[i].sp;
-				spinlock_acquire_save(&op->lock);
+				// spinlock_acquire_save(&op->lock);
 				list_remove(&thr->sleep_entries[i].entry);
 				thr->sleep_entries[i].active = false;
-				spinlock_release_restore(&op->lock);
+				// spinlock_release_restore(&op->lock);
 				krc_put_call(op, refs, _sp_release);
 			}
 		}
-
 		thread_wake(se->thr);
 		spinlock_release_restore(&thr->lock);
 		krc_put_call(sp, refs, _sp_release);
@@ -170,6 +176,7 @@ static int sp_wake(struct syncpoint *sp, long arg)
 	}
 	spinlock_release_restore(&sp->lock);
 	krc_put_call(sp, refs, _sp_release);
+
 	return count;
 }
 
@@ -179,10 +186,10 @@ void thread_sync_uninit_thread(struct thread *thr)
 	for(size_t i = 0; i < thr->sleep_count; i++) {
 		if(thr->sleep_entries[i].active) {
 			struct syncpoint *op = thr->sleep_entries[i].sp;
-			spinlock_acquire_save(&op->lock);
+			// spinlock_acquire_save(&op->lock);
 			list_remove(&thr->sleep_entries[i].entry);
 			thr->sleep_entries[i].active = false;
-			spinlock_release_restore(&op->lock);
+			// spinlock_release_restore(&op->lock);
 			krc_put_call(op, refs, _sp_release);
 		}
 	}
@@ -203,14 +210,19 @@ static long thread_sync_single_norestore(int operation,
 {
 	objid_t id;
 	uint64_t off;
+	// long long a, b, c, d, e, f;
+	// a = krdtsc();
 	if(!vm_vaddr_lookup(addr, &id, &off)) {
 		return -EFAULT;
 	}
+	// b = krdtsc();
 	struct object *obj = obj_lookup(id, 0);
 	if(!obj) {
 		return -ENOENT;
 	}
+	// c = krdtsc();
 	struct syncpoint *sp = sp_lookup(obj, off, operation == THREAD_SYNC_SLEEP);
+	// d = krdtsc();
 	long ret = -EINVAL;
 	switch(operation) {
 		case THREAD_SYNC_SLEEP:
@@ -222,7 +234,11 @@ static long thread_sync_single_norestore(int operation,
 		default:
 			break;
 	}
+	// e = krdtsc();
 	obj_put(obj);
+	// f = krdtsc();
+	// if(operation == THREAD_SYNC_WAKE)
+	//	printk("tssnr: %ld %ld %ld %ld %ld -> %ld\n", b - a, c - b, d - c, e - d, f - e, ret);
 	return ret;
 }
 
@@ -266,8 +282,12 @@ long thread_sleep_on_object(struct object *obj, size_t offset, long arg, bool do
 {
 	struct syncpoint *sp = sp_lookup(obj, offset, true);
 	__thread_init_sync(1);
-	if(current_thread->sleep_entries[0].active)
+	spinlock_acquire_save(&current_thread->lock);
+	if(current_thread->sleep_entries[0].active) {
+		spinlock_release_restore(&current_thread->lock);
 		return 0;
+	}
+	spinlock_release_restore(&current_thread->lock);
 	if(!dont_check) {
 		panic("NI - in-kernel sleep on object with addr check");
 	}
@@ -323,6 +343,7 @@ long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct
 {
 	bool ok = false;
 	bool wake = false;
+	bool was_wake_op = false;
 	if(count > MAX_SLEEPS)
 		return -EINVAL;
 	if(!verify_user_pointer(args, count * sizeof(*args)))
@@ -344,6 +365,9 @@ long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct
 		if(!verify_user_pointer(addr, sizeof(void *))) {
 			r = ret = -EINVAL;
 		} else {
+			if(args[i].op == THREAD_SYNC_WAKE) {
+				was_wake_op = true;
+			}
 			r = thread_sync_single_norestore(
 			  args[i].op, addr, args[i].arg, i, false, !!(args[i].flags & THREAD_SYNC_32BIT));
 			if(r)

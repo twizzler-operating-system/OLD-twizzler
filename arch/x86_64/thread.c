@@ -3,6 +3,15 @@
 #include <syscall.h>
 #include <thread.h>
 
+void arch_thread_print_info(struct thread *t)
+{
+	if(t->arch.was_syscall) {
+		printk("  was syscall, rip %lx\n", t->arch.syscall.rcx);
+	} else {
+		printk("  was int, rip %lx\n", t->arch.exception.rip);
+	}
+}
+
 long arch_thread_syscall_num(void)
 {
 	if(!current_thread)

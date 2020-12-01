@@ -393,7 +393,7 @@ static int __do_map(struct vm_context *ctx,
 		}
 		struct object *obj = obj_lookup(id, 0);
 		if(!obj) {
-			spinlock_release_restore(&ctx->lock);
+			// spinlock_release_restore(&ctx->lock);
 			if(fault) {
 				if(kernel_queue_pager_request_object(id)) {
 					struct fault_object_info info;

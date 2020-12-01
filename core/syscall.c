@@ -68,12 +68,12 @@ long (*syscall_table[NUM_SYSCALLS])() = {
 
 long syscall_prelude(int num)
 {
-	kso_detach_event(current_thread, true, num);
+	// kso_detach_event(current_thread, true, num);
 	return 0;
 }
 
 long syscall_epilogue(int num)
 {
-	kso_detach_event(current_thread, false, num);
+	// kso_detach_event(current_thread, false, num);
 	return 0;
 }
