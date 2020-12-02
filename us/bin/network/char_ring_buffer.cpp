@@ -57,7 +57,7 @@ uint32_t char_ring_buffer_remove(char_ring_buffer_t* buffer,
                                  uint32_t bytes)
 {
     if (buffer == NULL) {
-        fprintf(stderr, "Error char_ring_buffer_add: buffer is NULL\n");
+        fprintf(stderr, "Error char_ring_buffer_remove: buffer is NULL\n");
         exit(1);
     }
 
@@ -93,7 +93,7 @@ uint32_t char_ring_buffer_get(char_ring_buffer_t* buffer,
                               uint32_t bytes)
 {
     if (buffer == NULL) {
-        fprintf(stderr, "Error char_ring_buffer_add: buffer is NULL\n");
+        fprintf(stderr, "Error char_ring_buffer_get: buffer is NULL\n");
         exit(1);
     }
 
@@ -128,7 +128,7 @@ uint32_t char_ring_buffer_get(char_ring_buffer_t* buffer,
 uint32_t empty_space(char_ring_buffer_t* buffer)
 {
     if (buffer == NULL) {
-        fprintf(stderr, "Error char_ring_buffer_add: buffer is NULL\n");
+        fprintf(stderr, "Error char_ring_buffer empty_space: buffer is NULL\n");
         exit(1);
     }
 
@@ -144,7 +144,7 @@ uint32_t occupied_space(char_ring_buffer_t* buffer,
                         uint32_t* idx)
 {
     if (buffer == NULL) {
-        fprintf(stderr, "Error char_ring_buffer_add: buffer is NULL\n");
+        fprintf(stderr, "Error char_ring_buffer occupied_space: buffer is NULL\n");
         exit(1);
     }
 

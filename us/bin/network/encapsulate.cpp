@@ -32,6 +32,7 @@ void encap_arp_packet(uint16_t opcode,
                       mac_addr_t dst_mac,
                       ip_addr_t dst_ip)
 {
+    /* find the tx interface */
     char interface_name[MAX_INTERFACE_NAME_SIZE];
     ip_table_get(dst_ip, interface_name);
     if (interface_name == NULL) {
@@ -65,6 +66,7 @@ void encap_arp_packet(uint16_t opcode,
 
 int encap_udp_packet(object_id_t object_id,
                      uint8_t twz_op,
+                     ip_addr_t src_ip,
                      ip_addr_t dst_ip,
                      uint16_t src_port,
                      uint16_t dst_port,
@@ -83,13 +85,25 @@ int encap_udp_packet(object_id_t object_id,
     bool has_twz_hdr = true;
     if (twz_op == NOOP) has_twz_hdr = false;
 
+    /* find the tx interface */
     char interface_name[MAX_INTERFACE_NAME_SIZE];
-    ip_table_get(dst_ip, interface_name);
+    ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
+
+    if (compare_ip_addr(src_ip, default_ip, default_ip)) { /* use dst ip to find
+                                                              the tx interface */
+        ip_table_get(dst_ip, interface_name);
+    } else {                                               /* use src ip to find
+                                                              the tx interface */
+        get_interface_by_ip(src_ip, interface_name);
+    }
+
     if (interface_name == NULL) {
-        fprintf(stderr, "Error encap_udp_packet: "
-                "ip_table_get returned no valid interface\n");
+        fprintf(stderr, "Error encap_tcp_packet: "
+                "no valid interface found to transmit the packet\n");
         exit(1);
     }
+
+    interface_t* interface = get_interface_by_name(interface_name);
 
     /* calculate the size of packet buffer */
     uint16_t pkt_size;
@@ -148,6 +162,7 @@ int encap_udp_packet(object_id_t object_id,
 
 int encap_tcp_packet(object_id_t object_id,
                      uint8_t twz_op,
+                     ip_addr_t src_ip,
                      ip_addr_t dst_ip,
                      uint16_t src_port,
                      uint16_t dst_port,
@@ -169,13 +184,24 @@ int encap_tcp_packet(object_id_t object_id,
     bool has_twz_hdr = true;
     if (twz_op == NOOP) has_twz_hdr = false;
 
+    /* find the tx interface */
     char interface_name[MAX_INTERFACE_NAME_SIZE];
-    ip_table_get(dst_ip, interface_name);
+    ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
+
+    if (compare_ip_addr(src_ip, default_ip, default_ip)) { /* use dst ip to find
+                                                              the tx interface */
+        ip_table_get(dst_ip, interface_name);
+    } else {                                               /* use src ip to find
+                                                              the tx interface */
+        get_interface_by_ip(src_ip, interface_name);
+    }
+
     if (interface_name == NULL) {
         fprintf(stderr, "Error encap_tcp_packet: "
-                "ip_table_get returned no valid interface\n");
+                "no valid interface found to transmit the packet\n");
         exit(1);
     }
+
     interface_t* interface = get_interface_by_name(interface_name);
 
     /* calculate the size of packet buffer */

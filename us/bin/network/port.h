@@ -2,13 +2,29 @@
 #define __PORT_H__
 
 #include "common.h"
+#include "generic_ring_buffer.h"
 
-void bind_to_port(uint16_t port_num,
-                  uint8_t protocol);
+#define PKT_BUFFER_SIZE 1000 //num of packets
 
-uint16_t bind_to_random_port(uint8_t protocol);
+typedef struct udp_port {
+    ip_addr_t ip;
+    generic_ring_buffer_t* rx_buffer;
+} udp_port_t;
 
-void free_port(uint16_t port_num,
-               uint8_t protocol);
+udp_port_t* get_udp_port(uint16_t port);
+
+void bind_to_udp_port(ip_addr_t ip,
+                      uint16_t port);
+
+uint16_t bind_to_random_udp_port();
+
+void free_udp_port(uint16_t port);
+
+void bind_to_tcp_port(ip_addr_t ip,
+                      uint16_t port);
+
+uint16_t bind_to_random_tcp_port();
+
+void free_tcp_port(uint16_t port);
 
 #endif

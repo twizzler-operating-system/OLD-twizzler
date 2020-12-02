@@ -7,9 +7,10 @@
 #define CONTROLLER_BASED 0
 #define END_TO_END 1
 
+#define TWIZZLER_IP DEFAULT_IP //any IP address
 #define TWIZZLER_PORT 9090 //port on host vm dedicated for twizzler control ops
 //controller information
-#define CONTROLLER_ADDR "10.0.0.4"
+#define CONTROLLER_IP "10.0.0.4"
 #define CONTROLLER_PORT 9091
 
 //error codes

@@ -19,6 +19,9 @@ void init_interface(const char* interface_name,
 
 interface_t* get_interface_by_name(const char* interface_name);
 
+void get_interface_by_ip(ip_addr_t ip,
+                         char* interface_name);
+
 void bind_to_ip(ip_addr_t ip);
 
 #endif

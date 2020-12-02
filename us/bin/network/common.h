@@ -37,6 +37,8 @@ typedef enum {
 #define EARPFAILED 2
 #define ETCPCONNFAILED 3
 
+#define DEFAULT_IP "0.0.0.0"
+
 typedef struct __attribute__((__packed__)) mac_addr {
     uint8_t mac[MAC_ADDR_SIZE];
 } mac_addr_t;

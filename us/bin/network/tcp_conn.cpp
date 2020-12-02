@@ -20,13 +20,10 @@ std::mutex outstanding_conns_mutex;
 bool compare_half_conn(half_conn_t half_conn_1,
                        half_conn_t half_conn_2)
 {
-    uint16_t sum1=0, sum2=0;
-    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
-        sum1 += half_conn_1.ip.ip[i];
-        sum2 += half_conn_2.ip.ip[i];
-    }
+    ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
 
-    if (sum1 != 0 && sum2 != 0) {
+    if (!compare_ip_addr(half_conn_1.ip, default_ip, default_ip)
+    && !compare_ip_addr(half_conn_2.ip, default_ip, default_ip)) {
         for (int i = 0; i < IP_ADDR_SIZE; ++i) {
             if (half_conn_1.ip.ip[i] != half_conn_2.ip.ip[i]) {
                 return false;
@@ -169,13 +166,10 @@ std::mutex conn_table_mutex;
 bool compare_tcp_conn(tcp_conn_t conn_1,
                       tcp_conn_t conn_2)
 {
-    uint16_t sum1=0, sum2=0;
-    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
-        sum1 += conn_1.local.ip.ip[i];
-        sum2 += conn_2.local.ip.ip[i];
-    }
+    ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
 
-    if (sum1 != 0 && sum2 != 0) {
+    if (!compare_ip_addr(conn_1.local.ip, default_ip, default_ip)
+    && !compare_ip_addr(conn_2.local.ip, default_ip, default_ip)) {
         for (int i = 0; i < IP_ADDR_SIZE; ++i) {
             if (conn_1.local.ip.ip[i] != conn_2.local.ip.ip[i]) {
                 return false;
@@ -183,12 +177,8 @@ bool compare_tcp_conn(tcp_conn_t conn_1,
         }
     }
 
-    sum1=0; sum2=0;
-    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
-        sum1 += conn_1.remote.ip.ip[i];
-        sum2 += conn_2.remote.ip.ip[i];
-    }
-
+    assert(!compare_ip_addr(conn_1.remote.ip, default_ip, default_ip)
+    && !compare_ip_addr(conn_2.remote.ip, default_ip, default_ip));
     for (int i = 0; i < IP_ADDR_SIZE; ++i) {
         if (conn_1.remote.ip.ip[i] != conn_2.remote.ip.ip[i]) {
             return false;
@@ -391,7 +381,7 @@ int establish_tcp_conn_client(half_conn_t* local,
     tcp_conn_t conn;
     memcpy(conn.local.ip.ip, interface->ip.ip, IP_ADDR_SIZE);
     memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
-    conn.local.port = bind_to_random_port(TCP);
+    conn.local.port = bind_to_random_tcp_port();
     conn.remote.port = remote.port;
 
     tcp_conn_state_t* conn_state =
@@ -409,11 +399,12 @@ int establish_tcp_conn_client(half_conn_t* local,
     conn_table_put(conn, conn_state);
 
     object_id_t object_id;
-    //send SYN packet
-    int ret = encap_tcp_packet(object_id, NOOP, conn.remote.ip, conn.local.port,
-                conn.remote.port, SYN_PKT, seq_num, ack_num, NULL, 0);
+    /* send SYN packet */
+    int ret = encap_tcp_packet(object_id, NOOP, conn.local.ip, conn.remote.ip,
+                conn.local.port, conn.remote.port, SYN_PKT, seq_num, ack_num,
+                NULL, 0);
     if (ret != 0) {
-        free_port(conn.local.port, TCP);
+        free_tcp_port(conn.local.port);
         cleanup_conn_state(conn);
         return ETCPCONNFAILED;
     }
@@ -425,18 +416,18 @@ int establish_tcp_conn_client(half_conn_t* local,
         clock_t time_elapsed_msec
             = ((clock() - start) * 1000) / CLOCKS_PER_SEC;
         if (time_elapsed_msec >= TCP_TIMEOUT) {
-            free_port(conn.local.port, TCP);
+            free_tcp_port(conn.local.port);
             cleanup_conn_state(conn);
             return ETCPCONNFAILED;
         }
     }
 
-    //send ACK packet
-    ret = encap_tcp_packet(object_id, NOOP, conn.remote.ip, conn.local.port,
-            conn.remote.port, ACK_PKT, conn_state->seq_num, conn_state->ack_num,
-            NULL, 0);
+    /* send ACK packet */
+    ret = encap_tcp_packet(object_id, NOOP, conn.local.ip, conn.remote.ip,
+            conn.local.port, conn.remote.port, ACK_PKT, conn_state->seq_num,
+            conn_state->ack_num, NULL, 0);
     if (ret != 0) {
-        free_port(conn.local.port, TCP);
+        free_tcp_port(conn.local.port);
         cleanup_conn_state(conn);
         return ETCPCONNFAILED;
     }
@@ -475,7 +466,7 @@ int establish_tcp_conn_server(half_conn_t local,
         conn.local.port = local.port;
         conn.remote.port = remote_conn.remote.port;
 
-        if (conn_table_get(conn) != NULL) { //connection already exists!
+        if (conn_table_get(conn) != NULL) { /* connection already exists! */
             continue;
         }
 
@@ -494,12 +485,14 @@ int establish_tcp_conn_server(half_conn_t local,
         conn_table_put(conn, conn_state);
 
         object_id_t object_id;
-        //send SYN-ACK packet
-        int ret = encap_tcp_packet(object_id, NOOP, conn.remote.ip, conn.local.port,
-                    conn.remote.port, SYN_ACK_PKT, seq_num, ack_num, NULL, 0);
+        /* send SYN-ACK packet */
+        int ret = encap_tcp_packet(object_id, NOOP, conn.local.ip, conn.remote.ip,
+                    conn.local.port, conn.remote.port, SYN_ACK_PKT, seq_num,
+                    ack_num, NULL, 0);
         if (ret != 0) {
             cleanup_conn_state(conn);
-            outstanding_conns_enqueue(local, remote_conn); //re-enqueue to try again
+            /* re-enqueue to try again */
+            outstanding_conns_enqueue(local, remote_conn);
             continue;
         }
 
@@ -516,8 +509,8 @@ int establish_tcp_conn_server(half_conn_t local,
                 break;
             }
         }
-        if (!recvd_ack) { //issue with the client; don't re-enqueue;
-                          //instead try some other outstanding conn
+        if (!recvd_ack) { /* issue with the client; don't re-enqueue;
+                           * instead try some other outstanding conn */
             continue;
         }
 
@@ -572,17 +565,17 @@ void send_tcp_data()
                     (tx_buffer, payload, &seq_num, bytes_to_send);
                 assert(bytes == bytes_to_send);
 
-                //send TCP packet
+                /* send TCP packet */
                 fprintf(stderr, "Sending TCP packet with payload = %s", payload);
-                int p = 10000 * 0.7; //70% drop probability
+                int p = 10000 * 0.7; /* 70% drop probability */
                 int r = rand() % 10000;
                 if (r < p) {
                     fprintf(stderr, " -- Packet Dropped!!\n");
                 } else {
                     object_id_t object_id;
-                    int ret = encap_tcp_packet(object_id, NOOP, conn.remote.ip,
-                                conn.local.port, conn.remote.port, DATA_PKT,
-                                seq_num, ack_num, payload, bytes_to_send);
+                    int ret = encap_tcp_packet(object_id, NOOP, conn.local.ip,
+                                conn.remote.ip, conn.local.port, conn.remote.port,
+                                DATA_PKT, seq_num, ack_num, payload, bytes_to_send);
                     if (ret == 0) {
                         fprintf(stderr, "\n");
                     } else {
@@ -593,7 +586,7 @@ void send_tcp_data()
                 free(payload);
             }
 
-            //update seq num
+            /* update seq num */
             if (seq_num == tx_buffer->head) {
                 pthread_spin_lock(&conn_state->mtx);
                 tx_buffer->time_of_head_change = clock();
@@ -635,44 +628,44 @@ void recv_tcp_data(const char* interface_name,
     conn.local.port = local_port;
     conn.remote.port = remote_port;
 
-    //if recv a RST packet, close the connection and cleanup state
+    /* if recv a RST packet, close the connection and cleanup state */
     if (rst == 1) {
         fprintf(stderr, "Error: connection [%u.%u.%u.%u, %u.%u.%u.%u, %u, %u] "
-                "reset by peer\n", (local_ip.ip[0] & 0x000000FF),
-                (local_ip.ip[1] & 0x000000FF),
-                (local_ip.ip[2] & 0x000000FF),
-                (local_ip.ip[3] & 0x000000FF),
-                (remote_ip.ip[0] & 0x000000FF),
-                (remote_ip.ip[1] & 0x000000FF),
-                (remote_ip.ip[2] & 0x000000FF),
-                (remote_ip.ip[3] & 0x000000FF),
-                (local_port & 0x0000FFFF),
-                (remote_port & 0x0000FFFF));
+                "reset by peer\n", (conn.local.ip.ip[0] & 0x000000FF),
+                (conn.local.ip.ip[1] & 0x000000FF),
+                (conn.local.ip.ip[2] & 0x000000FF),
+                (conn.local.ip.ip[3] & 0x000000FF),
+                (conn.remote.ip.ip[0] & 0x000000FF),
+                (conn.remote.ip.ip[1] & 0x000000FF),
+                (conn.remote.ip.ip[2] & 0x000000FF),
+                (conn.remote.ip.ip[3] & 0x000000FF),
+                (conn.local.port & 0x0000FFFF),
+                (conn.remote.port & 0x0000FFFF));
         cleanup_conn_state(conn);
         return;
     }
 
-    //if recv a non-SYN pkt for an unknown connection, send back RST packet
+    /* if recv a non-SYN pkt for an unknown connection, send back RST packet */
     if (syn != 1 && conn_table_get(conn) == NULL) {
         fprintf(stderr, "Error: received packet for an unknown connection "
                 "[%u.%u.%u.%u, %u.%u.%u.%u, %u, %u]; sending RST\n",
-                (local_ip.ip[0] & 0x000000FF),
-                (local_ip.ip[1] & 0x000000FF),
-                (local_ip.ip[2] & 0x000000FF),
-                (local_ip.ip[3] & 0x000000FF),
-                (remote_ip.ip[0] & 0x000000FF),
-                (remote_ip.ip[1] & 0x000000FF),
-                (remote_ip.ip[2] & 0x000000FF),
-                (remote_ip.ip[3] & 0x000000FF),
-                (local_port & 0x0000FFFF),
-                (remote_port & 0x0000FFFF));
+                (conn.local.ip.ip[0] & 0x000000FF),
+                (conn.local.ip.ip[1] & 0x000000FF),
+                (conn.local.ip.ip[2] & 0x000000FF),
+                (conn.local.ip.ip[3] & 0x000000FF),
+                (conn.remote.ip.ip[0] & 0x000000FF),
+                (conn.remote.ip.ip[1] & 0x000000FF),
+                (conn.remote.ip.ip[2] & 0x000000FF),
+                (conn.remote.ip.ip[3] & 0x000000FF),
+                (conn.local.port & 0x0000FFFF),
+                (conn.remote.port & 0x0000FFFF));
         object_id_t object_id;
-        int ret = encap_tcp_packet(object_id, NOOP, remote_ip, local_port,
-                    remote_port, RST_PKT, 0, 0, NULL, 0);
+        int ret = encap_tcp_packet(object_id, NOOP, conn.local.ip, conn.remote.ip,
+                    conn.local.port, conn.remote.port, RST_PKT, 0, 0, NULL, 0);
         return;
     }
 
-    if (syn == 1 && ack == 0) { //received SYN packet
+    if (syn == 1 && ack == 0) { /* received SYN packet */
         half_conn_t local;
         memcpy(local.ip.ip, local_ip.ip, IP_ADDR_SIZE);
         local.port = local_port;
@@ -685,7 +678,7 @@ void recv_tcp_data(const char* interface_name,
 
         outstanding_conns_enqueue(local, conn); //TODO can result in SYN attack
 
-    } else if (syn == 1 && ack == 1) { //received SYN-ACK packet
+    } else if (syn == 1 && ack == 1) { /* received SYN-ACK packet */
         tcp_conn_state_t* conn_state = conn_table_get(conn);
         assert(conn_state != NULL);
 
@@ -697,7 +690,7 @@ void recv_tcp_data(const char* interface_name,
             conn_state->ack_num = seq_num + 1;
         }
 
-    } else if (ack == 1) { //received ACK or Data packet
+    } else if (ack == 1) { /* received ACK or Data packet */
         tcp_conn_state_t* conn_state = conn_table_get(conn);
         assert(conn_state != NULL);
 
@@ -725,12 +718,13 @@ void recv_tcp_data(const char* interface_name,
                     (conn_state->rx_buffer, payload, payload_size);
                 conn_state->ack_num += added_bytes;
 
-                //send ACK packet
+                /* send ACK packet */
                 object_id_t object_id;
                 if (added_bytes > 0) {
-                    int ret = encap_tcp_packet(object_id, NOOP, conn.remote.ip,
-                                conn.local.port, conn.remote.port, ACK_PKT,
-                                conn_state->seq_num, conn_state->ack_num, NULL, 0);
+                    int ret = encap_tcp_packet(object_id, NOOP, conn.local.ip,
+                                conn.remote.ip, conn.local.port, conn.remote.port,
+                                ACK_PKT, conn_state->seq_num, conn_state->ack_num,
+                                NULL, 0);
                 }
             }
         }
@@ -740,9 +734,9 @@ void recv_tcp_data(const char* interface_name,
 
 void cleanup_conn_state(tcp_conn_t conn)
 {
-    //cleanup entry from outstanding_conns table
+    /* cleanup entry from outstanding_conns table */
     outstanding_conns_delete(conn.local);
 
-    //cleanup entry from conn table
+    /* cleanup entry from conn table */
     conn_table_delete(conn);
 }

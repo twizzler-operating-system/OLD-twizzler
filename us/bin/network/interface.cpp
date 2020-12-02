@@ -101,16 +101,35 @@ interface_t* get_interface_by_name(const char* interface_name)
 }
 
 
+void get_interface_by_ip(ip_addr_t ip,
+                         char* interface_name)
+{
+    std::map<const char*,interface_t*>::iterator it;
+
+    for (it = interface_list.begin(); it != interface_list.end(); ++it) {
+        int count = 0;
+        for (int i = 0; i < IP_ADDR_SIZE; ++i) {
+            if (it->second->ip.ip[i] == ip.ip[i]) ++count;
+            else break;
+        }
+        if (count == IP_ADDR_SIZE) {
+            strncpy(interface_name, it->first, MAX_INTERFACE_NAME_SIZE);
+            return;
+        }
+    }
+
+    interface_name = NULL;
+    return;
+}
+
+
 void bind_to_ip(ip_addr_t ip)
 {
     std::map<const char*,interface_t*>::iterator it;
 
-    uint16_t sum = 0;
-    for (int i = 0; i < IP_ADDR_SIZE; ++i) {
-        sum += ip.ip[i];
-    }
+    ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
 
-    if (sum != 0) {
+    if (!compare_ip_addr(ip, default_ip, default_ip)) {
         for (it = interface_list.begin(); it != interface_list.end(); ++it) {
             interface_t* interface = it->second;
             int count = 0;

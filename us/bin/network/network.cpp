@@ -48,8 +48,8 @@ int main(int argc, char* argv[])
     /* bootstrap TCP connection table */
     bootstrap_conn_table();
 
-    /* bind twizzler op port */
-    bind_to_port(TWIZZLER_PORT, UDP);
+    /* bind to twizzler UDP port */
+    bind_to_udp_port(string_to_ip_addr(TWIZZLER_IP), TWIZZLER_PORT);
 
     /* free packet memory asynchronously */
     interface_t* interface = get_interface_by_name("/dev/e1000");
@@ -70,6 +70,7 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "Sending out a UDP packet...");
                     int ret = encap_udp_packet
                         (object_id, NOOP,
+                         string_to_ip_addr(argv[1]),
                          string_to_ip_addr(argv[4]),
                          atoi(argv[5]),
                          atoi(argv[6]),
@@ -96,6 +97,7 @@ int main(int argc, char* argv[])
                     memcpy(remote.ip.ip,string_to_ip_addr(argv[4]).ip,IP_ADDR_SIZE);
                     remote.port = atoi(argv[6]);
 
+                    //connect
                     half_conn_t local;
                     int ret = establish_tcp_conn_client(&local, remote);
                     if (ret == 0) {
@@ -116,6 +118,7 @@ int main(int argc, char* argv[])
                                 (remote.port & 0x0000FFFF));
                     }
 
+                    //send
                     tcp_conn_t conn;
                     memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
                     memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
@@ -130,11 +133,13 @@ int main(int argc, char* argv[])
 
                 if (strcmp(argv[1], "10.0.0.2") == 0) { //server
                     half_conn_t local;
-                    bind_to_ip(string_to_ip_addr(argv[1]));
                     memcpy(local.ip.ip, string_to_ip_addr(argv[1]).ip, IP_ADDR_SIZE);
-                    bind_to_port(atoi(argv[5]), TCP);
                     local.port = atoi(argv[5]);
 
+                    //bind
+                    bind_to_tcp_port(local.ip, local.port);
+
+                    //listen and accept
                     half_conn_t remote;
                     int ret = establish_tcp_conn_server(local, &remote);
                     fprintf(stderr, "Connection established with "
@@ -145,6 +150,7 @@ int main(int argc, char* argv[])
                             (remote.ip.ip[3] & 0x000000FF),
                             (remote.port & 0x0000FFFF));
 
+                    //receive
                     tcp_conn_t conn;
                     memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
                     memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);

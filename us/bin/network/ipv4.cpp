@@ -237,16 +237,16 @@ void ip_tx(const char* interface_name,
 
     /* fragmentation attributes */
     ip_hdr->identification = 0;
-    ip_hdr->flags_and_offset = 0b010 << 13; //flag:010 (don't fragment); offset:0
+    ip_hdr->flags_and_offset = 0b010 << 13; /* flag:010(don't fragment); offset:0 */
 
     /* time to live */
-    ip_hdr->ttl = 255; //default value
+    ip_hdr->ttl = 255; /* default value */
 
     /* payload protocol */
     ip_hdr->protocol = ip_type;
 
     /* header checksum */
-    ip_hdr->hdr_checksum = 0; //is updated at the end
+    ip_hdr->hdr_checksum = 0;
 
     /* source IP */
     memcpy(ip_hdr->src_ip.ip, interface->ip.ip, IP_ADDR_SIZE);
@@ -254,7 +254,7 @@ void ip_tx(const char* interface_name,
     /* destination IP */
     memcpy(ip_hdr->dst_ip.ip, dst_ip.ip, IP_ADDR_SIZE);
 
-    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
+    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; /* bytes */
     ip_hdr->hdr_checksum = htons(checksum((unsigned char *)ip_pkt_ptr, ihl));
 }
 
@@ -280,7 +280,7 @@ void ip_rx(const char* interface_name,
     uint16_t recvd_checksum = ntohs(ip_hdr->hdr_checksum);
     ip_hdr->hdr_checksum = 0;
 
-    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; //in bytes
+    uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; /* bytes */
     uint16_t calculated_checksum = checksum((unsigned char *)ip_hdr, ihl);
     if (recvd_checksum != calculated_checksum) {
         fprintf(stderr, "ip_rx: checksum mismatch; packet dropped\n");
