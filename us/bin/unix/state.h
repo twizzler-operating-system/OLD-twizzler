@@ -93,12 +93,28 @@ enum proc_state {
 class queue_client;
 class unixprocess
 {
+	class pwaiter
+	{
+	  public:
+		std::shared_ptr<queue_client> client;
+		twix_queue_entry tqe;
+		int pid;
+
+		pwaiter(std::shared_ptr<queue_client> _client, twix_queue_entry *tqe, int pid)
+		  : client(_client)
+		  , tqe(*tqe)
+		  , pid(pid)
+		{
+		}
+	};
+
   public:
 	int pid;
 	int gid;
 	int uid;
 	int exit_status;
 	proc_state state = PROC_NORMAL;
+	bool status_changed = false;
 
 	std::vector<std::pair<std::shared_ptr<queue_client>, twix_queue_entry *>> state_waiters;
 
@@ -109,6 +125,8 @@ class unixprocess
 
 	std::shared_ptr<unixprocess> parent;
 	std::vector<std::shared_ptr<unixprocess>> children;
+
+	std::vector<pwaiter *> waiting_clients;
 
 	std::mutex lock;
 
@@ -128,6 +146,23 @@ class unixprocess
 
 	void mark_ready();
 	void change_status(proc_state state, int status);
+
+	bool wait_for_child(std::shared_ptr<queue_client> client, twix_queue_entry *tqe, int pid);
+	bool child_status_change(unixprocess *child, int status);
+
+	bool wait(int *status)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(state == PROC_FORKED) {
+			return false;
+		}
+		if(status_changed) {
+			status_changed = false;
+			*status = exit_status;
+			return true;
+		}
+		return false;
+	}
 
 	void child_died(int pid)
 	{
@@ -243,6 +278,11 @@ class unixthread
 	{
 	}
 
+	bool is_leader()
+	{
+		return perproc_id == 0;
+	}
+
 	bool send_signal(int sig, bool);
 
 	void exit()
@@ -291,6 +331,7 @@ class queue_client
 
 	void complete(twix_queue_entry *tqe)
 	{
+		/* TODO: non blocking, ignore if exited... */
 		// fprintf(stderr, "COMPLETING %d\n", tqe->qe.info);
 		queue_complete(&queue, (struct queue_entry *)tqe, 0);
 	}

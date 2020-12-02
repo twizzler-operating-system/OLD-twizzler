@@ -56,8 +56,9 @@ $(MUSL_HDRS): $(BUILDDIR)/us/musl-config.mk $(MUSL_SRCS)
 	@TWZKROOT=$(shell pwd) TWZKBUILDDIR=$(BUILDDIR) CONFIGFILEPATH=../musl-config.mk $(MAKE) -C $(BUILDDIR)/us/$(MUSL) $(MUSL_H_GEN)
 	@TWZKROOT=$(shell pwd) TWZKBUILDDIR=$(BUILDDIR) CONFIGFILEPATH=../musl-config.mk $(MAKE) -C $(BUILDDIR)/us/$(MUSL) install-headers DESTDIR=$(shell pwd)/$(BUILDDIR)/us/sysroot
 	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twz twz
-	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twz logboi
-	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twz twix
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/logboi logboi
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twix twix
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/nstack nstack
 	@touch $@
 
 $(BUILDDIR)/us/sysroot/usr/include/%.h: $(MUSL_HDRS)
@@ -95,6 +96,7 @@ TWZCFLAGS=-Wall -Wextra -O3 -g -march=native -mclflushopt -mno-avx512f -mno-avx2
 
 include us/libtwz/include.mk
 include us/libtwzsec/include.mk
+include us/libtwznet/include.mk
 include us/twix/include.mk
 
 all_progs: $(addsuffix _all,$(PROGS))
@@ -108,6 +110,10 @@ $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so: $(BUILDDIR)/us/libtwz/libtwz.so
 	@cp $< $@
 
 $(BUILDDIR)/us/sysroot/usr/lib/libtwzsec.so: $(BUILDDIR)/us/libtwzsec/libtwzsec.so
+	@mkdir -p $(BUILDDIR)/us/sysroot/usr/lib
+	@cp $< $@
+
+$(BUILDDIR)/us/sysroot/usr/lib/libtwznet.so: $(BUILDDIR)/us/libtwznet/libtwznet.so
 	@mkdir -p $(BUILDDIR)/us/sysroot/usr/lib
 	@cp $< $@
 
@@ -126,7 +132,7 @@ $(BUILDDIR)/us/sysroot/usr/lib/libc.so: $(BUILDDIR)/us/twix/libtwix.a $(BUILDDIR
 	@touch $(BUILDDIR)/us/sysroot/usr/lib/libc.so
 
 
-SYSLIBS=$(BUILDDIR)/us/sysroot/usr/lib/libtwz.a $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so $(BUILDDIR)/us/sysroot/usr/lib/libtwix.a $(BUILDDIR)/us/sysroot/usr/lib/libc.a $(BUILDDIR)/us/sysroot/usr/lib/libc.so $(BUILDDIR)/us/sysroot/usr/lib/libtwzsec.so
+SYSLIBS=$(BUILDDIR)/us/sysroot/usr/lib/libtwz.a $(BUILDDIR)/us/sysroot/usr/lib/libtwz.so $(BUILDDIR)/us/sysroot/usr/lib/libtwix.a $(BUILDDIR)/us/sysroot/usr/lib/libc.a $(BUILDDIR)/us/sysroot/usr/lib/libc.so $(BUILDDIR)/us/sysroot/usr/lib/libtwzsec.so $(BUILDDIR)/us/sysroot/usr/lib/libtwznet.so
 
 -include $(BUILDDIR)/us/*/*.d
 

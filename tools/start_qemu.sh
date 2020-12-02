@@ -10,7 +10,7 @@ fi
 
 if [[ "$INSTANCES" == "" ]]; then
 	echo $QEMU
-	$QEMU -enable-kvm -cdrom $BUILDDIR/boot.iso -serial mon:stdio -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
+	$QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom $BUILDDIR/boot.iso -serial mon:stdio -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
 	exit
 fi
 

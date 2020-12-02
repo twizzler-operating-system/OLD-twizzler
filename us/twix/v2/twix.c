@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <twix/twix.h>
 #include <twz/debug.h>
+#include <twz/view.h>
 
 #include "../syscalls.h"
 
@@ -328,7 +329,6 @@ long hook_open(struct syscall_args *args)
 }
 
 #include <twz/mutex.h>
-#include <twz/view.h>
 static struct mutex mmap_mutex;
 static uint8_t mmap_bitmap[TWZSLOT_MMAP_NUM / 8];
 
@@ -579,6 +579,52 @@ long hook_kill(struct syscall_args *args)
 	return tqe.ret;
 }
 
+#include <sys/resource.h>
+struct rusage;
+static long linux_wait4(int pid, int *status, int options, struct rusage *rusage)
+{
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_WAIT, 0, sizeof(*rusage), 2, pid, options);
+	twix_sync_command(&tqe);
+	if(rusage) {
+		extract_bufdata(rusage, sizeof(*rusage), 0);
+	}
+	if(status) {
+		*status = tqe.arg0;
+	}
+	return tqe.ret;
+}
+
+long hook_wait4(struct syscall_args *args)
+{
+	int pid = args->a0;
+	int *status = (int *)args->a1;
+	int options = args->a2;
+	struct rusage *ru = (void *)args->a3;
+	return linux_wait4(pid, status, options, ru);
+}
+
+long hook_wait3(struct syscall_args *args)
+{
+	int *status = (int *)args->a0;
+	int options = args->a1;
+	struct rusage *ru = (void *)args->a2;
+	return linux_wait4(-1, status, options, ru);
+}
+
+long hook_waitpid(struct syscall_args *args)
+{
+	int pid = args->a0;
+	int *status = (int *)args->a1;
+	int options = args->a2;
+	return linux_wait4(pid, status, options, NULL);
+}
+
+long hook_wait(struct syscall_args *args)
+{
+	int *status = (int *)args->a0;
+	return linux_wait4(-1, status, 0, NULL);
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
@@ -612,6 +658,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_clock_gettime] = hook_clock_gettime,
 	[LINUX_SYS_fork] = hook_fork,
 	[LINUX_SYS_kill] = hook_kill,
+	[LINUX_SYS_wait4] = hook_wait4,
 };
 
 extern const char *syscall_names[];

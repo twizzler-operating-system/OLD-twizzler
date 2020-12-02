@@ -74,11 +74,12 @@ std::pair<long, bool> twix_cmd_exit(std::shared_ptr<queue_client> client, twix_q
 {
 	int opts = tqe->arg1;
 	if(!(opts & TWIX_FLAGS_EXIT_THREAD) || client->thr->tid == client->proc->pid) {
-		client->proc->change_status(PROC_EXITED, (tqe->arg0 & 0xff) << 8);
+		int status =
+		  (opts & TWIX_FLAGS_EXIT_SIGNAL) ? (tqe->arg0 & 0xff) : ((tqe->arg0 & 0xff) << 8);
+		client->proc->change_status(PROC_EXITED, status);
 	}
 	/* TODO: futex write the tid? */
 	if((opts & TWIX_FLAGS_EXIT_GROUP) || (client->thr->tid == client->proc->pid)) {
-		fprintf(stderr, "!!!! KILLING ALL\n");
 		client->proc->kill_all_threads(client->thr->tid);
 	}
 	return R_S(0);
@@ -92,7 +93,46 @@ std::pair<long, bool> twix_cmd_sigdone(std::shared_ptr<queue_client> client, twi
 std::pair<long, bool> twix_cmd_suspend(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	client->thr->suspend(tqe);
+	fprintf(stderr, "doing suspend %d\n", client->thr->is_leader());
+	if(client->thr->is_leader()) {
+		client->proc->change_status(PROC_NORMAL, 0x7f | ((tqe->arg0 & 0xff) << 8));
+	}
 	return R_A(0);
+}
+
+#include <sys/wait.h>
+
+std::pair<long, bool> twix_cmd_wait(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
+{
+	int pid = tqe->arg0;
+	int options = tqe->arg1;
+	if(pid < -1 || pid == 0) {
+		fprintf(stderr, "TODO: implement pgid wait\n");
+		return R_S(-ENOTSUP);
+	}
+
+	if(options & WCONTINUED) {
+		fprintf(stderr, "TODO: implement WCONTINUED\n");
+		return R_S(-EINVAL);
+	}
+
+	if(options & WNOHANG) {
+		int status;
+		std::lock_guard<std::mutex> _lg(client->proc->lock);
+		bool found = false;
+		for(auto child : client->proc->children) {
+			if(pid == -1 || pid == child->pid) {
+				found = true;
+				if(child->wait(&status)) {
+					tqe->arg0 = status;
+					return R_S(child->pid);
+				}
+			}
+		}
+		return R_S(found ? 0 : -ECHILD);
+	}
+
+	return client->proc->wait_for_child(client, tqe, pid) ? R_A(0) : R_S(-ECHILD);
 }
 
 static std::pair<long, bool> __reopen_v1_fd(std::shared_ptr<queue_client> client,
@@ -125,6 +165,7 @@ static std::pair<long, bool> (
 	[TWIX_CMD_WAIT_READY] = twix_cmd_wait_ready,
 	[TWIX_CMD_SIGDONE] = twix_cmd_sigdone,
 	[TWIX_CMD_SUSPEND] = twix_cmd_suspend,
+	[TWIX_CMD_WAIT] = twix_cmd_wait,
 };
 
 static const char *cmd_strs[] = {

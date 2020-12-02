@@ -172,6 +172,8 @@ struct stackframe {
 #include <twz/_sctx.h>
 static void __twz_fault_unhandled_print(int fault_nr, void *data)
 {
+	struct twzthread_repr *repr = twz_thread_repr_base();
+	PRINT("  from thrd %s\n", repr->hdr.name);
 	// if(info->fault_nr != FAULT_NULL)
 	//	twz_thread_exit();
 	if(fault_nr == FAULT_SCTX) {

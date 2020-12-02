@@ -242,16 +242,16 @@ int e1000c_init(e1000_controller *nc)
 	return 0;
 }
 
-void e1000_tx_desc_init(struct e1000_tx_desc *desc, uint64_t p, size_t len)
+void e1000_tx_desc_init(struct e1000_tx_desc *desc, uint64_t p, size_t len, bool end_of_packet)
 {
 	desc->addr = p;
 	desc->length = len;
 	/* TODO: do we need to report status, etc? */
-	desc->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
+	desc->cmd = (end_of_packet ? CMD_EOP : 0) | CMD_IFCS | CMD_RS | CMD_RPS;
 	desc->status = 0;
 }
 
-int32_t e1000c_send_packet(e1000_controller *nc, uint64_t pdata, size_t len)
+int32_t e1000c_send_packet(e1000_controller *nc, uint64_t pdata, size_t len, bool end_of_packet)
 {
 	if((nc->cur_tx + 1) % nc->nr_tx_desc == nc->head_tx) {
 		return -EAGAIN;
@@ -259,7 +259,7 @@ int32_t e1000c_send_packet(e1000_controller *nc, uint64_t pdata, size_t len)
 
 	uint32_t num = nc->cur_tx;
 	struct e1000_tx_desc *desc = &nc->tx_ring[nc->cur_tx];
-	e1000_tx_desc_init(desc, pdata, len);
+	e1000_tx_desc_init(desc, pdata, len, end_of_packet);
 
 	nc->cur_tx = (nc->cur_tx + 1) % nc->nr_tx_desc;
 	e1000_reg_write32(nc, REG_TXDESCTAIL, BAR_MEMORY, nc->cur_tx);
@@ -456,7 +456,7 @@ void e1000_tx_queue(e1000_controller *nc)
 
 		{
 			std::unique_lock<std::mutex> lck(nc->mtx);
-			int32_t pn = e1000c_send_packet(nc, data_pin + offset, req->packet.len);
+			int32_t pn = e1000c_send_packet(nc, data_pin + offset, req->packet.len, !!(req->packet.flags & PACKET_FLAGS_EOP));
 			if(pn < 0) {
 				fprintf(stderr, "TODO: dropped packet\n");
 			} else {

@@ -98,6 +98,12 @@ void unixprocess::exit()
 	} else {
 		proctable.remove(pid);
 	}
+
+	/* TODO: clean up */
+	for(auto pw : waiting_clients) {
+		//	delete pw;
+	}
+	waiting_clients.clear();
 }
 
 void unixprocess::kill_all_threads(int except)
@@ -156,6 +162,52 @@ unixprocess::unixprocess(std::shared_ptr<unixprocess> parent)
 	uid = parent->uid;
 }
 
+bool unixprocess::wait_for_child(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe,
+  int pid)
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	bool found = false;
+	for(auto child : children) {
+		int status;
+		if(pid == -1 || pid == child->pid) {
+			found = true;
+			if(child->wait(&status)) {
+				tqe->arg0 = status;
+				tqe->ret = child->pid;
+				client->complete(tqe);
+				return true;
+			}
+		}
+	}
+	if(!found)
+		return false;
+
+	pwaiter *pw = new pwaiter(client, tqe, pid);
+	waiting_clients.push_back(pw);
+
+	return true;
+}
+
+bool unixprocess::child_status_change(unixprocess *child, int status)
+{
+	/* TODO: signal SIGCHLD? */
+	std::lock_guard<std::mutex> _lg(lock);
+	for(size_t i = 0; i < waiting_clients.size(); i++) {
+		pwaiter *pw = waiting_clients[i];
+		if(pw->pid == child->pid || pw->pid == -1) {
+			pw->tqe.arg0 = status;
+			pw->tqe.ret = child->pid;
+			pw->client->complete(&pw->tqe);
+			waiting_clients.erase(waiting_clients.begin() + i);
+			delete pw;
+			return true;
+		}
+	}
+
+	return false;
+}
+
 int client_init(std::shared_ptr<queue_client> client)
 {
 	int r = twz_object_new(
@@ -184,7 +236,7 @@ int client_init(std::shared_ptr<queue_client> client)
 	}
 	thrtable.insert(client->proc->pid, client->proc, client);
 	client->thr = thrtable.lookup(client->proc->pid);
-	client->proc->add_thread(client->thr);
+	client->thr->perproc_id = client->proc->add_thread(client->thr);
 
 	if(!existing_proc) {
 		auto [rr, desc] = open_file(nullptr, "/");
@@ -211,6 +263,7 @@ void unixthread::resume()
 void unixprocess::change_status(proc_state _state, int status)
 {
 	std::lock_guard<std::mutex> _lg(lock);
+	proc_state old_state = state;
 	state = _state;
 	exit_status = status;
 	for(auto w : state_waiters) {
@@ -218,6 +271,9 @@ void unixprocess::change_status(proc_state _state, int status)
 		delete w.second;
 	}
 	state_waiters.clear();
+	if(old_state != PROC_FORKED && parent) {
+		parent->child_status_change(this, status);
+	}
 }
 
 void unixprocess::mark_ready()

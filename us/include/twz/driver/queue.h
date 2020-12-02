@@ -38,12 +38,12 @@ struct queue_entry_bio {
 };
 
 #define PACKET_CMD_SEND 0
+#define PACKET_FLAGS_EOP 1
 
 struct packet_queue_entry {
-    struct queue_entry qe;
-    void *ptr;
-    uint32_t flags;
-    uint16_t len;
-    uint16_t cmd;
+	struct queue_entry qe;
+	void *ptr;
+	uint32_t flags;
+	uint16_t len;
+	uint16_t cmd;
 };
-
