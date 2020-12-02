@@ -52,131 +52,149 @@ int main(int argc, char *argv[])
 	bootstrap_conn_table();
 
 	/* bind twizzler op port */
-	bind_to_port(TWIZZLER_PORT, UDP);
+	bind_to_udp_port(string_to_ip_addr(TWIZZLER_IP), TWIZZLER_PORT);
 
 	/* free packet memory asynchronously */
 	interface_t *interface = get_interface_by_name("/dev/e1000");
 	std::thread free_pkt_memory(free_packet_buffer_object, &interface->tx_queue_obj);
 
-	///////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
 
 	/* Run specified network program */
 	if(argc > 3) {
 		if(strcmp(argv[3], "udp") == 0) {
-			if(argc == 7) {
-				object_id_t object_id;
-				int count = 0;
-				while(count < 50) {
-					++count;
-					char payload[19] = "This is test data.";
-					fprintf(stderr, "Sending out a UDP packet...");
-					int ret = encap_udp_packet(object_id,
-					  NOOP,
-					  string_to_ip_addr(argv[4]),
-					  atoi(argv[5]),
-					  atoi(argv[6]),
-					  payload,
-					  19);
-					if(ret == 0) {
-						fprintf(stderr, "Packet successfully sent\n");
-					} else {
-						fprintf(stderr, "Packet send failed\n");
-					}
-					usleep(1000000);
-				}
+            if(strcmp(argv[1], "10.0.0.1") == 0) { //client
+                //port init
+                uint16_t src_port = bind_to_random_udp_port();
 
-			} else {
-				fprintf(stderr,
-				  "Error: udp program requires 3 arguments - "
-				  "dst_ip_addr src_port dst_port\n");
-				exit(1);
-			}
+                //send
+                char data[115] =
+                    "This is an amazing place to live but the cost of living is "
+                    "extremely high. I guess you win some, you loose some :)";
+                object_id_t object_id;
+                for (int i = 0; i < 115; i = i + 23) {
+                    int ret = encap_udp_packet(object_id, NOOP,
+                            string_to_ip_addr(DEFAULT_IP),
+                            string_to_ip_addr("10.0.0.2"),
+                            src_port,
+                            3004,
+                            (data + i),
+                            23);
+                    char temp[24];
+                    strncpy(temp, data+i, 23);
+                    if (ret == 0) {
+                        fprintf(stderr, "UDP pkt with payload - %s SENT\n",
+                                temp);
+                    } else {
+                        fprintf(stderr, "UDP pkt with payload - %s DROPPED\n",
+                                temp);
+                    }
+                }
+            }
+
+            if(strcmp(argv[1], "10.0.0.2") == 0) { //server
+                //bind
+                bind_to_udp_port(string_to_ip_addr(argv[1]), 3004);
+
+                //recv
+                udp_port_t* udp_port = get_udp_port(3004);
+                assert(udp_port != NULL);
+                while (true) {
+                    char* data = (char *)generic_ring_buffer_remove
+                        (udp_port->rx_buffer);
+                    if (data != NULL) {
+                        fprintf(stderr, "%s", data);
+                    } else {
+                        usleep(1000);
+                    }
+                }
+            }
 
 		} else if(strcmp(argv[3], "tcp") == 0) {
-			if(argc == 7) {
-				if(strcmp(argv[1], "10.0.0.1") == 0) { // client
-					half_conn_t remote;
-					memcpy(remote.ip.ip, string_to_ip_addr(argv[4]).ip, IP_ADDR_SIZE);
-					remote.port = atoi(argv[6]);
+            if(strcmp(argv[1], "10.0.0.1") == 0) { //client
+                half_conn_t remote;
+                memcpy(remote.ip.ip, string_to_ip_addr("10.0.0.2").ip,
+                        IP_ADDR_SIZE);
+                remote.port = 3004;
 
-					half_conn_t local;
-					int ret = establish_tcp_conn_client(&local, remote);
-					if(ret == 0) {
-						fprintf(stderr,
-						  "Connection established with "
-						  "('%u.%u.%u.%u', %u)\n",
-						  (remote.ip.ip[0] & 0x000000FF),
-						  (remote.ip.ip[1] & 0x000000FF),
-						  (remote.ip.ip[2] & 0x000000FF),
-						  (remote.ip.ip[3] & 0x000000FF),
-						  (remote.port & 0x0000FFFF));
-					} else {
-						fprintf(stderr,
-						  "Connection establish with "
-						  "('%u.%u.%u.%u', %u) failed\n",
-						  (remote.ip.ip[0] & 0x000000FF),
-						  (remote.ip.ip[1] & 0x000000FF),
-						  (remote.ip.ip[2] & 0x000000FF),
-						  (remote.ip.ip[3] & 0x000000FF),
-						  (remote.port & 0x0000FFFF));
-					}
+                //connect
+                half_conn_t local;
+                int ret = establish_tcp_conn_client(&local, remote);
+                if(ret == 0) {
+                    fprintf(stderr,
+                      "Connection established with "
+                      "('%u.%u.%u.%u', %u)\n",
+                      (remote.ip.ip[0] & 0x000000FF),
+                      (remote.ip.ip[1] & 0x000000FF),
+                      (remote.ip.ip[2] & 0x000000FF),
+                      (remote.ip.ip[3] & 0x000000FF),
+                      (remote.port & 0x0000FFFF));
+                } else {
+                    fprintf(stderr,
+                      "Connection establish with "
+                      "('%u.%u.%u.%u', %u) failed\n",
+                      (remote.ip.ip[0] & 0x000000FF),
+                      (remote.ip.ip[1] & 0x000000FF),
+                      (remote.ip.ip[2] & 0x000000FF),
+                      (remote.ip.ip[3] & 0x000000FF),
+                      (remote.port & 0x0000FFFF));
+                }
 
-					tcp_conn_t conn;
-					memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
-					memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
-					conn.local.port = local.port;
-					conn.remote.port = remote.port;
+                tcp_conn_t conn;
+                memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
+                memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
+                conn.local.port = local.port;
+                conn.remote.port = remote.port;
 
-					tcp_conn_state_t *conn_state = conn_table_get(conn);
+                tcp_conn_state_t *conn_state = conn_table_get(conn);
 
-					char data[115] = "This is an amazing place to live but the cost of living is "
-					                 "extremely high. I guess you win some, you loose some :)";
-					char_ring_buffer_add(conn_state->tx_buffer, data, 115);
-				}
+                //send
+                char data[115] =
+                    "This is an amazing place to live but the cost of living is "
+                    "extremely high. I guess you win some, you loose some :)";
+                char_ring_buffer_add(conn_state->tx_buffer, data, 115);
+            }
 
-				if(strcmp(argv[1], "10.0.0.2") == 0) { // server
-					half_conn_t local;
-					bind_to_ip(string_to_ip_addr(argv[1]));
-					memcpy(local.ip.ip, string_to_ip_addr(argv[1]).ip, IP_ADDR_SIZE);
-					bind_to_port(atoi(argv[5]), TCP);
-					local.port = atoi(argv[5]);
+            if(strcmp(argv[1], "10.0.0.2") == 0) { //server
+                half_conn_t local;
+                memcpy(local.ip.ip, string_to_ip_addr(argv[1]).ip, IP_ADDR_SIZE);
+                local.port = 3004;
 
-					half_conn_t remote;
-					int ret = establish_tcp_conn_server(local, &remote);
-					fprintf(stderr,
-					  "Connection established with "
-					  "('%u.%u.%u.%u', %u)\n",
-					  (remote.ip.ip[0] & 0x000000FF),
-					  (remote.ip.ip[1] & 0x000000FF),
-					  (remote.ip.ip[2] & 0x000000FF),
-					  (remote.ip.ip[3] & 0x000000FF),
-					  (remote.port & 0x0000FFFF));
+                //bind
+                bind_to_tcp_port(local.ip, local.port);
 
-					tcp_conn_t conn;
-					memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
-					memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
-					conn.local.port = local.port;
-					conn.remote.port = remote.port;
+                //listen + accept
+                half_conn_t remote;
+                int ret = establish_tcp_conn_server(local, &remote);
+                fprintf(stderr,
+                  "Connection established with "
+                  "('%u.%u.%u.%u', %u)\n",
+                  (remote.ip.ip[0] & 0x000000FF),
+                  (remote.ip.ip[1] & 0x000000FF),
+                  (remote.ip.ip[2] & 0x000000FF),
+                  (remote.ip.ip[3] & 0x000000FF),
+                  (remote.port & 0x0000FFFF));
 
-					tcp_conn_state_t *conn_state = conn_table_get(conn);
+                tcp_conn_t conn;
+                memcpy(conn.local.ip.ip, local.ip.ip, IP_ADDR_SIZE);
+                memcpy(conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
+                conn.local.port = local.port;
+                conn.remote.port = remote.port;
 
-					while(true) {
-						char data[MSS] = { 0 };
-						uint32_t ret = char_ring_buffer_remove(conn_state->rx_buffer, data, MSS);
-						if(ret > 0) {
-							fprintf(stderr, "%s", data);
-						} else {
-							usleep(1000);
-						}
-					}
-				}
+                tcp_conn_state_t *conn_state = conn_table_get(conn);
 
-			} else {
-				fprintf(stderr,
-				  "Error: tcp program requires 3 arguments - "
-				  "dst_ip_addr src_port dst_port\n");
-				exit(1);
-			}
+                //recv
+                while (true) {
+                    char data[MSS] = { 0 };
+                    uint32_t ret = char_ring_buffer_remove
+                        (conn_state->rx_buffer, data, MSS);
+                    if (ret > 0) {
+                        fprintf(stderr, "%s", data);
+                    } else {
+                        usleep(1000);
+                    }
+                }
+            }
 
 		} else if(strcmp(argv[3], "twz") == 0) {
 			if(argc == 5) {

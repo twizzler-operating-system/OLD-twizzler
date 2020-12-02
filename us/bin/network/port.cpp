@@ -14,11 +14,7 @@ std::mutex tcp_port_mtx;
 
 udp_port_t* get_udp_port(uint16_t port)
 {
-    if (port < 65536) {
-        return udp_ports[port];
-    } else {
-        return NULL;
-    }
+    return udp_ports[port];
 }
 
 
