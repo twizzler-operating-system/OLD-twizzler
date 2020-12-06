@@ -131,7 +131,9 @@ class net_client
 	void complete(struct nstack_queue_entry *nqe)
 	{
 		/* TODO: nonblock, etc */
-		queue_complete(&txq_obj, (struct queue_entry *)nqe, 0);
+		if(queue_complete(&txq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
+			fprintf(stderr, "WARNING - completion would have blocked\n");
+		}
 	}
 
 	std::shared_ptr<outstanding_command> pop_outstanding(uint32_t id)

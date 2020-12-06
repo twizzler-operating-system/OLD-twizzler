@@ -157,6 +157,7 @@ static int sp_wake(struct syncpoint *sp, long arg)
 		struct thread *thr = se->thr;
 		spinlock_acquire_save(&thr->lock);
 
+		thr->sleep_restart = true;
 		list_remove(&se->entry);
 		se->active = false;
 		for(size_t i = 0; i < thr->sleep_count; i++) {
@@ -351,6 +352,7 @@ long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct
 	if(timeout && !verify_user_pointer(timeout, sizeof(*timeout)))
 		return -EINVAL;
 	__thread_init_sync(count);
+	current_thread->sleep_restart = false;
 	bool armed_sleep = false;
 	int ret = 0;
 	for(size_t i = 0; i < count; i++) {
@@ -379,7 +381,7 @@ long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct
 			wake = true;
 		}
 	}
-	if(wake) {
+	if(wake || current_thread->sleep_restart) {
 		for(size_t i = 0; i < count; i++) {
 			if(args[i].op == THREAD_SYNC_SLEEP) {
 				thread_sync_sleep_wakeup((long *)args[i].addr, i);

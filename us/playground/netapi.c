@@ -32,10 +32,11 @@ int main()
 	fprintf(stderr, "sending\n");
 
 	struct timespec t0, t1, t2, d1, d2;
-	char buf[128] = {};
+	char buf[12] = {};
 	size_t len = sizeof(buf);
 	size_t i = 0;
 	while(1) {
+		// printf("sending\n");
 		clock_gettime(CLOCK_MONOTONIC, &t0);
 		ssize_t ret = netcon_send(con, buf, len, 0);
 		clock_gettime(CLOCK_MONOTONIC, &t1);
@@ -47,8 +48,8 @@ int main()
 		timespec_diff(&t0, &t1, &d1);
 		timespec_diff(&t1, &t2, &d2);
 		i++;
-		if(i % 10 == 0) {
-			printf("%ld: %ld %ld\n", len, d1.tv_nsec, d2.tv_nsec);
+		if(i % 100 == 0) {
+			printf("%ld :: %ld: %ld %ld\n", i, len, d1.tv_nsec, d2.tv_nsec);
 		}
 	}
 

@@ -5,7 +5,9 @@
 void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
 {
 	/* TODO: handle error, non-blocking (?) */
-	queue_submit(&rxq_obj, (struct queue_entry *)nqe, 0);
+	if(queue_submit(&rxq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
+		fprintf(stderr, "warning - submission would have blocked\n");
+	}
 }
 
 void submit_command(std::shared_ptr<net_client> client,
@@ -62,6 +64,9 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 			newnqe.cmd = NSTACK_CMD_RECV;
 			size_t off = client->testing_rxb_off;
 			client->testing_rxb_off += nqe->data_len;
+			if(client->testing_rxb_off >= OBJ_TOPDATA) {
+				client->testing_rxb_off = OBJ_NULLPAGE_SIZE;
+			}
 			char *buf = (char *)twz_object_base(&client->rxbuf_obj);
 			buf += off;
 			memcpy(buf,
@@ -85,6 +90,7 @@ void handle_completion(std::shared_ptr<net_client> client, struct nstack_queue_e
 {
 	std::shared_ptr<outstanding_command> cmd = client->pop_outstanding(nqe->qe.info);
 	if(cmd == nullptr) {
+		fprintf(stderr, "got completion for command that i don't know about! %d\n", nqe->qe.info);
 		return;
 	}
 

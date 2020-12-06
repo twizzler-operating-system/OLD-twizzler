@@ -90,6 +90,7 @@ static void release_id(struct netmgr *mgr, uint32_t id)
 static void add_outstanding_tx(struct netmgr *mgr, struct netreq *req)
 {
 	uint32_t id = alloc_id(mgr);
+	// fprintf(stderr, "add_out: %d\n", id);
 	req->nqe.qe.info = id;
 	pthread_mutex_lock(&mgr->lock);
 
@@ -101,6 +102,7 @@ static void add_outstanding_tx(struct netmgr *mgr, struct netreq *req)
 
 static void handle_completion_from_tx(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 {
+	// fprintf(stderr, "got compl: %d %x\n", nqe->qe.info, nqe->qe.cmd_id);
 	pthread_mutex_lock(&mgr->lock);
 	struct netreq *req, *prev = NULL;
 	for(req = mgr->outstanding; req; (prev = req), req = req->next) {
@@ -118,8 +120,16 @@ static void handle_completion_from_tx(struct netmgr *mgr, struct nstack_queue_en
 			return;
 		}
 	}
-	pthread_mutex_unlock(&mgr->lock);
+
+	usleep(100);
 	fprintf(stderr, "could not find outstanding request for ID %d\n", nqe->qe.info);
+
+	for(req = mgr->outstanding; req; (prev = req), req = req->next) {
+		fprintf(stderr, "  have %d\n", req->nqe.qe.info);
+	}
+	usleep(100000);
+	abort();
+	pthread_mutex_unlock(&mgr->lock);
 }
 
 struct netcon *netmgr_lookup_netcon(struct netmgr *mgr, uint16_t id)
@@ -174,14 +184,17 @@ static void get_rx_commands(struct netmgr *mgr, int flags)
 	/* TODO: we're assuming that we're single threaded here */
 	while(1) {
 		// pthread_mutex_lock(&mgr->lock);
+		// fprintf(stderr, "RQ\n");
 		if(queue_receive(&mgr->rxq_obj, (struct queue_entry *)&nqe, non_block ? QUEUE_NONBLOCK : 0)
 		   == 0) {
 		} else if(!non_block) {
 			//	pthread_mutex_unlock(&mgr->lock);
 			return;
 		}
+		// fprintf(stderr, "RDONE\n");
 		// pthread_mutex_unlock(&mgr->lock);
 		handle_cmd(mgr, &nqe);
+		// fprintf(stderr, "HCDONE\n");
 		if(flags & RX_ATLEASTONE) {
 			return;
 		}
@@ -542,6 +555,9 @@ ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags)
 			}
 		}
 		if(count == 0) {
+			// pthread_mutex_unlock(&con->lock);
+			// get_rx_commands(con->mgr, RX_ATLEASTONE);
+			// pthread_mutex_lock(&con->lock);
 			pthread_cond_wait(&con->event_cv, &con->lock);
 		} else {
 			break;

@@ -1,3 +1,4 @@
+#include <twz/debug.h>
 #include <twz/obj.h>
 #include <twz/queue.h>
 
@@ -25,7 +26,7 @@ void timespec_diff(struct timespec *start, struct timespec *stop, struct timespe
 	}
 }
 
-void consumer(twzobj *qobj)
+void consumer(twzobj *qobj, twzobj *qobj2)
 {
 	size_t count = 0;
 	struct timespec start, end, diff;
@@ -50,6 +51,14 @@ void consumer(twzobj *qobj)
 			  (double)count / seconds);
 			count = 0;
 			clock_gettime(CLOCK_MONOTONIC, &start);
+		}
+
+		queue_submit(qobj2, (struct queue_entry *)&pqe, 0);
+
+		if(count % 1000 == 0) {
+			for(int i = 0; i < 1000; i++) {
+				debug_printf("");
+			}
 		}
 
 		queue_complete(qobj, (struct queue_entry *)&pqe, 0);
@@ -96,20 +105,24 @@ static void *make_packet(twzobj *data_obj)
 int main()
 {
 	/* make a queue object and an object to hold packet data */
-	twzobj qo, data_obj;
+	twzobj qo, qo2, data_obj;
 	if(twz_object_new(&qo, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
+		abort();
+	if(twz_object_new(&qo2, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
 		abort();
 	if(twz_object_new(&data_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
 		abort();
 
 	/* init the queue object, here we have 32 queue entries */
 	queue_init_hdr(
-	  &qo, 22, sizeof(struct packet_queue_entry), 8, sizeof(struct packet_queue_entry));
+	  &qo, 12, sizeof(struct packet_queue_entry), 12, sizeof(struct packet_queue_entry));
+	queue_init_hdr(
+	  &qo2, 12, sizeof(struct packet_queue_entry), 12, sizeof(struct packet_queue_entry));
 	printf("packet queue size = %ld\n", sizeof(struct packet_queue_entry));
 
 	/* start the consumer... */
 	if(!fork()) {
-		consumer(&qo);
+		consumer(&qo, &qo2);
 	}
 
 	struct packet_queue_entry pqe;
@@ -140,10 +153,14 @@ int main()
 			clock_gettime(CLOCK_MONOTONIC, &start);
 		}
 
+		while(queue_receive(&qo2, (struct queue_entry *)&pqe, QUEUE_NONBLOCK) == 0)
+			;
+
 		//	printf("submitted %d\n", pqe.qe.info);
 
 		/* wait for a completion */
-		queue_get_finished(&qo, (struct queue_entry *)&pqe, 0);
+		while(queue_get_finished(&qo, (struct queue_entry *)&pqe, QUEUE_NONBLOCK) == 0)
+			;
 		//	printf("got finished %d\n", pqe.qe.info);
 
 		/* allow this ID to be reused */

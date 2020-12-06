@@ -195,15 +195,6 @@ static inline struct queue_entry *__get_entry(
 	                                 * hdr->subqueue[sq].stride));
 }
 
-static __inline__ unsigned long long _rdtsc(void)
-{
-	unsigned hi, lo;
-	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
-	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
-}
-
-#include <twz/debug.h>
-
 #endif
 
 static inline _Bool is_turn(struct queue_hdr *hdr, int sq, uint32_t tail, struct queue_entry *entry)
@@ -293,22 +284,20 @@ static inline int queue_sub_enqueue(
 	/* ring the bell! If the consumer isn't waiting, don't bother the kernel. */
 	hdr->subqueue[sq].bell++;
 	if(D_ISWAITING(hdr, sq)) {
-#ifndef __KERNEL__
-		long long a = _rdtsc();
-#endif
-
 		if((r = __wake_up(obj, &hdr->subqueue[sq].bell, 1, 0)) < 0) {
 			return r;
 		}
-
-#ifndef __KERNEL__
-		long long b = _rdtsc();
-		//	debug_printf(":::-> %ld\n", b - a);
-#endif
 	}
 	return 0;
 }
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+int usleep(unsigned int);
+#ifdef __cplusplus
+}
+#endif
 static inline int queue_sub_dequeue(
 #if __KERNEL__
   struct object *obj,
@@ -393,6 +382,7 @@ struct queue_dequeue_multiple_spec {
 static inline ssize_t queue_sub_dequeue_multiple(size_t count,
   struct queue_dequeue_multiple_spec *specs)
 {
+top:
 	if(count > 128)
 		return -EINVAL;
 	size_t sleep_count = 0;
@@ -402,7 +392,11 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 	while(tries > 0) {
 		size_t ready = 0;
 		for(size_t i = 0; i < count; i++) {
+			specs[i].ret = 0;
 			struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
+			if(tries == 0) {
+				D_CLRWAITING(hdr, specs[i].sq);
+			}
 			if(queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true) == 0) {
 				ready++;
 				specs[i].ret = 1;
@@ -417,8 +411,12 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 #endif
 
 	struct sys_thread_sync_args tsa[count];
+	sleep_count = 0;
 	for(size_t i = 0; i < count; i++) {
+		specs[i].ret = 0;
 		struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
+		D_SETWAITING(hdr, specs[i].sq);
+
 		uint32_t t, b;
 		/* grab the tail. Remember, we use the top bit to indicate we are waiting. */
 		t = hdr->subqueue[specs[i].sq].tail & 0x7fffffff;
@@ -429,33 +427,36 @@ static inline ssize_t queue_sub_dequeue_multiple(size_t count,
 		struct queue_entry *entry = __get_entry(specs[i].obj, hdr, specs[i].sq, t);
 
 		if(is_empty(b, t) || !is_turn(hdr, specs[i].sq, t, entry)) {
-			/* TODO: do we need to clear waiting ourselves? I don't think so, since
-			 * queue_sub_dequeue does it. */
-			D_SETWAITING(hdr, specs[i].sq);
-
-			t = hdr->subqueue[specs[i].sq].tail & 0x7fffffff;
-			b = hdr->subqueue[specs[i].sq].bell;
-
-			if(is_empty(b, t) || !is_turn(hdr, specs[i].sq, t, entry)) {
-				specs[i].ret = 0;
-				twz_thread_sync_init(
-				  &tsa[sleep_count++], THREAD_SYNC_SLEEP, &hdr->subqueue[specs[i].sq].bell, b);
-			} else {
-				goto try_dequeue;
-			}
-		} else {
-		try_dequeue:
-			queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true);
-			/* TODO: what if this returned -EAGAIN */
-			specs[i].ret = 1;
+			twz_thread_sync_init(
+			  &tsa[sleep_count++], THREAD_SYNC_SLEEP, &hdr->subqueue[specs[i].sq].bell, b);
+			continue;
 		}
+		/* the is_turn function does the acquire operation that pairs with the release on cmd_id
+		 * in the enqueue function. */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wclass-memaccess"
+		memcpy(specs[i].result, entry, hdr->subqueue[specs[i].sq].stride);
+#pragma GCC diagnostic pop
+
+		/* update the tail, remembering not to overwrite the waiting bit */
+		hdr->subqueue[specs[i].sq].tail = (hdr->subqueue[specs[i].sq].tail + 1) & 0x7fffffff;
+		if(E_ISWAITING(hdr, specs[i].sq)) {
+			/* wake up anyone waiting on the queue being full. */
+			int r;
+			if((r = __wake_up(specs[i].obj, &hdr->subqueue[specs[i].sq].tail, 1, 1)) < 0) {
+				return r;
+			}
+		}
+		specs[i].ret = 1;
 	}
 
 	if(sleep_count == count) {
 		int r = twz_thread_sync_multiple(sleep_count, tsa, NULL);
 		(void)r;
 		/* TODO: errors */
-		return queue_sub_dequeue_multiple(count, specs);
+		goto top;
+		//	return queue_sub_dequeue_multiple(count, specs);
 	}
 
 	return count - sleep_count;

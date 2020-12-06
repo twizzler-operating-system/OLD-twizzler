@@ -228,7 +228,6 @@ void thread_wake(struct thread *t)
 	spinlock_acquire_save(&t->processor->sched_lock);
 	int old = atomic_exchange(&t->state, THREADSTATE_RUNNING);
 	if(old == THREADSTATE_BLOCKED) {
-		/*
 		struct object *obj = kso_get_obj(t->throbj, thr);
 		obj_write_data_atomic64(
 		  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
@@ -236,7 +235,7 @@ void thread_wake(struct thread *t)
 		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
 		  INT_MAX);
 		obj_put(obj);
-*/
+
 		list_insert(&t->processor->runqueue, &t->rq_entry);
 		t->processor->stats.running++;
 		t->processor->flags |= PROCESSOR_HASWORK;

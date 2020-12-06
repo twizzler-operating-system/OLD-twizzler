@@ -65,6 +65,7 @@ struct thread {
 	struct list rq_entry, all_entry;
 	struct sleep_entry *sleep_entries;
 	size_t sleep_count;
+	_Atomic bool sleep_restart;
 	struct task free_task;
 	/* pager info */
 	objid_t pager_obj_req;

@@ -175,9 +175,16 @@ class handler
 	  bool is_incoming)
 	{
 		if(is_incoming) {
+			uint32_t info = nqe->qe.info;
 			if(handle_command(client, nqe) && !drain) {
 				/* TODO: make this non-blocking, and handle the case where it wants to block */
-				queue_complete(&client->txq_obj, (struct queue_entry *)nqe, 0);
+				if(nqe->qe.info != info) {
+					fprintf(stderr, "WARNING - incorrect info\n");
+				}
+				// fprintf(stderr, ":: %d %d %x\n", nqe->qe.info, info, nqe->qe.cmd_id.load());
+				if(queue_complete(&client->txq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
+					fprintf(stderr, "WARNING - completion would have blocked\n");
+				}
 			}
 		} else {
 			/* got a completion for one of our commands */
@@ -222,10 +229,25 @@ class handler
 		qspec_build();
 	}
 
+	void aaaa()
+	{
+		while(1) {
+			while(0) {
+				usleep(100);
+			}
+			struct nstack_queue_entry nqe;
+			queue_get_finished(&clients[0]->rxq_obj, (struct queue_entry *)&nqe, 0);
+			handle_client(clients[0], &nqe, false, false);
+		}
+	}
+
 	void handler_thread()
 	{
 		for(;;) {
+			// fprintf(stderr, "qe\n");
 			ssize_t ret = queue_sub_dequeue_multiple(qspec_len, qspec);
+			// fprintf(stderr, "qDONE\n");
+			// fprintf(stderr, "ret: %ld\n", ret);
 			/* TODO: check ret */
 			(void)ret;
 			for(size_t i = 1; i < qspec_len; i++) {
@@ -246,6 +268,16 @@ class handler
 			}
 			if(qspec[0].ret != 0) {
 				handle_handler_queue((struct handler_queue_entry *)qspec[0].result);
+#if 0
+				fprintf(stderr, "SWITCHING\n");
+				std::thread ttt = std::thread(&handler::aaaa, this);
+				while(1) {
+					struct nstack_queue_entry nqe;
+					queue_receive(&clients[0]->txq_obj, (struct queue_entry *)&nqe, 0);
+
+					handle_client(clients[0], &nqe, false, true);
+				}
+#endif
 			}
 		}
 	}
