@@ -85,7 +85,7 @@ bool compare_mac_addr(mac_addr_t their_mac,
         }
     }
 
-    if (count == MAC_ADDR_SIZE) { //broadcast mac addr
+    if (count == MAC_ADDR_SIZE) { /* broadcast mac addr */
         return true;
 
     } else {
@@ -112,7 +112,7 @@ bool compare_ip_addr(ip_addr_t their_ip,
         }
     }
 
-    if (count == IP_ADDR_SIZE) { //broadcast ip addr
+    if (count == IP_ADDR_SIZE) { /* broadcast ip addr */
         return true;
 
     } else {
@@ -173,14 +173,14 @@ uint16_t checksum(unsigned char* data,
 
     while (len > 1) {
         sum += *((uint16_t *)data + i);
-        if (sum & 0x80000000) { //if high order bit set, fold
+        if (sum & 0x80000000) {
             sum = (sum & 0xFFFF) + (sum >> 16);
         }
         i += 1;
         len -= 2;
     }
 
-    if (len) { //take care of last byte
+    if (len) {
         sum += (uint16_t) *(unsigned char *)data;
     }
 

@@ -205,12 +205,13 @@ int twz_op_send(const char* interface_name,
                 }
                 fprintf(stderr, ") OP: ADVERTISMENT ");
                 fprintf(stderr, "to ('%s', %u) PAYLOAD: %s\n",
-                        CONTROLLER_ADDR,
+                        CONTROLLER_IP,
                         (CONTROLLER_PORT & 0x0000FFFF),
                         p);
                 int ret =  encap_udp_packet(object_id,
                                             NOOP,
-                                            string_to_ip_addr(CONTROLLER_ADDR),
+                                            string_to_ip_addr(TWIZZLER_IP),
+                                            string_to_ip_addr(CONTROLLER_IP),
                                             TWIZZLER_PORT,
                                             CONTROLLER_PORT,
                                             p,
@@ -237,6 +238,7 @@ int twz_op_send(const char* interface_name,
                     (data != NULL) ? data : "");
             return encap_udp_packet(object_id,
                                     twz_op,
+                                    string_to_ip_addr(TWIZZLER_IP),
                                     dst_ip,
                                     TWIZZLER_PORT,
                                     TWIZZLER_PORT,
@@ -258,6 +260,7 @@ int twz_op_send(const char* interface_name,
                     (data != NULL) ? data : "");
             return encap_udp_packet(object_id,
                                     twz_op,
+                                    string_to_ip_addr(TWIZZLER_IP),
                                     dst_ip,
                                     TWIZZLER_PORT,
                                     TWIZZLER_PORT,
@@ -295,9 +298,10 @@ void twz_op_recv(const char* interface_name,
                 //TODO read object
                 char read_data[9] = "Read ACK";
 
-                //reply back
+                /* reply back */
                 int ret =  encap_udp_packet(remote_info->object_id,
                                             TWZ_READ_REPLY,
+                                            string_to_ip_addr(TWIZZLER_IP),
                                             remote_info->remote_ip,
                                             TWIZZLER_PORT,
                                             TWIZZLER_PORT,
@@ -323,12 +327,13 @@ void twz_op_recv(const char* interface_name,
                     payload);
             if (object_exists_locally(interface_name, remote_info->object_id)) {
                 //TODO write payload
-                //reply back
+                /* reply back */
                 uint16_t len = strlen(payload);
                 char* msg = (char *)malloc(sizeof(char)*(11+len));
                 sprintf(msg, "Write ACK %s", payload);
                 int ret =  encap_udp_packet(remote_info->object_id,
                                             TWZ_WRITE_REPLY,
+                                            string_to_ip_addr(TWIZZLER_IP),
                                             remote_info->remote_ip,
                                             TWIZZLER_PORT,
                                             TWIZZLER_PORT,
@@ -366,7 +371,7 @@ void twz_op_recv(const char* interface_name,
                     (remote_info->remote_ip.ip[1] & 0x000000FF),
                     (remote_info->remote_ip.ip[2] & 0x000000FF),
                     (remote_info->remote_ip.ip[3] & 0x000000FF),
-                    (remote_info->remote_port & 0x000000FF),
+                    (remote_info->remote_port & 0x0000FFFF),
                     payload);
             break;
 
