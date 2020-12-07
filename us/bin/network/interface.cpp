@@ -123,7 +123,7 @@ void get_interface_by_ip(ip_addr_t ip,
 }
 
 
-void bind_to_ip(ip_addr_t ip)
+int bind_to_ip(ip_addr_t ip)
 {
     std::map<const char*,interface_t*>::iterator it;
 
@@ -137,11 +137,13 @@ void bind_to_ip(ip_addr_t ip)
                 if (interface->ip.ip[i] == ip.ip[i]) ++count;
                 else break;
             }
-            if (count == IP_ADDR_SIZE) return;
+            if (count == IP_ADDR_SIZE) return 0;
         }
         fprintf(stderr, "Error bind_to_ip: ip address does not exist\n");
-        exit(1);
+        return -1;
     }
+
+    return 0;
 }
 
 

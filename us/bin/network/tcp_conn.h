@@ -5,7 +5,9 @@
 #include "char_ring_buffer.h"
 
 //error codes
+#define ETCPBINDFAILED 30
 #define ECONNFAILED 31
+#define ETCPSENDFAILED 32
 
 #define CHAR_RING_BUFFER_SIZE 1500000 //bytes
 
@@ -50,6 +52,7 @@ typedef struct tcp_conn {
 
 typedef struct tcp_conn_state {
     pthread_spinlock_t mtx;
+    uint16_t client_id;
     tcp_state_t curr_state;
     uint32_t seq_num;
     uint32_t ack_num;
@@ -85,26 +88,53 @@ tcp_conn_state_t* get_next_conn_state(tcp_conn_t* conn);
 
 void bootstrap_conn_table();
 
-int establish_tcp_conn_client(half_conn_t* loacl,
+void tcp_client_table_put(uint16_t client_id,
+                          tcp_conn_t conn);
+
+tcp_conn_t tcp_client_table_get(uint16_t client_id);
+
+void tcp_client_table_delete(uint16_t client_id);
+
+void tcp_client_table_view();
+
+int bind_to_tcp_port(uint16_t client_id,
+                     ip_addr_t ip,
+                     uint16_t port);
+
+uint16_t bind_to_random_tcp_port();
+
+void free_tcp_port(uint16_t port);
+
+int establish_tcp_conn_client(uint16_t client_id,
+                              half_conn_t* local,
                               half_conn_t remote);
 
-int establish_tcp_conn_server(half_conn_t local,
+int establish_tcp_conn_server(uint16_t client_id,
+                              half_conn_t local,
                               half_conn_t* remote);
 
-void send_tcp_data();
+int tcp_send(uint16_t client_id,
+             char* payload,
+             uint16_t payload_size);
 
-void recv_tcp_data(const char* interface_name,
-                   remote_info_t* remote_info,
-                   uint16_t local_port,
-                   char* payload,
-                   uint16_t payload_size,
-                   uint32_t seq_num,
-                   uint32_t ack_num,
-                   uint8_t ack,
-                   uint8_t rst,
-                   uint8_t syn,
-                   uint8_t fin);
+void handle_tcp_send();
 
-void cleanup_conn_state(tcp_conn_t conn);
+void handle_tcp_recv(const char* interface_name,
+                     remote_info_t* remote_info,
+                     uint16_t local_port,
+                     char* payload,
+                     uint16_t payload_size,
+                     uint32_t seq_num,
+                     uint32_t ack_num,
+                     uint8_t ack,
+                     uint8_t rst,
+                     uint8_t syn,
+                     uint8_t fin);
+
+int tcp_recv(uint16_t client_id,
+             char* buffer,
+             uint16_t buffer_size);
+
+void cleanup_tcp_conn(tcp_conn_t conn);
 
 #endif

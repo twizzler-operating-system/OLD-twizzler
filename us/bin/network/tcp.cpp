@@ -137,7 +137,7 @@ void tcp_rx(const char* interface_name,
     //        ((remote_info->ip_payload_size - tcp_hdr_size) & 0x0000FFFF),
     //        seq_num, ack_num, ack, rst, syn, fin);
 
-    recv_tcp_data(interface_name, remote_info, dst_port, payload,
-            (remote_info->ip_payload_size - tcp_hdr_size),
-            seq_num, ack_num, ack, rst, syn, fin);
+    handle_tcp_recv(interface_name, remote_info, dst_port, payload,
+                (remote_info->ip_payload_size - tcp_hdr_size),
+                seq_num, ack_num, ack, rst, syn, fin);
 }

@@ -2,7 +2,7 @@
 
 #include "generic_ring_buffer.h"
 #include "interface.h"
-#include "port.h"
+#include "udp_conn.h"
 #include "twz.h"
 #include "twz_op.h"
 
@@ -39,6 +39,7 @@ void udp_rx(const char* interface_name,
 
     char* payload = (char *)udp_pkt_ptr;
     payload += UDP_HDR_SIZE;
+    uint16_t payload_size = remote_info->ip_payload_size - UDP_HDR_SIZE;
 
     if (remote_info->twz_op != NOOP) {
         twz_op_recv(interface_name, remote_info, payload);
@@ -52,7 +53,15 @@ void udp_rx(const char* interface_name,
             || compare_ip_addr(udp_port->ip,
                                interface->ip,
                                interface->bcast_ip)) {
-                generic_ring_buffer_add(udp_port->rx_buffer, payload);
+                remote_info_t* udp_remote_info =
+                    (remote_info_t *)malloc(sizeof(remote_info_t));
+                memcpy(udp_remote_info->remote_ip.ip,
+                        remote_info->remote_ip.ip, IP_ADDR_SIZE);
+                udp_remote_info->remote_port = remote_info->remote_port;
+                memcpy(udp_remote_info->payload, payload, payload_size);
+                udp_remote_info->payload_size = payload_size;
+
+                generic_ring_buffer_add(udp_port->rx_buffer, udp_remote_info);
 
             } else {
                 fprintf(stderr, "Error udp_rx: local ip %u.%u.%u.%u not bound "
