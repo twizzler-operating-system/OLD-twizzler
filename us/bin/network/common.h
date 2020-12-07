@@ -58,6 +58,8 @@ typedef struct remote_info {
     ip_addr_t remote_ip;
     uint16_t remote_port;
     uint16_t ip_payload_size;
+    char payload[1500];
+    uint16_t payload_size;
 } remote_info_t;
 
 endianess_t check_machine_endianess();
