@@ -214,13 +214,14 @@ int udp_recv(uint16_t client_id,
         remote_info_t* remote_info = (remote_info_t *)
             generic_ring_buffer_remove(udp_ports[src_port]->rx_buffer);
 
-        if (remote_info != NULL && buffer_size >= remote_info->payload_size) {
-            memcpy(buffer, remote_info->payload, remote_info->payload_size);
+        if (remote_info != NULL) {
+            uint16_t size = (buffer_size > remote_info->payload_size)
+                ? remote_info->payload_size : buffer_size;
+            memcpy(buffer, remote_info->payload, size);
             memcpy(remote_ip->ip, remote_info->remote_ip.ip, IP_ADDR_SIZE);
             *remote_port = remote_info->remote_port;
-            int ret = remote_info->payload_size;
             free(remote_info);
-            return ret;
+            return size;
         } else {
             return 0;
         }
