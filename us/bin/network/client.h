@@ -11,6 +11,8 @@
 
 #include <nstack/nstack.h>
 
+#include "tcp_conn.h"
+
 template<typename T>
 class id_allocator
 {
@@ -70,16 +72,32 @@ class outstanding_command
 };
 
 #include <stdio.h>
+#include <thread>
 class net_client
 {
 	class connection
 	{
+		enum state {
+			NONE,
+			CONNECTED,
+			BOUND,
+		};
+
 	  public:
+		enum state state = NONE;
 		uint16_t id;
-		connection(uint16_t id)
-		  : id(id)
-		{
-		}
+		uint16_t tcp_client_id;
+		half_conn_t local, remote;
+		std::shared_ptr<net_client> client;
+		std::thread thrd;
+		connection(std::shared_ptr<net_client> client, uint16_t id, int tcp_id);
+		/* TODO: release the ID when tearing down */
+
+		int bind(struct netaddr *na);
+		int connect(struct netaddr *na);
+		int accept(uint16_t *);
+		ssize_t send(void *, size_t);
+		void recv_thrd();
 	};
 
   public:
@@ -99,11 +117,12 @@ class net_client
 
 	std::unordered_map<uint16_t, std::shared_ptr<connection>> conns;
 
-	uint16_t create_connection()
+	uint16_t create_connection(std::shared_ptr<net_client> client, int tcp_id = -1)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		uint16_t id = conn_idalloc.get();
-		conns.insert(std::make_pair(id, std::make_shared<connection>(id)));
+		if(id != 0xffff)
+			conns.insert(std::make_pair(id, std::make_shared<connection>(client, id, tcp_id)));
 		return id;
 	}
 

@@ -63,6 +63,9 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 			timeout = min(timeout, rem_time);
 			thread_resume(current_thread, timeout);
 		}
+		if(current_thread && current_thread->state == THREADSTATE_PAUSING) {
+			current_thread->state = THREADSTATE_RUNNING;
+		}
 		if(current_thread && current_thread->timeslice_expire <= ji) {
 #if 0
 			printk("%ld ::: %d [%d;%lx;%ld]\n",

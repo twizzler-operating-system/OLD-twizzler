@@ -352,6 +352,14 @@ long syscall_thread_sync(size_t count, struct sys_thread_sync_args *args, struct
 	if(timeout && !verify_user_pointer(timeout, sizeof(*timeout)))
 		return -EINVAL;
 	__thread_init_sync(count);
+	/* sleep restart is used to handle the race condition of a thread sleeping on several words, and
+	 * being woken up by one after it sleeps on that one, but before sleeping on the next one. When
+	 * waking a thread, we set this boolean to true, so that when the thread is done sleeping it can
+	 * check to see if something woke it up.
+	 *
+	 * This has the potential, I think, to cause spurious wakeup, but the interface for this syscall
+	 * allows for that. It also does mean some wasted work in the case where this happens, but it's
+	 * pretty rare, I think. */
 	current_thread->sleep_restart = false;
 	bool armed_sleep = false;
 	int ret = 0;

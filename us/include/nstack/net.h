@@ -21,12 +21,15 @@ struct netmgr {
 };
 
 #define NETEVENT_RX 1
+#define NETEVENT_ACCEPT 2
 
 #include <nstack/nstack.h>
 
 struct netmgr;
 struct netevent {
 	int event;
+	int info;
+	int pad;
 	int flags;
 	void *data_ptr;
 	size_t data_len;
@@ -59,8 +62,11 @@ struct netcon *netmgr_connect(struct netmgr *mgr,
   struct netaddr *addr,
   int flags,
   struct timespec *timeout);
+struct netcon *netmgr_bind(struct netmgr *mgr, struct netaddr *addr, int flags);
 
 ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags);
+ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags);
+struct netcon *netcon_accept(struct netcon *con);
 
 struct pbuf;
 
@@ -68,6 +74,8 @@ size_t pbuf_datalen(twzobj *bufobj);
 void pbuf_release(twzobj *bufobj, struct pbuf *buf);
 struct pbuf *pbuf_alloc(twzobj *bufobj);
 void pbuf_init(twzobj *bufobj, size_t datalen);
+
+struct netaddr netaddr_from_ipv4_string(const char *str, uint16_t port);
 
 /* TESTING */
 void netmgr_echo(struct netmgr *);

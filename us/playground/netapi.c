@@ -20,12 +20,13 @@ void timespec_diff(struct timespec *start, struct timespec *stop, struct timespe
 	return;
 }
 
-int main()
+int main(int argc, char **argv)
 {
 	printf("Hello, World!\n");
 
 	struct netmgr *mgr = netmgr_create("test-program", 0);
 
+#if 0
 	fprintf(stderr, "connecting\n");
 	struct netaddr addr;
 	struct netcon *con = netmgr_connect(mgr, &addr, 0, NULL);
@@ -52,14 +53,44 @@ int main()
 			printf("%ld :: %ld: %ld %ld\n", i, len, d1.tv_nsec, d2.tv_nsec);
 		}
 	}
+#endif
 
-	/*
-	for(int i = 0; i < 1000; i++) {
-	    netmgr_echo(mgr);
+	if(argv[1] && argv[1][0] == 's') {
+		struct netaddr addr = netaddr_from_ipv4_string("10.0.0.1", 5000);
+		struct netcon *con = netmgr_bind(mgr, &addr, 0);
+		while(1) {
+			printf("Accepting...\n");
+			struct netcon *cc = netcon_accept(con);
+			printf("Accepted Conn! %d\n", cc->id);
+			for(;;) {
+				usleep(100000);
+				printf("W\n");
+			}
+
+			while(1) {
+				char buf[5000] = {};
+				size_t len = 5000;
+				ssize_t ret = netcon_recv(cc, buf, len, 0);
+				printf("Recv got :: %ld :: <%s>\n", ret, buf);
+			}
+		}
+	} else {
+		struct netaddr addr = netaddr_from_ipv4_string("10.0.0.1", 5000);
+		struct netcon *con = netmgr_connect(mgr, &addr, 0, NULL);
+		while(1) {
+			const char *hw = "hello, world!\n";
+			ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
+			printf("Sent Data\n");
+			// printf("Recv got :: %ld :: <%s>\n", ret, buf);
+		}
+
+		/*
+		for(int i = 0; i < 1000; i++) {
+		    netmgr_echo(mgr);
+		}
+		netmgr_wait_all_tx_complete(mgr);
+		*/
 	}
-	netmgr_wait_all_tx_complete(mgr);
-	*/
-
 	netmgr_destroy(mgr);
 
 #if 0

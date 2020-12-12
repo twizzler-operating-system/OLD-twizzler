@@ -1,13 +1,13 @@
 #include "client.h"
 #include "common.h"
-#include "interface.h"
-#include "eth.h"
-#include "ipv4.h"
 #include "encapsulate.h"
-#include "udp_conn.h"
+#include "eth.h"
+#include "interface.h"
+#include "ipv4.h"
 #include "tcp_conn.h"
 #include "twz.h"
 #include "twz_op.h"
+#include "udp_conn.h"
 
 int main(int argc, char *argv[])
 {
@@ -51,154 +51,151 @@ int main(int argc, char *argv[])
 	bootstrap_conn_table();
 
 	/* bind twizzler op port */
-	if (bind_to_udp_port(0, string_to_ip_addr(TWIZZLER_IP), TWIZZLER_PORT) != 0) {
-        exit(1);
-    }
+	if(bind_to_udp_port(0, string_to_ip_addr(TWIZZLER_IP), TWIZZLER_PORT) != 0) {
+		exit(1);
+	}
 
 	/* free packet memory asynchronously */
 	interface_t *interface = get_interface_by_name("/dev/e1000");
 	std::thread free_pkt_memory(free_packet_buffer_object, &interface->tx_queue_obj);
 
-///////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////////////
 
 	/* Run specified network program */
 	if(argc > 3) {
 		if(strcmp(argv[3], "udp") == 0) {
-            if(strcmp(argv[1], "10.0.0.1") == 0) { //client
-                uint16_t client_id = 3939;
+			if(strcmp(argv[1], "10.0.0.1") == 0) { // client
+				uint16_t client_id = 3939;
 
-                //send
-                char data[115] =
-                    "This is an amazing place to live but the cost of living is "
-                    "extremely high. I guess you win some, you loose some :)";
+				// send
+				char data[115] = "This is an amazing place to live but the cost of living is "
+				                 "extremely high. I guess you win some, you loose some :)";
 
-                for (int i = 0; i < 115; i = i + 23) {
-                    int ret = udp_send(client_id, string_to_ip_addr("10.0.0.2"),
-                            3004, (data + i), 23);
+				for(int i = 0; i < 115; i = i + 23) {
+					int ret =
+					  udp_send(client_id, string_to_ip_addr("10.0.0.2"), 3004, (data + i), 23);
 
-                    char tmp[24];
-                    strncpy(tmp, data+i, 23);
-                    if (ret == 0) {
-                        fprintf(stderr, "UDP pkt with payload - %s SENT\n", tmp);
-                    } else {
-                        fprintf(stderr, "UDP pkt with payload - %s DROPPED\n", tmp);
-                    }
-                }
-            }
+					char tmp[24];
+					strncpy(tmp, data + i, 23);
+					if(ret == 0) {
+						fprintf(stderr, "UDP pkt with payload - %s SENT\n", tmp);
+					} else {
+						fprintf(stderr, "UDP pkt with payload - %s DROPPED\n", tmp);
+					}
+				}
+			}
 
-            if(strcmp(argv[1], "10.0.0.2") == 0) { //server
-                uint16_t client_id = 7474;
+			if(strcmp(argv[1], "10.0.0.2") == 0) { // server
+				uint16_t client_id = 7474;
 
-                //bind
-                bind_to_udp_port(client_id, string_to_ip_addr(argv[1]), 3004);
+				// bind
+				bind_to_udp_port(client_id, string_to_ip_addr(argv[1]), 3004);
 
-                //recv
-                while (true) {
-                    char buffer[1000];
-                    ip_addr_t remote_ip;
-                    uint16_t remote_port;
+				// recv
+				while(true) {
+					char buffer[1000];
+					ip_addr_t remote_ip;
+					uint16_t remote_port;
 
-                    int ret = udp_recv(client_id, buffer, 1000,
-                            &remote_ip, &remote_port);
-                    if (ret > 0) {
-                        fprintf(stderr, "Received from ('%u.%u.%u.%u', %u) %s\n",
-                          (remote_ip.ip[0] & 0x000000FF),
-                          (remote_ip.ip[1] & 0x000000FF),
-                          (remote_ip.ip[2] & 0x000000FF),
-                          (remote_ip.ip[3] & 0x000000FF),
-                          (remote_port & 0x0000FFFF),
-                          buffer);
-                    } else {
-                        usleep(1000);
-                    }
-                }
-            }
+					int ret = udp_recv(client_id, buffer, 1000, &remote_ip, &remote_port);
+					if(ret > 0) {
+						fprintf(stderr,
+						  "Received from ('%u.%u.%u.%u', %u) %s\n",
+						  (remote_ip.ip[0] & 0x000000FF),
+						  (remote_ip.ip[1] & 0x000000FF),
+						  (remote_ip.ip[2] & 0x000000FF),
+						  (remote_ip.ip[3] & 0x000000FF),
+						  (remote_port & 0x0000FFFF),
+						  buffer);
+					} else {
+						usleep(1000);
+					}
+				}
+			}
 
 		} else if(strcmp(argv[3], "tcp") == 0) {
-            if(strcmp(argv[1], "10.0.0.1") == 0) { //client
-                half_conn_t remote;
-                memcpy(remote.ip.ip, string_to_ip_addr("10.0.0.2").ip,
-                        IP_ADDR_SIZE);
-                remote.port = 3004;
+			if(strcmp(argv[1], "10.0.0.1") == 0) { // client
+				half_conn_t remote;
+				memcpy(remote.ip.ip, string_to_ip_addr("10.0.0.2").ip, IP_ADDR_SIZE);
+				remote.port = 3004;
 
-                uint16_t client_id = 567;
+				uint16_t client_id = 567;
 
-                //connect
-                half_conn_t local;
-                int ret = establish_tcp_conn_client(client_id, &local, remote);
-                if(ret == 0) {
-                    fprintf(stderr,
-                      "Connection established with "
-                      "('%u.%u.%u.%u', %u)\n",
-                      (remote.ip.ip[0] & 0x000000FF),
-                      (remote.ip.ip[1] & 0x000000FF),
-                      (remote.ip.ip[2] & 0x000000FF),
-                      (remote.ip.ip[3] & 0x000000FF),
-                      (remote.port & 0x0000FFFF));
-                } else {
-                    fprintf(stderr,
-                      "Connection establish with "
-                      "('%u.%u.%u.%u', %u) failed\n",
-                      (remote.ip.ip[0] & 0x000000FF),
-                      (remote.ip.ip[1] & 0x000000FF),
-                      (remote.ip.ip[2] & 0x000000FF),
-                      (remote.ip.ip[3] & 0x000000FF),
-                      (remote.port & 0x0000FFFF));
-                    exit(1);
-                }
+				// connect
+				half_conn_t local;
+				int ret = establish_tcp_conn_client(client_id, &local, remote);
+				if(ret == 0) {
+					fprintf(stderr,
+					  "Connection established with "
+					  "('%u.%u.%u.%u', %u)\n",
+					  (remote.ip.ip[0] & 0x000000FF),
+					  (remote.ip.ip[1] & 0x000000FF),
+					  (remote.ip.ip[2] & 0x000000FF),
+					  (remote.ip.ip[3] & 0x000000FF),
+					  (remote.port & 0x0000FFFF));
+				} else {
+					fprintf(stderr,
+					  "Connection establish with "
+					  "('%u.%u.%u.%u', %u) failed\n",
+					  (remote.ip.ip[0] & 0x000000FF),
+					  (remote.ip.ip[1] & 0x000000FF),
+					  (remote.ip.ip[2] & 0x000000FF),
+					  (remote.ip.ip[3] & 0x000000FF),
+					  (remote.port & 0x0000FFFF));
+					exit(1);
+				}
 
-                //send
-                char data[115] =
-                    "This is an amazing place to live but the cost of living is "
-                    "extremely high. I guess you win some, you loose some :)";
-                ret = tcp_send(client_id, data, 115);
-                if (ret == 0) {
-                    fprintf(stderr, "TCP SEND TO NET STACK SUCCEDDED!!");
-                }
-            }
+				// send
+				char data[115] = "This is an amazing place to live but the cost of living is "
+				                 "extremely high. I guess you win some, you loose some :)";
+				ret = tcp_send(client_id, data, 115);
+				if(ret == 0) {
+					fprintf(stderr, "TCP SEND TO NET STACK SUCCEDDED!!");
+				}
+			}
 
-            if(strcmp(argv[1], "10.0.0.2") == 0) { //server
-                half_conn_t local;
-                memcpy(local.ip.ip, string_to_ip_addr(argv[1]).ip, IP_ADDR_SIZE);
-                local.port = 3004;
+			if(strcmp(argv[1], "10.0.0.2") == 0) { // server
+				half_conn_t local;
+				memcpy(local.ip.ip, string_to_ip_addr(argv[1]).ip, IP_ADDR_SIZE);
+				local.port = 3004;
 
-                uint16_t client_id = 585;
+				uint16_t client_id = 585;
 
-                //bind
-                if (bind_to_tcp_port(client_id, local.ip, local.port) != 0) {
-                    exit(1);
-                }
+				// bind
+				if(bind_to_tcp_port(client_id, local.ip, local.port) != 0) {
+					exit(1);
+				}
 
-                //listen + accept
-                half_conn_t remote;
-                while (true) {
-                    int ret = establish_tcp_conn_server(client_id, local, &remote);
-                    if (ret == 0) {
-                        fprintf(stderr,
-                          "Connection established with "
-                          "('%u.%u.%u.%u', %u)\n",
-                          (remote.ip.ip[0] & 0x000000FF),
-                          (remote.ip.ip[1] & 0x000000FF),
-                          (remote.ip.ip[2] & 0x000000FF),
-                          (remote.ip.ip[3] & 0x000000FF),
-                          (remote.port & 0x0000FFFF));
+				// listen + accept
+				half_conn_t remote;
+				while(true) {
+					int ret = establish_tcp_conn_server(client_id, local, &remote);
+					if(ret == 0) {
+						fprintf(stderr,
+						  "Connection established with "
+						  "('%u.%u.%u.%u', %u)\n",
+						  (remote.ip.ip[0] & 0x000000FF),
+						  (remote.ip.ip[1] & 0x000000FF),
+						  (remote.ip.ip[2] & 0x000000FF),
+						  (remote.ip.ip[3] & 0x000000FF),
+						  (remote.port & 0x0000FFFF));
 
-                        //recv
-                        while (true) {
-                            char data[MSS+1] = { 0 };
-                            int ret = tcp_recv(client_id, data, MSS);
-                            if (ret > 0) {
-                                fprintf(stderr, "%s", data);
-                            } else {
-                                usleep(1000);
-                            }
-                        }
+						// recv
+						while(true) {
+							char data[MSS + 1] = { 0 };
+							int ret = tcp_recv(client_id, data, MSS);
+							if(ret > 0) {
+								fprintf(stderr, "%s", data);
+							} else {
+								usleep(1000);
+							}
+						}
 
-                    } else {
-                        usleep(1000);
-                    }
-                }
-            }
+					} else {
+						usleep(1000);
+					}
+				}
+			}
 
 		} else if(strcmp(argv[3], "twz") == 0) {
 			if(argc == 5) {

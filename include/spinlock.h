@@ -28,7 +28,15 @@ struct spinlock {
 
 bool __spinlock_acquire(struct spinlock *lock, const char *, int);
 void __spinlock_release(struct spinlock *lock, bool, const char *, int);
+int __spinlock_try_acquire(struct spinlock *lock, const char *f __unused, int l __unused);
 
+#define spinlock_try_acquire_save(l)                                                               \
+	({                                                                                             \
+		int ___r = __spinlock_try_acquire(l, __FILE__, __LINE__);                                  \
+		if(___r == 3)                                                                              \
+			(l)->fl = true;                                                                        \
+		___r & 1;                                                                                  \
+	})
 #define spinlock_acquire(l) __spinlock_acquire(l, __FILE__, __LINE__)
 #define spinlock_release(l, n) __spinlock_release(l, n, __FILE__, __LINE__)
 

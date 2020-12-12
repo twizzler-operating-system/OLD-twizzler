@@ -11,6 +11,45 @@ static __inline__ unsigned long long krdtsc(void)
 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 
+int __spinlock_try_acquire(struct spinlock *lock, const char *f __unused, int l __unused)
+{
+	register bool set = arch_interrupt_set(0);
+
+	uint32_t our_ticket = atomic_fetch_add(&lock->next_ticket, 1);
+	size_t tries = 0;
+	while(1) {
+		uint32_t cur = atomic_load(&lock->current_ticket);
+		if(cur == our_ticket) {
+			break;
+		}
+		//	if(f)
+		//		printk("-----> %d %d %s %d\n", our_ticket, cur, f, l);
+		if(our_ticket > cur) {
+			uint32_t diff = our_ticket - cur;
+			//	if(f)
+			//		printk(":: %d %d %s %d\n", our_ticket, cur, f, l);
+			while(diff--) {
+				for(int i = 0; i < 100; i++) {
+					arch_processor_relax();
+				}
+			}
+		}
+		if(tries++ > 5) {
+			return 0;
+		}
+	}
+
+#if CONFIG_DEBUG_LOCKS
+	lock->holder_file = f;
+	lock->holder_line = l;
+	lock->holder_thread = current_thread;
+#endif
+
+	lock->holder = our_ticket;
+
+	return set ? 3 : 1;
+}
+
 bool __spinlock_acquire(struct spinlock *lock, const char *f __unused, int l __unused)
 {
 	register bool set = arch_interrupt_set(0);
@@ -82,7 +121,7 @@ bool __spinlock_acquire(struct spinlock *lock, const char *f __unused, int l __u
 
 	long long b = krdtsc();
 	if(b - a > 1000000 && f) {
-		//	printk("LONG WAIT: %s %d :: %ld\n", f, l, b - a);
+		// printk("LONG WAIT: %s %d :: %ld\n", f, l, b - a);
 	}
 
 	return set;
