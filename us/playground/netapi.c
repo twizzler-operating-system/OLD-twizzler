@@ -24,6 +24,24 @@ int main(int argc, char **argv)
 {
 	printf("Hello, World!\n");
 
+	if(!fork()) {
+		int s = 0;
+		if(argv[1] && argv[1][0] == 's')
+			s = 1;
+
+		usleep(100000);
+		printf("!!!!!\n\n\n\n\n");
+		if(s)
+			execlp("network", "network", "10.0.0.1", "10.0.0.255", NULL);
+		else
+			execlp("network", "network", "10.0.0.2", "10.0.0.255", NULL);
+
+		exit(0);
+	}
+	usleep(100000);
+	usleep(2000000);
+	printf("$$$$$$$$$\n\n\n\n\n");
+
 	struct netmgr *mgr = netmgr_create("test-program", 0);
 
 #if 0
@@ -62,25 +80,24 @@ int main(int argc, char **argv)
 			printf("Accepting...\n");
 			struct netcon *cc = netcon_accept(con);
 			printf("Accepted Conn! %d\n", cc->id);
-			for(;;) {
-				usleep(100000);
-				printf("W\n");
-			}
 
 			while(1) {
 				char buf[5000] = {};
 				size_t len = 5000;
+				printf("Waiting on recv\n");
 				ssize_t ret = netcon_recv(cc, buf, len, 0);
 				printf("Recv got :: %ld :: <%s>\n", ret, buf);
 			}
 		}
 	} else {
+		printf("STARTIN AS CLIENT\n");
 		struct netaddr addr = netaddr_from_ipv4_string("10.0.0.1", 5000);
 		struct netcon *con = netmgr_connect(mgr, &addr, 0, NULL);
 		while(1) {
 			const char *hw = "hello, world!\n";
 			ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
 			printf("Sent Data\n");
+			usleep(1000000);
 			// printf("Recv got :: %ld :: <%s>\n", ret, buf);
 		}
 

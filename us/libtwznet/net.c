@@ -176,7 +176,7 @@ static void handle_cmd(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 			__netevent_append(&con->eventlist_sentry, ev);
 			pthread_cond_signal(&con->event_cv);
 			pthread_mutex_unlock(&con->lock);
-			complete = true;
+			complete = false;
 		} break;
 		default:
 			fprintf(stderr, "[net] unknown command from nstack %d\n", nqe->cmd);

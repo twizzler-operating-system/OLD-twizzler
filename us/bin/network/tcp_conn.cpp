@@ -746,7 +746,7 @@ void handle_tcp_send()
 				fprintf(stderr, "Sending TCP packet with payload = %s", payload);
 				int p = 10000 * 0.7; /* 70% drop probability */
 				int r = rand() % 10000;
-				if(r < p) {
+				if(r < p && 0) {
 					fprintf(stderr, " -- Packet Dropped!!\n");
 				} else {
 					object_id_t object_id;

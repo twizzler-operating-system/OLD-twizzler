@@ -1,6 +1,6 @@
 #include "client.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 static id_allocator<uint16_t> tcp_client_id_alloc;
 
@@ -21,11 +21,13 @@ std::string netaddr_string(struct netaddr *na)
 }
 
 net_client::connection::connection(std::shared_ptr<net_client> client, uint16_t id, int tcp_id)
-  : id(id)
+  : state(net_client::connection::NONE)
+  , id(id)
   , client(client)
 {
 	tcp_client_id = tcp_id == -1 ? tcp_client_id_alloc.get() : tcp_id;
 	thrd = std::thread(&net_client::connection::recv_thrd, this);
+	fprintf(stderr, "created new connection for client %p\n", client.get());
 }
 
 ip_addr_t extract_ip_addr(struct netaddr *na)
@@ -44,6 +46,7 @@ uint16_t extract_port(struct netaddr *na)
 
 int net_client::connection::bind(struct netaddr *na)
 {
+	std::lock_guard<std::mutex> _lg(lock);
 	if(state != net_client::connection::NONE) {
 		return -1; // TODO
 	}
@@ -60,6 +63,7 @@ int net_client::connection::bind(struct netaddr *na)
 
 int net_client::connection::connect(struct netaddr *na)
 {
+	std::lock_guard<std::mutex> _lg(lock);
 	if(state != net_client::connection::NONE) {
 		return -1; // TODO
 	}
@@ -74,18 +78,25 @@ int net_client::connection::connect(struct netaddr *na)
 
 int net_client::connection::accept(uint16_t *newid)
 {
+	std::lock_guard<std::mutex> _lg(lock);
 	if(state != net_client::connection::BOUND) {
 		return -1; // TODO
 	}
+
 	int ret = establish_tcp_conn_server(tcp_client_id, local, &remote);
 	if(ret == 0) {
 		*newid = client->create_connection(client, tcp_client_id);
+		auto conn = client->get_connection(*newid);
+		conn->local = local;
+		conn->remote = remote;
+		conn->state = net_client::connection::CONNECTED;
 	}
 	return ret;
 }
 
 ssize_t net_client::connection::send(void *ptr, size_t len)
 {
+	std::lock_guard<std::mutex> _lg(lock);
 	int ret = tcp_send(tcp_client_id, (char *)ptr, len);
 	if(ret == 0)
 		return len;
@@ -95,6 +106,7 @@ ssize_t net_client::connection::send(void *ptr, size_t len)
 void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
 {
 	/* TODO: handle error, non-blocking (?) */
+	std::lock_guard<std::mutex> _lg(lock);
 	if(queue_submit(&rxq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
 		fprintf(stderr, "warning - submission would have blocked\n");
 	}
@@ -109,7 +121,8 @@ void submit_command(std::shared_ptr<net_client> client,
 	auto cmd = std::make_shared<outstanding_command>(id, client, nqe, fn, data);
 	nqe->qe.info = id;
 #if DEBUG
-	fprintf(stderr, "submitting command to client %s: %d\n", client->name.c_str(), id);
+	fprintf(
+	  stderr, "submitting command to client %s: %d: %d\n", client->name.c_str(), id, nqe->cmd);
 #endif
 	client->push_outstanding(cmd, id);
 	client->enqueue_cmd(nqe);
@@ -117,11 +130,24 @@ void submit_command(std::shared_ptr<net_client> client,
 
 void net_client::connection::recv_thrd()
 {
+	kso_set_name(NULL, "net_client::connection::recv_thrd %d", id);
 	for(;;) {
+		lock.lock();
 		if(state == net_client::connection::CONNECTED) {
 			char buffer[5000];
 
+			if(0) {
+				lock.unlock();
+				usleep(10000);
+				continue;
+			}
 			int r = tcp_recv(tcp_client_id, buffer, 5000);
+
+			if(r <= 0) {
+				lock.unlock();
+				usleep(10000);
+				continue;
+			}
 
 			size_t off = client->testing_rxb_off;
 			client->testing_rxb_off += r;
@@ -137,8 +163,10 @@ void net_client::connection::recv_thrd()
 			nqe.data_ptr = twz_ptr_swizzle(&client->rxq_obj, buf, FE_READ | FE_WRITE);
 			nqe.data_len = r;
 			submit_command(client, &nqe, nullptr, nullptr);
+			lock.unlock();
 		} else if(state == net_client::connection::BOUND) {
 			uint16_t cid;
+			lock.unlock();
 			if(this->accept(&cid) == 0) {
 				struct nstack_queue_entry nqe;
 				nqe.cmd = NSTACK_CMD_ACCEPT;
@@ -146,10 +174,13 @@ void net_client::connection::recv_thrd()
 				nqe.ret = cid;
 				/* TODO: set addr */
 				submit_command(client, &nqe, nullptr, nullptr);
+				for(;;)
+					usleep(1000000);
 			} else {
 				usleep(100);
 			}
 		} else {
+			lock.unlock();
 			usleep(1000);
 		}
 	}

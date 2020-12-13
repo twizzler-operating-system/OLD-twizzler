@@ -84,7 +84,8 @@ class net_client
 		};
 
 	  public:
-		enum state state = NONE;
+		std::atomic<enum state> state;
+		std::mutex lock;
 		uint16_t id;
 		uint16_t tcp_client_id;
 		half_conn_t local, remote;

@@ -74,6 +74,7 @@ class handler
 
 	void handler_cleanup_thread()
 	{
+		kso_set_name(NULL, "net_client_handler::cleanup");
 		struct sys_thread_sync_args *tsa = nullptr;
 		size_t tsa_len = 0;
 		for(;;) {
@@ -243,6 +244,7 @@ class handler
 
 	void handler_thread()
 	{
+		kso_set_name(NULL, "net_client_handler");
 		for(;;) {
 			// fprintf(stderr, "qe\n");
 			ssize_t ret = queue_sub_dequeue_multiple(qspec_len, qspec);
