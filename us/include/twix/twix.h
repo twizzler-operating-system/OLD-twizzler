@@ -69,6 +69,9 @@ struct unix_repr {
 #define TWIX_FLAGS_EXIT_SIGNAL 2
 #define TWIX_FLAGS_EXIT_GROUP 4
 
+#define TWIX_PRLIMIT_SET 1
+#define TWIX_PRLIMIT_GET 2
+
 enum twix_command {
 	TWIX_CMD_GET_PROC_INFO,
 	TWIX_CMD_REOPEN_V1_FD,
@@ -87,7 +90,20 @@ enum twix_command {
 	TWIX_CMD_SIGDONE,
 	TWIX_CMD_SUSPEND,
 	TWIX_CMD_WAIT,
+	TWIX_CMD_UNAME,
+	TWIX_CMD_FACCESSAT,
+	TWIX_CMD_DUP,
+	TWIX_CMD_PRLIMIT,
 	NUM_TWIX_COMMANDS,
+};
+
+#define UNAME_LEN 1024
+struct twix_uname_info {
+	char sysname[UNAME_LEN];
+	char nodename[UNAME_LEN];
+	char release[UNAME_LEN];
+	char machine[UNAME_LEN];
+	char version[UNAME_LEN];
 };
 
 struct proc_info {
@@ -95,6 +111,9 @@ struct proc_info {
 	int ppid;
 	int uid;
 	int gid;
+	int euid;
+	int egid;
+	int pgid;
 };
 
 #ifdef __cplusplus

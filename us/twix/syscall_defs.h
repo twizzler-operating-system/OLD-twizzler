@@ -14,6 +14,7 @@
 #define LINUX_SYS_munmap 11
 #define LINUX_SYS_mprotect 10
 
+#define LINUX_SYS_sigaction 13
 #define LINUX_SYS_ioctl 16
 #define LINUX_SYS_pread 17
 #define LINUX_SYS_pwrite 18
@@ -61,6 +62,7 @@
 #define LINUX_SYS_getppid 110
 #define LINUX_SYS_getpgid 121
 #define LINUX_SYS_arch_prctl 158
+#define LINUX_SYS_setrlimit 160
 #define LINUX_SYS_chroot 161
 #define LINUX_SYS_gettid 186
 

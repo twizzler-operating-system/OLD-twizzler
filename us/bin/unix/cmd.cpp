@@ -13,6 +13,9 @@ static std::pair<long, bool> __get_proc_info(std::shared_ptr<queue_client> clien
 		.ppid = client->proc->parent == nullptr ? 0 : client->proc->parent->pid,
 		.uid = client->proc->uid,
 		.gid = client->proc->gid,
+		.euid = client->proc->euid,
+		.egid = client->proc->egid,
+		.pgid = client->proc->pgid,
 	};
 	client->write_buffer(&pi);
 	return R_S(0);
@@ -147,6 +150,33 @@ static std::pair<long, bool> __reopen_v1_fd(std::shared_ptr<queue_client> client
 	return R_S(0);
 }
 
+static std::pair<long, bool> twix_cmd_uname(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe)
+{
+	struct twix_uname_info *info = (struct twix_uname_info *)client->buffer_base();
+	strcpy(info->sysname, "Twizzler");
+	strcpy(info->nodename, "");
+	strcpy(info->release, "1.0");
+	strcpy(info->machine, "x86_64");
+	return R_S(0);
+}
+
+static std::pair<long, bool> twix_cmd_prlimit(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe)
+{
+	int pid = tqe->arg0;
+	int resource = tqe->arg1;
+	int flags = tqe->arg2;
+	struct rlimit *lim = (struct rlimit *)client->buffer_base();
+	if(flags & TWIX_PRLIMIT_SET) {
+		/* TODO */
+	} else if(flags & TWIX_PRLIMIT_GET) {
+		/* TODO */
+	}
+
+	return R_S(0);
+}
+
 static std::pair<long, bool> (
   *call_table[NUM_TWIX_COMMANDS])(std::shared_ptr<queue_client>, twix_queue_entry *tqe) = {
 	[TWIX_CMD_GET_PROC_INFO] = __get_proc_info,
@@ -166,6 +196,10 @@ static std::pair<long, bool> (
 	[TWIX_CMD_SIGDONE] = twix_cmd_sigdone,
 	[TWIX_CMD_SUSPEND] = twix_cmd_suspend,
 	[TWIX_CMD_WAIT] = twix_cmd_wait,
+	[TWIX_CMD_UNAME] = twix_cmd_uname,
+	[TWIX_CMD_FACCESSAT] = twix_cmd_faccessat,
+	[TWIX_CMD_DUP] = twix_cmd_dup,
+	[TWIX_CMD_PRLIMIT] = twix_cmd_prlimit,
 };
 
 static const char *cmd_strs[] = {
@@ -186,6 +220,10 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_SIGDONE] = "sigdone",
 	[TWIX_CMD_SUSPEND] = "suspend",
 	[TWIX_CMD_WAIT] = "wait",
+	[TWIX_CMD_UNAME] = "uname",
+	[TWIX_CMD_FACCESSAT] = "faccessat",
+	[TWIX_CMD_DUP] = "dup",
+	[TWIX_CMD_PRLIMIT] = "prlimit",
 };
 
 std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)

@@ -109,9 +109,9 @@ class unixprocess
 	};
 
   public:
-	int pid;
-	int gid;
-	int uid;
+	int pid, pgid;
+	int gid, egid;
+	int uid, euid;
 	int exit_status;
 	proc_state state = PROC_NORMAL;
 	bool status_changed = false;
@@ -376,6 +376,9 @@ std::pair<long, bool> twix_cmd_readlink(std::shared_ptr<queue_client> client,
 std::pair<long, bool> twix_cmd_clone(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 std::pair<long, bool> twix_cmd_send_signal(std::shared_ptr<queue_client> client,
   twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_faccessat(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_dup(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 
 #define R_S(r) std::make_pair(r, true)
 #define R_A(r) std::make_pair(r, false)

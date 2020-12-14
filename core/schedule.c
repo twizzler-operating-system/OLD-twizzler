@@ -446,7 +446,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	}
 	void *handler;
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
-	//__print_fault_info(t, fault, info);
+	__print_fault_info(t, fault, info);
 	if(handler) {
 		obj_put(to);
 		if(__failed_addr(fault, info) == handler) {

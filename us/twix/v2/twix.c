@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <stdbool.h>
 #include <twix/twix.h>
 #include <twz/debug.h>
@@ -30,12 +31,20 @@ struct unix_server {
 #include <signal.h>
 #include <twz/fault.h>
 #define SA_DFL                                                                                     \
-	(struct sigaction)                                                                             \
+	(struct k_sigaction)                                                                           \
 	{                                                                                              \
-		.sa_handler = SIG_DFL                                                                      \
+		.handler = SIG_DFL                                                                         \
 	}
 #define NUM_SIG 64
-struct sigaction _signal_actions[NUM_SIG] = { [0 ...(NUM_SIG - 1)] = SA_DFL };
+
+struct k_sigaction {
+	void (*handler)(int);
+	unsigned long flags;
+	void (*restorer)(void);
+	unsigned mask[2];
+};
+
+struct k_sigaction _signal_actions[NUM_SIG] = { [0 ...(NUM_SIG - 1)] = SA_DFL };
 
 static void __twix_do_handler(long *args)
 {
@@ -43,11 +52,11 @@ static void __twix_do_handler(long *args)
 	if(args[0] < 0 || args[0] >= NUM_SIG || args[0] == 0) {
 		goto inform_done;
 	}
-	struct sigaction *action = &_signal_actions[args[0]];
+	struct k_sigaction *action = &_signal_actions[args[0]];
 
-	if(action->sa_handler == SIG_IGN) {
+	if(action->handler == SIG_IGN) {
 		goto inform_done;
-	} else if(action->sa_handler == SIG_DFL) {
+	} else if(action->handler == SIG_DFL) {
 		switch(args[0]) {
 			case SIGCHLD:
 			case SIGURG:
@@ -70,7 +79,7 @@ static void __twix_do_handler(long *args)
 			}
 		}
 	} else {
-		action->sa_handler(args[0]);
+		action->handler(args[0]);
 	}
 inform_done:
 	tqe = build_tqe(TWIX_CMD_SIGDONE, 0, 0, 1, args[0]);
@@ -304,8 +313,25 @@ long hook_proc_info_syscalls(struct syscall_args *args)
 	get_proc_info(&info);
 	switch(args->num) {
 		case LINUX_SYS_getpid:
-			debug_printf("GETPID: %d\n", info.pid);
 			return info.pid;
+			break;
+		case LINUX_SYS_getppid:
+			return info.ppid;
+			break;
+		case LINUX_SYS_getpgid:
+			return info.pgid;
+			break;
+		case LINUX_SYS_getgid:
+			return info.gid;
+			break;
+		case LINUX_SYS_getuid:
+			return info.uid;
+			break;
+		case LINUX_SYS_getegid:
+			return info.egid;
+			break;
+		case LINUX_SYS_geteuid:
+			return info.euid;
 			break;
 		default:
 			return -ENOSYS;
@@ -314,6 +340,22 @@ long hook_proc_info_syscalls(struct syscall_args *args)
 
 static long __dummy(struct syscall_args *args __attribute__((unused)))
 {
+	return 0;
+}
+
+long hook_sigaction(struct syscall_args *args)
+{
+	int signum = args->a0;
+	struct k_sigaction *act = (void *)args->a1;
+	struct k_sigaction *oldact = (void *)args->a2;
+
+	if(oldact) {
+		*oldact = _signal_actions[signum];
+	} else if(act) {
+		/* TODO: need to make this atomic */
+		_signal_actions[signum] = *act;
+	}
+
 	return 0;
 }
 
@@ -465,9 +507,29 @@ long hook_getdents(struct syscall_args *args)
 	return tqe.ret;
 }
 
+static long do_faccessat(int fd, const char *path, int amode, int flag)
+{
+	write_bufdata(path, strlen(path) + 1, 0);
+	struct twix_queue_entry tqe =
+	  build_tqe(TWIX_CMD_FACCESSAT, 0, strlen(path) + 1, 3, fd, amode, flag);
+	twix_sync_command(&tqe);
+	return tqe.ret;
+}
+
+long hook_faccessat(struct syscall_args *args)
+{
+	int fd = args->a0;
+	char *path = (void *)args->a1;
+	int amode = args->a2;
+	int flag = args->a3;
+	return do_faccessat(fd, path, amode, flag);
+}
+
 long hook_access(struct syscall_args *args)
 {
-	return 0;
+	char *path = (void *)args->a0;
+	int amode = args->a1;
+	return do_faccessat(AT_FDCWD, path, amode, 0);
 }
 
 long hook_readlink(struct syscall_args *args)
@@ -625,8 +687,91 @@ long hook_wait(struct syscall_args *args)
 	return linux_wait4(-1, status, 0, NULL);
 }
 
+static long do_dup(int old, int new, int flags, int version)
+{
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_DUP, 0, 0, 4, old, new, flags, version);
+	twix_sync_command(&tqe);
+	return tqe.ret;
+}
+
+long hook_dup(struct syscall_args *args)
+{
+	return do_dup(args->a0, -1, 0, 1);
+}
+
+long hook_dup2(struct syscall_args *args)
+{
+	return do_dup(args->a0, args->a1, 0, 2);
+}
+
+long hook_dup3(struct syscall_args *args)
+{
+	return do_dup(args->a0, args->a1, args->a2, 3);
+}
+
+#include <sys/utsname.h>
+long hook_uname(struct utsname *buf)
+{
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_UNAME, 0, 0, 0);
+	twix_sync_command(&tqe);
+	if(tqe.ret == 0) {
+		struct twix_uname_info info;
+		extract_bufdata(&info, sizeof(info), 0);
+		strcpy(buf->sysname, info.sysname);
+		strcpy(buf->nodename, info.sysname);
+		strcpy(buf->release, info.release);
+		strcpy(buf->version, info.version);
+	}
+	return tqe.ret;
+}
+
+long do_prlimit(int pid, int r, struct rlimit *new, struct rlimit *old)
+{
+	int flags = 0;
+	if(new)
+		flags |= TWIX_PRLIMIT_SET;
+	if(old)
+		flags |= TWIX_PRLIMIT_GET;
+	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_PRLIMIT, 0, sizeof(*new), 3, pid, r, flags);
+	if(new)
+		write_bufdata(new, sizeof(*new), 0);
+	twix_sync_command(&tqe);
+	if(old && tqe.ret == 0)
+		extract_bufdata(old, sizeof(*old), 0);
+	return tqe.ret;
+}
+
+long hook_prlimit(struct syscall_args *args)
+{
+	int pid = args->a0;
+	int r = args->a1;
+	struct rlimit *new = (struct rlimit *)args->a2;
+	struct rlimit *old = (struct rlimit *)args->a3;
+	return do_prlimit(pid, r, new, old);
+}
+
+long hook_getrlimit(struct syscall_args *args)
+{
+	int r = args->a0;
+	struct rlimit *lim = (struct rlimit *)args->a1;
+	return do_prlimit(0, r, NULL, lim);
+}
+
+long hook_setrlimit(struct syscall_args *args)
+{
+	int r = args->a0;
+	struct rlimit *lim = (struct rlimit *)args->a1;
+	return do_prlimit(0, r, NULL, lim);
+}
+
 static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
+	[LINUX_SYS_getppid] = hook_proc_info_syscalls,
+	[LINUX_SYS_getgid] = hook_proc_info_syscalls,
+	[LINUX_SYS_getuid] = hook_proc_info_syscalls,
+	[LINUX_SYS_getpgid] = hook_proc_info_syscalls,
+	[LINUX_SYS_geteuid] = hook_proc_info_syscalls,
+	[LINUX_SYS_getegid] = hook_proc_info_syscalls,
 	[LINUX_SYS_set_tid_address] = __dummy,
 	[LINUX_SYS_open] = hook_open,
 	[LINUX_SYS_pwritev2] = hook_sys_pwritev2,
@@ -652,6 +797,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_exit_group] = hook_exit,
 	[LINUX_SYS_getdents64] = hook_getdents,
 	[LINUX_SYS_access] = hook_access,
+	[LINUX_SYS_faccessat] = hook_faccessat,
 	[LINUX_SYS_readlink] = hook_readlink,
 	[LINUX_SYS_readlinkat] = hook_readlink,
 	[LINUX_SYS_futex] = hook_futex,
@@ -659,6 +805,13 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_fork] = hook_fork,
 	[LINUX_SYS_kill] = hook_kill,
 	[LINUX_SYS_wait4] = hook_wait4,
+	[LINUX_SYS_dup] = hook_dup,
+	[LINUX_SYS_dup2] = hook_dup2,
+	[LINUX_SYS_dup3] = hook_dup3,
+	[LINUX_SYS_prlimit] = hook_prlimit,
+	[LINUX_SYS_getrlimit] = hook_getrlimit,
+	[LINUX_SYS_setrlimit] = hook_setrlimit,
+	[LINUX_SYS_sigaction] = hook_sigaction,
 };
 
 extern const char *syscall_names[];
@@ -686,13 +839,14 @@ int try_twix_version2(struct twix_register_frame *frame,
 	if(!setup_queue()) {
 		return -1;
 	}
+	twix_log("twix_v2 syscall: %3ld (%s)\n", num, syscall_names[num]);
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
 		if(num != 14) // TODO signals
 			twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
 		*ret = -ENOSYS;
 		return -2;
 	}
-	// twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
+	twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 
 	*ret = syscall_v2_table[num](&args);
 	return *ret == -ENOSYS ? -3 : 0;

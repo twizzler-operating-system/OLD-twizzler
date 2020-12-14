@@ -180,6 +180,45 @@ std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_qu
 	return R_S(ret);
 }
 
+std::pair<long, bool> twix_cmd_faccessat(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe)
+{
+	/* TODO */
+	return R_S(0);
+}
+
+std::pair<long, bool> twix_cmd_dup(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
+{
+	int oldfd = tqe->arg0;
+	int newfd = tqe->arg1;
+	int flags = tqe->arg2;
+	int version = tqe->arg3;
+
+	if(version != 1 && version != 2 && version != 3) {
+		return R_S(-EINVAL);
+	}
+	if(version == 3 && oldfd == newfd) {
+		return R_S(-EINVAL);
+	}
+
+	auto desc = client->proc->get_file(oldfd);
+	int oldfdfl = client->proc->get_file_flags(oldfd);
+	if(desc == nullptr || oldfdfl == -EBADF) {
+		return R_S(-EBADF);
+	}
+	if(version == 2 && newfd == oldfd) {
+		return R_S(newfd);
+	}
+
+	if(version == 1) {
+		newfd = client->proc->assign_fd(desc, 0);
+	} else {
+		client->proc->steal_fd(newfd, desc, flags);
+	}
+
+	return R_S(newfd);
+}
+
 std::pair<long, bool> twix_cmd_fcntl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
