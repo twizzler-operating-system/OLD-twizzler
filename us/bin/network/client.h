@@ -97,7 +97,7 @@ class net_client
 		int bind(struct netaddr *na);
 		int connect(struct netaddr *na);
 		int accept(uint16_t *);
-		ssize_t send(void *, size_t);
+		ssize_t send(std::shared_ptr<net_client>, nstack_queue_entry *, void *, size_t);
 		void recv_thrd();
 	};
 
