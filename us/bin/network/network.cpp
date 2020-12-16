@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
 	///////////////////////////////////////////////////////////////////////////////////
 
 	/* Run specified network program */
+#if 0
 	if(argc > 3) {
 		if(strcmp(argv[3], "udp") == 0) {
 			if(strcmp(argv[1], "10.0.0.1") == 0) { // client
@@ -275,6 +276,7 @@ int main(int argc, char *argv[])
 			exit(1);
 		}
 	}
+#endif
 
 	for(;;)
 		usleep(100000);

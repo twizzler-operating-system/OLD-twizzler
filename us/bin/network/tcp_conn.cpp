@@ -535,8 +535,9 @@ int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_
 	conn_state->curr_state = SYN_SENT;
 	conn_state->seq_num = 0;
 	conn_state->ack_num = 0;
-	conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
+	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
+	conn_state->tx_head = 1;
 	uint32_t seq_num = conn_state->seq_num;
 	uint32_t ack_num = conn_state->ack_num;
 
@@ -590,9 +591,9 @@ int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_
 
 	pthread_spin_lock(&conn_state->mtx);
 	conn_state->curr_state = CONN_ESTABLISHED;
-	assert(conn_state->seq_num == 1 && conn_state->tx_buffer->head == 1
-	       && conn_state->tx_buffer->tail == 1 && conn_state->rx_buffer->head == 1
-	       && conn_state->rx_buffer->tail == 1);
+	// assert(conn_state->seq_num == 1 && conn_state->tx_buffer->head == 1
+	//     && conn_state->tx_buffer->tail == 1 && conn_state->rx_buffer->head == 1
+	//   && conn_state->rx_buffer->tail == 1);
 	pthread_spin_unlock(&conn_state->mtx);
 
 	tcp_client_table_put(client_id, conn);
@@ -633,7 +634,8 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 	conn_state->client_id = client_id;
 	conn_state->seq_num = 0;
 	conn_state->ack_num = remote_conn.seq_num + 1;
-	conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
+	conn_state->tx_head = 1;
+	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	uint32_t seq_num = conn_state->seq_num;
 	uint32_t ack_num = conn_state->ack_num;
@@ -679,9 +681,9 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 
 	pthread_spin_lock(&conn_state->mtx);
 	conn_state->curr_state = CONN_ESTABLISHED;
-	assert(conn_state->seq_num == 1 && conn_state->tx_buffer->head == 1
+	/*assert(conn_state->seq_num == 1 && conn_state->tx_buffer->head == 1
 	       && conn_state->tx_buffer->tail == 1 && conn_state->rx_buffer->head == 1
-	       && conn_state->rx_buffer->tail == 1);
+	       && conn_state->rx_buffer->tail == 1);*/
 	pthread_spin_unlock(&conn_state->mtx);
 
 	tcp_client_table_put(client_id, conn);
@@ -697,18 +699,26 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 	return 0;
 }
 
-int tcp_send(uint16_t client_id, char *payload, uint16_t payload_size)
+int tcp_send(uint16_t client_id,
+  std::shared_ptr<net_client> client,
+  nstack_queue_entry *nqe,
+  char *payload,
+  uint16_t payload_size)
 {
 	tcp_conn_t conn = tcp_client_table_get(client_id);
 	assert(conn.local.port != 0 && conn.remote.port != 0);
 	tcp_conn_state_t *conn_state = conn_table_get(conn);
 	assert(conn_state != NULL);
+	conn_state->tx_buf_mgr.append(client, nqe, payload, payload_size);
+	return 0;
+	/*
 	int ret = char_ring_buffer_add(conn_state->tx_buffer, payload, payload_size);
 	if(ret == payload_size) {
-		return 0;
+	    return 0;
 	} else {
-		return ETCPSENDFAILED;
+	    return ETCPSENDFAILED;
 	}
+	*/
 }
 
 void handle_tcp_send()
@@ -728,10 +738,42 @@ void handle_tcp_send()
 		}
 
 		if(conn_state->curr_state == CONN_ESTABLISHED) {
-			char_ring_buffer_t *tx_buffer = conn_state->tx_buffer;
+			//	char_ring_buffer_t *tx_buffer = conn_state->tx_buffer;
 			uint32_t seq_num = conn_state->seq_num;
 			uint32_t ack_num = conn_state->ack_num;
 
+			auto data = conn_state->tx_buf_mgr.get_next(MSS);
+			if(data.ptr) {
+				int ret = encap_tcp_packet(object_id(),
+				  NOOP,
+				  conn.local.ip,
+				  conn.remote.ip,
+				  conn.local.port,
+				  conn.remote.port,
+				  DATA_PKT,
+				  seq_num,
+				  ack_num,
+				  (char *)data.ptr,
+				  data.len);
+				if(ret) {
+					fprintf(stderr, " -- Packet Dropped!!\n");
+				}
+			}
+			/* update seq num */
+			if(seq_num == conn_state->tx_head) {
+				pthread_spin_lock(&conn_state->mtx);
+				conn_state->time_of_head_change = clock();
+				pthread_spin_unlock(&conn_state->mtx);
+			}
+			clock_t time_elapsed_msec =
+			  ((clock() - conn_state->time_of_head_change) * 1000) / CLOCKS_PER_SEC;
+			if(time_elapsed_msec >= TCP_TIMEOUT) {
+				conn_state->seq_num = conn_state->tx_head;
+			} else {
+				conn_state->seq_num += data.len;
+			}
+
+#if 0
 			uint32_t avail_bytes = occupied_space(tx_buffer, &seq_num);
 
 			uint32_t bytes_to_send = (avail_bytes < MSS) ? avail_bytes : MSS;
@@ -784,6 +826,7 @@ void handle_tcp_send()
 			} else {
 				conn_state->seq_num += bytes_to_send;
 			}
+#endif
 		}
 	}
 }
@@ -896,14 +939,15 @@ void handle_tcp_recv(const char *interface_name,
 			pthread_spin_unlock(&conn_state->mtx);
 
 		} else if(conn_state->curr_state == CONN_ESTABLISHED) {
-			if(ack_num > conn_state->tx_buffer->head) {
-				uint32_t bytes = ack_num - conn_state->tx_buffer->head;
-				uint32_t removed_bytes =
-				  char_ring_buffer_remove(conn_state->tx_buffer, NULL, bytes);
-				assert(removed_bytes == bytes);
-				if(removed_bytes > 0) {
+			if(ack_num > conn_state->tx_head) {
+				uint32_t bytes = ack_num - conn_state->tx_head;
+				conn_state->tx_buf_mgr.remove(bytes);
+				// uint32_t removed_bytes =
+				//  char_ring_buffer_remove(conn_state->tx_buffer, NULL, bytes);
+				// assert(removed_bytes == bytes);
+				if(bytes > 0) { // TODO: redundant?
 					pthread_spin_lock(&conn_state->mtx);
-					conn_state->tx_buffer->time_of_head_change = clock();
+					conn_state->time_of_head_change = clock();
 					pthread_spin_unlock(&conn_state->mtx);
 				}
 			}

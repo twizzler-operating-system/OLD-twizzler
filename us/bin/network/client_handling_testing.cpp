@@ -94,10 +94,13 @@ int net_client::connection::accept(uint16_t *newid)
 	return ret;
 }
 
-ssize_t net_client::connection::send(void *ptr, size_t len)
+ssize_t net_client::connection::send(std::shared_ptr<net_client> client,
+  nstack_queue_entry *nqe,
+  void *ptr,
+  size_t len)
 {
 	std::lock_guard<std::mutex> _lg(lock);
-	int ret = tcp_send(tcp_client_id, (char *)ptr, len);
+	int ret = tcp_send(tcp_client_id, client, nqe, (char *)ptr, len);
 	if(ret == 0)
 		return len;
 	return -ret;
@@ -264,9 +267,9 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 				return true;
 			}
 
-			size_t len = conn->send(ptr, nqe->data_len);
+			size_t len = conn->send(client, nqe, ptr, nqe->data_len);
 			nqe->ret = len;
-			return true;
+			return false;
 
 			/*
 			struct nstack_queue_entry newnqe = *nqe;
