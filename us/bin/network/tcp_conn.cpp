@@ -537,6 +537,7 @@ int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_
 	conn_state->ack_num = 0;
 	conn_state->tx_buf_mgr = new databuf();
 	conn_state->rx_buf_mgr = new databuf();
+	conn_state->lock = new std::mutex();
 	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->tx_head = 1;
@@ -639,6 +640,7 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 	conn_state->tx_head = 1;
 	conn_state->tx_buf_mgr = new databuf();
 	conn_state->rx_buf_mgr = new databuf();
+	conn_state->lock = new std::mutex();
 	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	uint32_t seq_num = conn_state->seq_num;
@@ -703,6 +705,57 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 	return 0;
 }
 
+static void __try_send(tcp_conn_t &conn, tcp_conn_state_t *conn_state, size_t amount)
+{
+	int count = 0;
+	while(true) {
+		uint32_t seq_num = conn_state->seq_num;
+		uint32_t ack_num = conn_state->ack_num;
+		std::lock_guard<std::mutex> _lg(*conn_state->lock);
+		auto data = conn_state->tx_buf_mgr->get_next(MSS);
+		if(data.ptr) {
+			// fprintf(stderr, "SEND %d bytes\n", data.len);
+			int ret = encap_tcp_packet_2(conn.local.ip,
+			  conn.remote.ip,
+			  conn.local.port,
+			  conn.remote.port,
+			  DATA_PKT,
+			  seq_num,
+			  ack_num,
+			  (char *)data.ptr,
+			  data.len);
+			if(ret) {
+				fprintf(stderr, " -- Packet Dropped!!\n");
+			}
+			if(amount) {
+				if(amount < data.len)
+					amount = 0;
+				else
+					amount -= data.len;
+			}
+		}
+		/* update seq num */
+		if(seq_num == conn_state->tx_head) {
+			pthread_spin_lock(&conn_state->mtx);
+			conn_state->time_of_head_change = clock();
+			pthread_spin_unlock(&conn_state->mtx);
+		}
+		clock_t time_elapsed_msec =
+		  ((clock() - conn_state->time_of_head_change) * 1000) / CLOCKS_PER_SEC;
+		if(time_elapsed_msec >= TCP_TIMEOUT) {
+			conn_state->seq_num = conn_state->tx_head;
+			conn_state->tx_buf_mgr->reset();
+			break;
+		} else {
+			conn_state->seq_num += data.len;
+		}
+		if(!data.ptr || amount == 0)
+			break;
+		if(count++ > 10 && amount == 0)
+			break;
+	}
+}
+
 int tcp_send(uint16_t client_id,
   std::shared_ptr<net_client> client,
   nstack_queue_entry *nqe,
@@ -714,6 +767,7 @@ int tcp_send(uint16_t client_id,
 	tcp_conn_state_t *conn_state = conn_table_get(conn);
 	assert(conn_state != NULL);
 	conn_state->tx_buf_mgr->append(client, nqe, payload, payload_size);
+	__try_send(conn, conn_state, payload_size);
 	return 0;
 	/*
 	int ret = char_ring_buffer_add(conn_state->tx_buffer, payload, payload_size);
@@ -743,6 +797,8 @@ void handle_tcp_send()
 
 		if(conn_state->curr_state == CONN_ESTABLISHED) {
 			//	char_ring_buffer_t *tx_buffer = conn_state->tx_buffer;
+			__try_send(conn, conn_state, MSS);
+#if 0
 			uint32_t seq_num = conn_state->seq_num;
 			uint32_t ack_num = conn_state->ack_num;
 
@@ -776,7 +832,7 @@ void handle_tcp_send()
 			} else {
 				conn_state->seq_num += data.len;
 			}
-
+#endif
 #if 0
 			uint32_t avail_bytes = occupied_space(tx_buffer, &seq_num);
 
@@ -966,9 +1022,7 @@ void handle_tcp_recv(const char *interface_name,
 				/* send ACK packet */
 				object_id_t object_id;
 				if(added_bytes > 0) {
-					int ret = encap_tcp_packet(object_id,
-					  NOOP,
-					  conn.local.ip,
+					int ret = encap_tcp_packet_2(conn.local.ip,
 					  conn.remote.ip,
 					  conn.local.port,
 					  conn.remote.port,

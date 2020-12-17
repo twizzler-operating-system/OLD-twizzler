@@ -54,6 +54,7 @@ typedef struct tcp_conn_state {
 
 	databuf *rx_buf_mgr;
 	databuf *tx_buf_mgr;
+	std::mutex *lock;
 	uint32_t tx_head;
 	clock_t time_of_head_change;
 
