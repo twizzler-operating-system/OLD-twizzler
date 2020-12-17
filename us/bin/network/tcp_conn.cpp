@@ -749,9 +749,7 @@ void handle_tcp_send()
 			auto data = conn_state->tx_buf_mgr->get_next(MSS);
 			if(data.ptr) {
 				fprintf(stderr, "SEND %d bytes\n", data.len);
-				int ret = encap_tcp_packet(object_id(),
-				  NOOP,
-				  conn.local.ip,
+				int ret = encap_tcp_packet_2(conn.local.ip,
 				  conn.remote.ip,
 				  conn.local.port,
 				  conn.remote.port,

@@ -2,6 +2,7 @@
 #define __ETH_H__
 
 #include "common.h"
+#include "interface.h"
 
 #define ETH_HDR_SIZE 14           // bytes
 #define MAX_ETH_PAYLOAD_SIZE 1500 // bytes
@@ -24,7 +25,7 @@ void eth_tx(const char *interface_name,
   void *eth_pkt_ptr,
   uint16_t eth_pkt_size);
 
-void eth_tx_2(const char *interface_name,
+void eth_tx_2(interface_t *,
   mac_addr_t dst_mac,
   uint16_t eth_type,
   void *eth_pkt_ptr,

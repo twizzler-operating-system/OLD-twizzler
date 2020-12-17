@@ -8,7 +8,7 @@
 #include "twz.h"
 #include "udp.h"
 
-static bool arp_check(ip_addr_t dst_ip)
+bool arp_check(ip_addr_t dst_ip)
 {
 	uint8_t *dst_mac_addr;
 	if((dst_mac_addr = arp_table_get(dst_ip.ip)) == NULL) {
@@ -156,6 +156,107 @@ int encap_udp_packet(object_id_t object_id,
 	eth_tx(interface_name, dst_mac, (has_twz_hdr) ? TWIZZLER : IPV4, pkt_ptr, pkt_size);
 
 	return 0;
+}
+
+int encap_tcp_packet_2(ip_addr_t src_ip,
+  ip_addr_t dst_ip,
+  uint16_t src_port,
+  uint16_t dst_port,
+  tcp_pkt_type_t tcp_pkt_type,
+  uint32_t seq_num,
+  uint32_t ack_num,
+  char *payload,
+  uint16_t payload_size)
+{
+	uint16_t pkt_size;
+	if(payload == NULL) {
+		payload_size = 0;
+	}
+	pkt_size = ETH_HDR_SIZE + IP_HDR_SIZE + TCP_HDR_SIZE;
+	if(pkt_size > MAX_ETH_FRAME_SIZE) {
+		return EMAXFRAMESIZE;
+	}
+
+	/* create packet buffer object to store packet that will the transfered */
+	void *pkt_ptr = allocate_packet_buffer_object(pkt_size);
+	/* add TCP header */
+	uint8_t ns = 0, cwr = 0, ece = 0, urg = 0, ack = 0, psh = 0, rst = 0, syn = 0, fin = 0;
+	switch(tcp_pkt_type) {
+		case SYN_PKT:
+			syn = 1;
+			break;
+
+		case SYN_ACK_PKT:
+			ack = 1;
+			syn = 1;
+			break;
+
+		case ACK_PKT:
+			ack = 1;
+			break;
+
+		case DATA_PKT:
+			ack = 1;
+			break;
+
+		case FIN_PKT:
+			ack = 1;
+			fin = 1;
+			break;
+
+		case RST_PKT:
+			rst = 1;
+			break;
+
+		default:
+			fprintf(stderr, "Error encap_tcp_packet: unrecognized tcp_pkt_type\n");
+			exit(1);
+	}
+	char *tcp_ptr = (char *)pkt_ptr;
+	tcp_ptr += (pkt_size - TCP_HDR_SIZE);
+	tcp_tx(src_ip,
+	  dst_ip,
+	  src_port,
+	  dst_port,
+	  seq_num,
+	  ack_num,
+	  ns,
+	  cwr,
+	  ece,
+	  urg,
+	  ack,
+	  psh,
+	  rst,
+	  syn,
+	  fin,
+	  0,
+	  0,
+	  tcp_ptr,
+	  TCP_HDR_SIZE,
+	  payload,
+	  payload_size);
+
+	return ipv4_transmit_packet(src_ip, dst_ip, TCP, pkt_ptr, pkt_size, payload, payload_size);
+#if 0
+	/* add IPv4 header */
+	char *ip_ptr = (char *)pkt_ptr;
+	ip_ptr += (pkt_size - IP_HDR_SIZE - TCP_HDR_SIZE);
+	ip_tx(interface_name, dst_ip, TCP, ip_ptr, (IP_HDR_SIZE + TCP_HDR_SIZE + payload_size));
+
+	/* add Ethernet header */
+	uint8_t *dst_mac_addr = arp_table_get(dst_ip.ip);
+	mac_addr_t dst_mac;
+	memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
+	eth_tx_2(interface_name,
+	  dst_mac,
+	  (has_twz_hdr) ? TWIZZLER : IPV4,
+	  pkt_ptr,
+	  pkt_size,
+	  payload,
+	  payload_size);
+
+	return 0;
+#endif
 }
 
 int encap_tcp_packet(object_id_t object_id,
@@ -318,7 +419,7 @@ int encap_tcp_packet(object_id_t object_id,
 	uint8_t *dst_mac_addr = arp_table_get(dst_ip.ip);
 	mac_addr_t dst_mac;
 	memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
-	eth_tx_2(interface_name,
+	eth_tx_2(interface,
 	  dst_mac,
 	  (has_twz_hdr) ? TWIZZLER : IPV4,
 	  pkt_ptr,
