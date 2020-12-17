@@ -81,7 +81,7 @@ class databuf
 	databufptr get_next(size_t max)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
-		//	fprintf(stderr, "GET_NEXT: %ld :: %ld\n", max, have_read);
+		// fprintf(stderr, "GET_NEXT: %ld :: %ld\n", max, have_read);
 		size_t off = have_read;
 		for(auto entry : entries) {
 			// entry *entry = entries.front();
@@ -92,8 +92,8 @@ class databuf
 			}
 
 			size_t amount = max;
-			if(amount > entry->rem())
-				amount = entry->rem();
+			if(amount > thisrem - off)
+				amount = thisrem - off;
 			databufptr dbp(entry->next_ptr(off), amount);
 			have_read += amount;
 #if 0
@@ -110,7 +110,7 @@ class databuf
 	void remove(size_t count)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
-		// fprintf(stderr, "REMOVING %ld\n", count);
+		// fprintf(stderr, "REMOVING %ld (%ld)\n", count, have_read);
 		size_t len = count;
 		while(len > 0) {
 			assert(!entries.empty());

@@ -5,7 +5,7 @@
 #include "ipv4.h"
 #include "twz.h"
 
-void eth_tx_2(const char *interface_name,
+void eth_tx_2(interface_t *interface,
   mac_addr_t dst_mac,
   uint16_t eth_type,
   void *eth_pkt_ptr,
@@ -14,8 +14,6 @@ void eth_tx_2(const char *interface_name,
   uint16_t payload_len)
 {
 	bool has_payload = payload_ptr && payload_len > 0;
-	interface_t *interface = get_interface_by_name(interface_name);
-
 	eth_hdr_t *eth_hdr = (eth_hdr_t *)eth_pkt_ptr;
 
 	/* source MAC */

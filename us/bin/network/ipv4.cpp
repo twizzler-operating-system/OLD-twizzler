@@ -5,6 +5,8 @@
 #include "tcp.h"
 #include "udp.h"
 
+#include "eth.h"
+
 std::vector<ip_table_entry_t> ip_table;
 std::mutex ip_table_mtx;
 
@@ -247,6 +249,109 @@ void ip_tx(const char *interface_name,
 
 	uint8_t ihl = (ip_hdr->ver_and_ihl & 0b00001111) * 4; /* bytes */
 	ip_hdr->hdr_checksum = htons(checksum((unsigned char *)ip_pkt_ptr, ihl));
+}
+
+class pending_packet
+{
+  public:
+	void *payload1, *payload2;
+	size_t pl1_len, pl2_len;
+	interface_t *interface;
+	pending_packet(void *p1, void *p2, size_t p1l, size_t p2l, interface_t *in)
+	  : payload1(p1)
+	  , payload2(p2)
+	  , pl1_len(p1l)
+	  , pl2_len(p2l)
+	  , interface(in)
+	{
+	}
+};
+
+#include <mutex>
+#include <unordered_map>
+#include <vector>
+
+std::mutex pending_lock;
+std::unordered_map<uint32_t, std::vector<pending_packet>> pendings;
+
+void ipv4_arp_update(ip_addr_t ip)
+{
+	std::lock_guard<std::mutex> _lg(pending_lock);
+
+	uint32_t ik = ((ip.ip[0] & 0xff) << 24) | ((ip.ip[1] & 0xff) << 16) | ((ip.ip[2] & 0xff) << 8)
+	              | ((ip.ip[3] & 0xff));
+	/* add Ethernet header */
+	uint8_t *dst_mac_addr = arp_table_get(ip.ip);
+	if(!dst_mac_addr)
+		return;
+	mac_addr_t dst_mac;
+	memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
+
+	for(auto pend : pendings[ik]) {
+		eth_tx_2(
+		  pend.interface, dst_mac, IPV4, pend.payload1, pend.pl1_len, pend.payload2, pend.pl2_len);
+		/* TODO: err? */
+	}
+	pendings[ik].clear();
+	/* TODO: err? */
+}
+
+int ipv4_transmit_packet(ip_addr_t src_ip,
+  ip_addr_t dst_ip,
+  int type,
+  void *pkt_ptr,
+  size_t pkt_size,
+  void *payload,
+  size_t payload_size)
+{
+	/* find the tx interface */
+	/* TODO: setup routing table */
+	char interface_name[MAX_INTERFACE_NAME_SIZE];
+	ip_addr_t default_ip = string_to_ip_addr(DEFAULT_IP);
+
+	if(compare_ip_addr(src_ip, default_ip, default_ip)) { /* use dst ip to find
+		                                                     the tx interface */
+		ip_table_get(dst_ip, interface_name);
+	} else { /* use src ip to find
+		        the tx interface */
+		get_interface_by_ip(src_ip, interface_name);
+	}
+
+	if(interface_name == NULL) {
+		return -1; // TODO
+	}
+
+	interface_t *interface = get_interface_by_name(interface_name);
+
+	/* add IPv4 header */
+	char *ip_ptr = (char *)pkt_ptr;
+	ip_ptr += (pkt_size - IP_HDR_SIZE - TCP_HDR_SIZE);
+	ip_tx(interface_name, dst_ip, type, ip_ptr, (IP_HDR_SIZE + TCP_HDR_SIZE + payload_size));
+
+	/* TODO: finer-grained locking? */
+	std::lock_guard<std::mutex> _lg(pending_lock);
+
+	uint32_t ik = ((dst_ip.ip[0] & 0xff) << 24) | ((dst_ip.ip[1] & 0xff) << 16)
+	              | ((dst_ip.ip[2] & 0xff) << 8) | ((dst_ip.ip[3] & 0xff));
+	if(arp_check(dst_ip) == false) {
+		pendings[ik].push_back(pending_packet(pkt_ptr, payload, pkt_size, payload_size, interface));
+		return 0;
+	}
+	/* add Ethernet header */
+	uint8_t *dst_mac_addr = arp_table_get(dst_ip.ip);
+	mac_addr_t dst_mac;
+	memcpy(dst_mac.mac, dst_mac_addr, MAC_ADDR_SIZE);
+
+	for(auto pend : pendings[ik]) {
+		eth_tx_2(
+		  pend.interface, dst_mac, IPV4, pend.payload1, pend.pl1_len, pend.payload2, pend.pl2_len);
+		/* TODO: err? */
+	}
+	eth_tx_2(interface, dst_mac, IPV4, pkt_ptr, pkt_size, payload, payload_size);
+	pendings[ik].clear();
+	/* TODO: err? */
+
+	return 0;
 }
 
 void ip_rx(const char *interface_name, remote_info_t *remote_info, void *ip_pkt_ptr)
