@@ -296,7 +296,7 @@ void e1000c_interrupt_recv(e1000_controller *nc, int q)
 		ph->status = 0;
 		ph->len = desc->length;
 
-		//fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
+		// fprintf(stderr, "[e1000] recv packet %p (%lx)\n", packet->vaddr, packet->pinaddr);
 		queue_submit(&nc->rxqueue_obj, (struct queue_entry *)&pqe, 0);
 		nc->head_rx = (nc->head_rx + 1) % nc->nr_rx_desc;
 	}
@@ -349,7 +349,7 @@ void e1000c_interrupt_send(e1000_controller *nc, int q)
 			nc->txs[nc->head_tx] = nullptr;
 		}
 
-		if(req) {
+		if(req != nullptr) {
 			// fprintf(stderr, "found packet: %d -> %d\n", nc->head_tx, req->packet.qe.info);
 			queue_complete(&nc->txqueue_obj, (struct queue_entry *)&req->packet, 0);
 			delete req;
@@ -456,11 +456,12 @@ void e1000_tx_queue(e1000_controller *nc)
 
 		{
 			std::unique_lock<std::mutex> lck(nc->mtx);
-			int32_t pn = e1000c_send_packet(nc, data_pin + offset, req->packet.len, !!(req->packet.flags & PACKET_FLAGS_EOP));
+			int32_t pn = e1000c_send_packet(
+			  nc, data_pin + offset, req->packet.len, !!(req->packet.flags & PACKET_FLAGS_EOP));
 			if(pn < 0) {
 				fprintf(stderr, "TODO: dropped packet\n");
 			} else {
-				nc->txs.reserve(pn + 1);
+				nc->txs.resize(pn + 1);
 				nc->txs[pn] = req;
 			}
 		}

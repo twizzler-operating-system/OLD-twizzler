@@ -3,6 +3,8 @@
 #define __QUEUE_TYPES_ONLY
 #include <twz/_queue.h>
 
+#include <twz/_objid.h>
+
 struct queue_entry_pager {
 	struct queue_entry qe;
 	objid_t id;
@@ -39,6 +41,7 @@ struct queue_entry_bio {
 
 #define PACKET_CMD_SEND 0
 #define PACKET_FLAGS_EOP 1
+#define PACKET_FLAGS_INTERNAL_BUF 2
 
 struct packet_queue_entry {
 	struct queue_entry qe;

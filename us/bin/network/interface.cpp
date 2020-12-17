@@ -2,6 +2,9 @@
 
 #include "arp.h"
 
+#include <twz/sys.h>
+#include <twz/thread.h>
+
 static std::map<const char *, interface_t *> interface_list;
 
 void init_interface(const char *interface_name,
