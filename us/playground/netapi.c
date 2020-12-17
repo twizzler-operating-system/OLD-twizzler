@@ -97,7 +97,8 @@ int main(int argc, char **argv)
 			const char *hw = "hello, world!\n";
 			ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
 			printf("Sent Data\n");
-			usleep(1000000);
+			for(;;)
+				usleep(1000000);
 			// printf("Recv got :: %ld :: <%s>\n", ret, buf);
 		}
 

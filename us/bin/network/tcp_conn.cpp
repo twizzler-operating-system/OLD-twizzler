@@ -535,6 +535,8 @@ int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_
 	conn_state->curr_state = SYN_SENT;
 	conn_state->seq_num = 0;
 	conn_state->ack_num = 0;
+	conn_state->tx_buf_mgr = new databuf();
+	conn_state->rx_buf_mgr = new databuf();
 	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->tx_head = 1;
@@ -635,6 +637,8 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 	conn_state->seq_num = 0;
 	conn_state->ack_num = remote_conn.seq_num + 1;
 	conn_state->tx_head = 1;
+	conn_state->tx_buf_mgr = new databuf();
+	conn_state->rx_buf_mgr = new databuf();
 	// conn_state->tx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state->rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	uint32_t seq_num = conn_state->seq_num;
@@ -709,7 +713,7 @@ int tcp_send(uint16_t client_id,
 	assert(conn.local.port != 0 && conn.remote.port != 0);
 	tcp_conn_state_t *conn_state = conn_table_get(conn);
 	assert(conn_state != NULL);
-	conn_state->tx_buf_mgr.append(client, nqe, payload, payload_size);
+	conn_state->tx_buf_mgr->append(client, nqe, payload, payload_size);
 	return 0;
 	/*
 	int ret = char_ring_buffer_add(conn_state->tx_buffer, payload, payload_size);
@@ -742,8 +746,9 @@ void handle_tcp_send()
 			uint32_t seq_num = conn_state->seq_num;
 			uint32_t ack_num = conn_state->ack_num;
 
-			auto data = conn_state->tx_buf_mgr.get_next(MSS);
+			auto data = conn_state->tx_buf_mgr->get_next(MSS);
 			if(data.ptr) {
+				fprintf(stderr, "SEND %d bytes\n", data.len);
 				int ret = encap_tcp_packet(object_id(),
 				  NOOP,
 				  conn.local.ip,
@@ -769,6 +774,7 @@ void handle_tcp_send()
 			  ((clock() - conn_state->time_of_head_change) * 1000) / CLOCKS_PER_SEC;
 			if(time_elapsed_msec >= TCP_TIMEOUT) {
 				conn_state->seq_num = conn_state->tx_head;
+				conn_state->tx_buf_mgr->reset();
 			} else {
 				conn_state->seq_num += data.len;
 			}
@@ -941,10 +947,12 @@ void handle_tcp_recv(const char *interface_name,
 		} else if(conn_state->curr_state == CONN_ESTABLISHED) {
 			if(ack_num > conn_state->tx_head) {
 				uint32_t bytes = ack_num - conn_state->tx_head;
-				conn_state->tx_buf_mgr.remove(bytes);
+				// fprintf(stderr, "ACK %d bytes\n", bytes);
+				conn_state->tx_buf_mgr->remove(bytes);
 				// uint32_t removed_bytes =
 				//  char_ring_buffer_remove(conn_state->tx_buffer, NULL, bytes);
 				// assert(removed_bytes == bytes);
+				conn_state->tx_head += bytes;
 				if(bytes > 0) { // TODO: redundant?
 					pthread_spin_lock(&conn_state->mtx);
 					conn_state->time_of_head_change = clock();

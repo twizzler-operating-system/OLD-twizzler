@@ -163,6 +163,7 @@ static inline struct queue_entry *__get_entry(struct object *obj,
 #include <errno.h>
 #include <stdio.h>
 #include <twz/_sys.h>
+#include <twz/debug.h>
 #include <twz/thread.h>
 static inline int __wait_on(void *o, atomic_uint_least64_t *p, uint64_t v, int dq)
 {

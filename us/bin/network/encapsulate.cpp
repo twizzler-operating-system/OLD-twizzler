@@ -290,7 +290,9 @@ int encap_tcp_packet(object_id_t object_id,
 	  0,
 	  0,
 	  tcp_ptr,
-	  (TCP_HDR_SIZE + payload_size));
+	  TCP_HDR_SIZE,
+	  payload,
+	  payload_size);
 
 	/* add IPv4 header */
 	char *ip_ptr = (char *)pkt_ptr;

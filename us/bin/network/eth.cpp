@@ -32,17 +32,19 @@ void eth_tx_2(const char *interface_name,
 	pqe.qe.info = get_id();
 	pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, eth_pkt_ptr, FE_READ);
 	pqe.len = eth_pkt_size;
-	pqe.flags = has_payload ? 0 : PACKET_FLAGS_EOP;
+	pqe.flags = PACKET_FLAGS_INTERNAL_BUF | (has_payload ? 0 : PACKET_FLAGS_EOP);
 	/* enqueue packet (pointer) to primary tx queue */
 	queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
 
 	/* create a pointer to the packet payload */
-	pqe.qe.info = get_id();
-	pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, payload_ptr, FE_READ);
-	pqe.len = payload_len;
-	pqe.flags = PACKET_FLAGS_EOP;
-	/* enqueue packet (pointer) to primary tx queue */
-	queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
+	if(has_payload) {
+		pqe.qe.info = get_id();
+		pqe.ptr = twz_ptr_swizzle(&interface->tx_queue_obj, payload_ptr, FE_READ);
+		pqe.len = payload_len;
+		pqe.flags = PACKET_FLAGS_EOP;
+		/* enqueue packet (pointer) to primary tx queue */
+		queue_submit(&interface->tx_queue_obj, (struct queue_entry *)&pqe, 0);
+	}
 
 	/* for debugging */
 	// fprintf(stderr, "[debug] Tx ETH Frame: ");

@@ -392,7 +392,8 @@ static enum obj_get_page_result __obj_get_page(struct object *obj,
 			return GETPAGE_NOENT;
 		}
 		if(!(flags & OBJ_GET_PAGE_PAGEROK)) {
-			panic("tried to get a page from a paged object without PAGEROK");
+			panic(
+			  "tried to get a page from a paged object (" IDFMT ") without PAGEROK", IDPR(obj->id));
 		}
 
 		spinlock_release_restore(&obj->lock);

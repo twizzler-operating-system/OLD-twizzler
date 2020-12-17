@@ -52,8 +52,8 @@ typedef struct tcp_conn_state {
 	uint32_t seq_num;
 	uint32_t ack_num;
 
-	databuf rx_buf_mgr;
-	databuf tx_buf_mgr;
+	databuf *rx_buf_mgr;
+	databuf *tx_buf_mgr;
 	uint32_t tx_head;
 	clock_t time_of_head_change;
 
