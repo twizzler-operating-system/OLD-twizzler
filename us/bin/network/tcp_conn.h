@@ -4,6 +4,8 @@
 #include "char_ring_buffer.h"
 #include "common.h"
 
+#include "client.h"
+
 // error codes
 #define ETCPBINDFAILED 30
 #define ECONNFAILED 31
@@ -62,6 +64,53 @@ typedef struct tcp_conn_state {
 	char_ring_buffer_t *rx_buffer;
 } tcp_conn_state_t;
 
+class tcp_endpoint
+{
+  public:
+	tcp_conn_state_t conn_state;
+	tcp_conn conn;
+
+	uint16_t client_cid;
+	std::shared_ptr<net_client> client;
+
+	tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid, tcp_conn_t conn, tcp_state_t);
+	tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid);
+};
+
+struct cmp1 {
+	bool operator()(const half_conn_t a, const half_conn_t b) const
+	{
+		return a.port < b.port;
+	}
+};
+
+class tcp_rendezvous
+{
+  public:
+	std::shared_ptr<net_client> client;
+	half_conn_t point;
+	std::atomic<bool> ready;
+	std::mutex lock;
+	std::map<half_conn_t, outstanding_conn_t> processing;
+	tcp_rendezvous(std::shared_ptr<net_client> client, half_conn_t p)
+	  : client(client)
+	  , point(p)
+	{
+	}
+	tcp_rendezvous(std::shared_ptr<net_client> client, ip_addr_t ip, uint16_t port)
+	  : client(client)
+
+	{
+		memcpy(&point.ip, &ip, sizeof(ip));
+		point.port = port;
+	}
+
+	void accept(outstanding_conn_t &);
+};
+void tcp_rendezvous_start_accept(std::shared_ptr<tcp_rendezvous> tr);
+int tcp_rendezvous_start_listen(std::shared_ptr<tcp_rendezvous> tr);
+int tcp_endpoint_connect(std::shared_ptr<tcp_endpoint> endp, half_conn_t remote);
+
 bool compare_half_conn(half_conn_t half_conn_1, half_conn_t half_conn_2);
 
 void outstanding_conns_enqueue(half_conn_t half_conn, outstanding_conn_t outstanding_conn);
@@ -100,14 +149,12 @@ uint16_t bind_to_random_tcp_port();
 
 void free_tcp_port(uint16_t port);
 
-int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_t remote);
+// int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_t remote);
 
-int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t *remote);
+// int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t *remote);
 
-class net_client;
 class nstack_queue_entry;
-int tcp_send(uint16_t client_id,
-  std::shared_ptr<net_client> client,
+int tcp_send(std::shared_ptr<tcp_endpoint>,
   nstack_queue_entry *nqe,
   char *payload,
   uint16_t payload_size);
@@ -126,7 +173,7 @@ void handle_tcp_recv(const char *interface_name,
   uint8_t syn,
   uint8_t fin);
 
-int tcp_recv(uint16_t client_id, char *buffer, uint16_t buffer_size);
+int tcp_recv(std::shared_ptr<tcp_endpoint>, char *buffer, uint16_t buffer_size);
 
 void cleanup_tcp_conn(tcp_conn_t conn);
 

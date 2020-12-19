@@ -67,6 +67,7 @@ struct nstack_queue_entry {
 		data_ptr = other.data_ptr;
 		data_len = other.data_len;
 	}
+
 	nstack_queue_entry(nstack_queue_entry &&other)
 	{
 		qe.info = other.qe.info;

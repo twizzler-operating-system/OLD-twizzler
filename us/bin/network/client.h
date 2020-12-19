@@ -11,8 +11,6 @@
 
 #include <nstack/nstack.h>
 
-#include "tcp_conn.h"
-
 template<typename T>
 class id_allocator
 {
@@ -73,35 +71,43 @@ class outstanding_command
 
 #include <stdio.h>
 #include <thread>
+
+class tcp_endpoint;
+class tcp_rendezvous;
+
 class net_client
 {
+  public:
 	class connection
 	{
 		enum state {
 			NONE,
+			WAITING_CONNECT,
 			CONNECTED,
-			BOUND,
 		};
 
 	  public:
 		std::atomic<enum state> state;
 		std::mutex lock;
 		uint16_t id;
-		uint16_t tcp_client_id;
-		half_conn_t local, remote;
 		std::shared_ptr<net_client> client;
+		std::shared_ptr<tcp_endpoint> endp;
 		std::thread thrd;
-		connection(std::shared_ptr<net_client> client, uint16_t id, int tcp_id);
+		nstack_queue_entry *connect_nqe;
+		connection(std::shared_ptr<net_client> client,
+		  uint16_t id,
+		  std::shared_ptr<tcp_endpoint> endp);
 		/* TODO: release the ID when tearing down */
 
 		int bind(struct netaddr *na);
-		int connect(struct netaddr *na);
+		int connect(nstack_queue_entry *);
+		void complete_connection();
+		void notify_accept();
 		int accept(uint16_t *);
 		ssize_t send(std::shared_ptr<net_client>, nstack_queue_entry *, void *, size_t);
 		void recv_thrd();
 	};
 
-  public:
 	twzobj txq_obj, rxq_obj;
 	twzobj txbuf_obj, rxbuf_obj;
 	twzobj thrdobj;
@@ -118,12 +124,16 @@ class net_client
 
 	std::unordered_map<uint16_t, std::shared_ptr<connection>> conns;
 
+	std::shared_ptr<tcp_rendezvous> listener = nullptr;
+
+	void insert_connection(std::shared_ptr<tcp_endpoint> endp);
+
 	uint16_t create_connection(std::shared_ptr<net_client> client, int tcp_id = -1)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		uint16_t id = conn_idalloc.get();
 		if(id != 0xffff)
-			conns.insert(std::make_pair(id, std::make_shared<connection>(client, id, tcp_id)));
+			conns.insert(std::make_pair(id, std::make_shared<connection>(client, id, nullptr)));
 		return id;
 	}
 

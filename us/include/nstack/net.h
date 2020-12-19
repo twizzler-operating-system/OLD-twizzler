@@ -1,30 +1,14 @@
 #pragma once
 
 #include <nstack/_types.h>
+#include <nstack/nstack.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <twz/obj.h>
 
 struct netreq;
 struct netcon;
-struct netmgr {
-	twzobj txq_obj, rxq_obj;
-	twzobj txbuf_obj, rxbuf_obj;
-	pthread_mutex_t lock;
-	uint32_t *idlist;
-	uint32_t maxid, idlistend, idlistlen;
-
-	struct netreq *outstanding;
-	struct netcon *conlist;
-
-	pthread_t worker; // TODO get rid of this
-};
-
-#define NETEVENT_RX 1
-#define NETEVENT_ACCEPT 2
-
-#include <nstack/nstack.h>
-
 struct netmgr;
 struct netevent {
 	int event;
@@ -37,6 +21,25 @@ struct netevent {
 	struct netmgr *mgr;
 	struct netevent *next, *prev;
 };
+
+struct netmgr {
+	twzobj txq_obj, rxq_obj;
+	twzobj txbuf_obj, rxbuf_obj;
+	pthread_mutex_t lock;
+	uint32_t *idlist;
+	uint32_t maxid, idlistend, idlistlen;
+
+	struct netreq *outstanding;
+	struct netcon *conlist;
+
+	pthread_t worker; // TODO get rid of this
+
+	pthread_cond_t event_cv;
+	struct netevent eventlist_sentry;
+};
+
+#define NETEVENT_RX 1
+#define NETEVENT_ACCEPT 2
 
 struct netcon {
 	struct netmgr *mgr;
@@ -62,11 +65,11 @@ struct netcon *netmgr_connect(struct netmgr *mgr,
   struct netaddr *addr,
   int flags,
   struct timespec *timeout);
-struct netcon *netmgr_bind(struct netmgr *mgr, struct netaddr *addr, int flags);
+int netmgr_bind(struct netmgr *mgr, struct netaddr *addr, int flags);
 
 ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags);
 ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags);
-struct netcon *netcon_accept(struct netcon *con);
+struct netcon *netcon_accept(struct netmgr *mgr);
 
 struct pbuf;
 
