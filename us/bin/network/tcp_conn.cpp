@@ -5,13 +5,6 @@
 #include "ipv4.h"
 #include "twz.h"
 
-struct cmp1 {
-	bool operator()(const half_conn_t a, const half_conn_t b) const
-	{
-		return a.port < b.port;
-	}
-};
-
 std::map<half_conn_t, std::vector<outstanding_conn_t>, cmp1> outstanding_conns;
 std::mutex outstanding_conns_mutex;
 
@@ -510,6 +503,102 @@ void free_tcp_port(uint16_t port)
 	}
 }
 
+tcp_endpoint::tcp_endpoint(std::shared_ptr<net_client> client,
+  uint16_t cid,
+  tcp_conn_t conn,
+  tcp_state_t state)
+  : client(client)
+  , client_cid(cid)
+  , conn(conn)
+{
+	pthread_spin_init(&conn_state.mtx, 0);
+	conn_state.seq_num = 0;
+	conn_state.ack_num = 0;
+	conn_state.tx_buf_mgr = new databuf();
+	conn_state.rx_buf_mgr = new databuf();
+	conn_state.lock = new std::mutex();
+	conn_state.rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
+	conn_state.tx_head = 1;
+	conn_state.curr_state = state;
+}
+
+tcp_endpoint::tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid)
+  : client(client)
+  , client_cid(cid)
+{
+	pthread_spin_init(&conn_state.mtx, 0);
+	conn_state.seq_num = 0;
+	conn_state.ack_num = 0;
+	conn_state.tx_buf_mgr = new databuf();
+	conn_state.rx_buf_mgr = new databuf();
+	conn_state.lock = new std::mutex();
+	conn_state.rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
+	conn_state.tx_head = 1;
+	conn_state.curr_state = SYN_SENT;
+}
+
+std::map<tcp_conn_t, std::shared_ptr<tcp_endpoint>, cmp2> connections;
+std::mutex connections_lock;
+
+int tcp_endpoint_connect(std::shared_ptr<tcp_endpoint> endp, half_conn_t remote)
+{
+	char interface_name[MAX_INTERFACE_NAME_SIZE];
+	ip_table_get(remote.ip, interface_name);
+	if(interface_name == NULL) {
+		fprintf(stderr,
+		  "Error establish_tcp_conn_client: "
+		  "ip_table_get returned no valid interface\n");
+		exit(1);
+	}
+	interface_t *interface = get_interface_by_name(interface_name);
+
+	memcpy(endp->conn.local.ip.ip, interface->ip.ip, IP_ADDR_SIZE);
+	memcpy(endp->conn.remote.ip.ip, remote.ip.ip, IP_ADDR_SIZE);
+	endp->conn.local.port = bind_to_random_tcp_port();
+	endp->conn.remote.port = remote.port;
+
+	endp->conn_state.curr_state = SYN_SENT;
+
+	// conn_table_put(conn, conn_state);
+
+	// object_id_t object_id;
+	// endp->conn_state.curr_state = CONN_ESTABLISHED;
+
+	{
+		std::lock_guard<std::mutex> _lg(connections_lock);
+		if(connections.find(endp->conn) != connections.end()) {
+			/* TODO */
+			return -1;
+		}
+		connections.insert(std::make_pair(endp->conn, endp));
+	}
+	/* send SYN packet */
+	int ret = encap_tcp_packet_2(endp->conn.local.ip,
+	  endp->conn.remote.ip,
+	  endp->conn.local.port,
+	  endp->conn.remote.port,
+	  SYN_PKT,
+	  endp->conn_state.seq_num,
+	  endp->conn_state.ack_num,
+	  NULL,
+	  0);
+	/* TODO: err */
+
+	/*
+	tcp_client_table_put(client_id, conn);
+
+	if(local != NULL) {
+	    memcpy(local->ip.ip, conn.local.ip.ip, IP_ADDR_SIZE);
+	    local->port = conn.local.port;
+	}
+
+	tcp_client_table_view();
+	conn_table_view();
+*/
+	return 0;
+}
+
+#if 0
 int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_t remote)
 {
 	char interface_name[MAX_INTERFACE_NAME_SIZE];
@@ -611,7 +700,66 @@ int establish_tcp_conn_client(uint16_t client_id, half_conn_t *local, half_conn_
 
 	return 0;
 }
+#endif
 
+std::map<half_conn_t, std::shared_ptr<tcp_rendezvous>, cmp1> listeners; // of roshar
+std::mutex listeners_lock;
+
+int tcp_rendezvous_start_listen(std::shared_ptr<tcp_rendezvous> tr)
+{
+	std::lock_guard<std::mutex> _lg(listeners_lock);
+	auto [_, res] = listeners.emplace(std::make_pair(tr->point, tr));
+	return res ? 0 : -EEXIST;
+}
+
+void tcp_rendezvous_start_accept(std::shared_ptr<tcp_rendezvous> tr)
+{
+	std::lock_guard<std::mutex> _lg(listeners_lock);
+	tr->ready = true;
+	while(1) {
+		outstanding_conn_t remote_conn = outstanding_conns_dequeue(tr->point);
+		if(!remote_conn.is_valid)
+			break;
+		tr->accept(remote_conn);
+	}
+}
+
+void tcp_rendezvous::accept(outstanding_conn_t &remote_conn)
+{
+	std::lock_guard<std::mutex> _lg(connections_lock);
+
+	tcp_conn_t conn;
+	memcpy(conn.local.ip.ip, point.ip.ip, IP_ADDR_SIZE);
+	memcpy(conn.remote.ip.ip, remote_conn.remote.ip.ip, IP_ADDR_SIZE);
+	conn.local.port = point.port;
+	conn.remote.port = remote_conn.remote.port;
+
+	if(connections.find(conn) != connections.end()) {
+		/* TODO */
+		return;
+	}
+
+	auto endp =
+	  std::make_shared<tcp_endpoint>(client, client->conn_idalloc.get(), conn, SYN_ACK_SENT);
+	connections.insert(std::make_pair(conn, endp));
+
+	endp->conn_state.ack_num = remote_conn.seq_num + 1;
+	/* TODO: set timeout? */
+	client->insert_connection(endp);
+
+	int ret = encap_tcp_packet_2(point.ip,
+	  remote_conn.remote.ip,
+	  point.port,
+	  remote_conn.remote.port,
+	  SYN_ACK_PKT,
+	  0,
+	  remote_conn.seq_num + 1,
+	  NULL,
+	  0);
+	/* TODO: error */
+}
+
+#if 0
 int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t *remote)
 {
 	/* extract an outstanding TCP conn req */
@@ -704,6 +852,7 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 
 	return 0;
 }
+#endif
 
 static void __try_send(tcp_conn_t &conn, tcp_conn_state_t *conn_state, size_t amount)
 {
@@ -756,18 +905,17 @@ static void __try_send(tcp_conn_t &conn, tcp_conn_state_t *conn_state, size_t am
 	}
 }
 
-int tcp_send(uint16_t client_id,
-  std::shared_ptr<net_client> client,
+int tcp_send(std::shared_ptr<tcp_endpoint> endp,
   nstack_queue_entry *nqe,
   char *payload,
   uint16_t payload_size)
 {
-	tcp_conn_t conn = tcp_client_table_get(client_id);
-	assert(conn.local.port != 0 && conn.remote.port != 0);
-	tcp_conn_state_t *conn_state = conn_table_get(conn);
-	assert(conn_state != NULL);
-	conn_state->tx_buf_mgr->append(client, nqe, payload, payload_size);
-	__try_send(conn, conn_state, payload_size);
+	// tcp_conn_t conn = tcp_client_table_get(client_id);
+	// assert(conn.local.port != 0 && conn.remote.port != 0);
+	// tcp_conn_state_t *conn_state = conn_table_get(conn);
+	// assert(conn_state != NULL);
+	endp->conn_state.tx_buf_mgr->append(endp->client, nqe, payload, payload_size);
+	__try_send(endp->conn, &endp->conn_state, payload_size);
 	return 0;
 	/*
 	int ret = char_ring_buffer_add(conn_state->tx_buffer, payload, payload_size);
@@ -788,16 +936,18 @@ void handle_tcp_send()
 	while(true) {
 		usleep(100000);
 
-		tcp_conn_t conn;
-		tcp_conn_state_t *conn_state = get_next_conn_state(&conn);
+		// fprintf(stderr, "TODO!\n");
+		//	tcp_conn_t conn;
+		//	tcp_conn_state_t *conn_state = get_next_conn_state(&conn);
 
-		if(conn_state == NULL) {
-			continue;
-		}
+		//	if(conn_state == NULL) {
+		//		continue;
+		//	}
 
-		if(conn_state->curr_state == CONN_ESTABLISHED) {
+		if(0) {
+			// if(conn_state->curr_state == CONN_ESTABLISHED) {
 			//	char_ring_buffer_t *tx_buffer = conn_state->tx_buffer;
-			__try_send(conn, conn_state, MSS);
+			//__try_send(conn, conn_state, MSS);
 #if 0
 			uint32_t seq_num = conn_state->seq_num;
 			uint32_t ack_num = conn_state->ack_num;
@@ -929,12 +1079,20 @@ void handle_tcp_recv(const char *interface_name,
 		  (conn.remote.ip.ip[3] & 0x000000FF),
 		  (conn.local.port & 0x0000FFFF),
 		  (conn.remote.port & 0x0000FFFF));
-		cleanup_tcp_conn(conn);
+		/* TODO */
+		// cleanup_tcp_conn(conn);
 		return;
 	}
 
+	std::shared_ptr<tcp_endpoint> endp = nullptr;
+	{
+		std::lock_guard<std::mutex> _lg(connections_lock);
+		auto it = connections.find(conn);
+		if(it != connections.end())
+			endp = it->second;
+	}
 	/* if recv a non-SYN pkt for an unknown connection, send back RST packet */
-	if(syn != 1 && conn_table_get(conn) == NULL) {
+	if(syn != 1 && endp == nullptr) {
 		fprintf(stderr,
 		  "Error: received packet for an unknown connection "
 		  "[%u.%u.%u.%u, %u.%u.%u.%u, %u, %u]; sending RST\n",
@@ -948,18 +1106,9 @@ void handle_tcp_recv(const char *interface_name,
 		  (conn.remote.ip.ip[3] & 0x000000FF),
 		  (conn.local.port & 0x0000FFFF),
 		  (conn.remote.port & 0x0000FFFF));
-		object_id_t object_id;
-		int ret = encap_tcp_packet(object_id,
-		  NOOP,
-		  conn.local.ip,
-		  conn.remote.ip,
-		  conn.local.port,
-		  conn.remote.port,
-		  RST_PKT,
-		  0,
-		  0,
-		  NULL,
-		  0);
+		int ret = encap_tcp_packet_2(
+		  conn.local.ip, conn.remote.ip, conn.local.port, conn.remote.port, RST_PKT, 0, 0, NULL, 0);
+		/* TODO: err ?*/
 		return;
 	}
 
@@ -974,61 +1123,87 @@ void handle_tcp_recv(const char *interface_name,
 		conn.remote.port = remote_port;
 		conn.seq_num = seq_num;
 
-		outstanding_conns_enqueue(local, conn); // TODO can result in SYN attack
+		std::lock_guard<std::mutex> _lg(listeners_lock);
+		auto listener = listeners.find(local);
+		if(listener != listeners.end()) {
+			listener->second->accept(conn);
+		} else {
+			/* TODO: is this right? */
+			int ret = encap_tcp_packet_2(
+			  local.ip, conn.remote.ip, local.port, conn.remote.port, RST_PKT, 0, 0, NULL, 0);
+			// outstanding_conns_enqueue(local, conn); // TODO can result in SYN attack
+		}
 
 	} else if(syn == 1 && ack == 1) { /* received SYN-ACK packet */
-		tcp_conn_state_t *conn_state = conn_table_get(conn);
-		assert(conn_state != NULL);
+		if(endp->conn_state.curr_state == SYN_SENT) {
+			pthread_spin_lock(&endp->conn_state.mtx);
+			endp->conn_state.curr_state = SYN_ACK_RECVD;
+			endp->conn_state.seq_num = ack_num;
+			pthread_spin_unlock(&endp->conn_state.mtx);
+			endp->conn_state.ack_num = seq_num + 1;
 
-		if(conn_state->curr_state == SYN_SENT) {
-			pthread_spin_lock(&conn_state->mtx);
-			conn_state->curr_state = SYN_ACK_RECVD;
-			conn_state->seq_num = ack_num;
-			pthread_spin_unlock(&conn_state->mtx);
-			conn_state->ack_num = seq_num + 1;
+			encap_tcp_packet_2(conn.local.ip,
+			  conn.remote.ip,
+			  conn.local.port,
+			  conn.remote.port,
+			  ACK_PKT,
+			  endp->conn_state.seq_num,
+			  endp->conn_state.ack_num,
+			  NULL,
+			  0);
+
+			pthread_spin_lock(&endp->conn_state.mtx);
+			endp->conn_state.curr_state = CONN_ESTABLISHED;
+			pthread_spin_unlock(&endp->conn_state.mtx);
+			fprintf(stderr, "!!!! WE SHOULD TELL THE CLIENT (TODO)\n");
+			auto con = endp->client->get_connection(endp->client_cid);
+			if(con) {
+				con->complete_connection();
+			}
 		}
 
 	} else if(ack == 1) { /* received ACK or Data packet */
-		tcp_conn_state_t *conn_state = conn_table_get(conn);
-		assert(conn_state != NULL);
-
-		if(conn_state->curr_state == SYN_ACK_SENT) {
-			pthread_spin_lock(&conn_state->mtx);
-			conn_state->curr_state = ACK_RECVD;
-			conn_state->seq_num = ack_num;
-			pthread_spin_unlock(&conn_state->mtx);
-
-		} else if(conn_state->curr_state == CONN_ESTABLISHED) {
-			if(ack_num > conn_state->tx_head) {
-				uint32_t bytes = ack_num - conn_state->tx_head;
+		if(endp->conn_state.curr_state == SYN_ACK_SENT) {
+			pthread_spin_lock(&endp->conn_state.mtx);
+			endp->conn_state.curr_state = CONN_ESTABLISHED;
+			endp->conn_state.seq_num = ack_num;
+			pthread_spin_unlock(&endp->conn_state.mtx);
+			fprintf(stderr, "!!!!! WE SHOULD TELL THE CLIENT (2) (TODO)\n");
+			auto con = endp->client->get_connection(endp->client_cid);
+			if(con) {
+				con->notify_accept();
+			}
+		}
+		if(endp->conn_state.curr_state == CONN_ESTABLISHED) {
+			if(ack_num > endp->conn_state.tx_head) {
+				uint32_t bytes = ack_num - endp->conn_state.tx_head;
 				// fprintf(stderr, "ACK %d bytes\n", bytes);
-				conn_state->tx_buf_mgr->remove(bytes);
+				endp->conn_state.tx_buf_mgr->remove(bytes);
 				// uint32_t removed_bytes =
 				//  char_ring_buffer_remove(conn_state->tx_buffer, NULL, bytes);
 				// assert(removed_bytes == bytes);
-				conn_state->tx_head += bytes;
+				endp->conn_state.tx_head += bytes;
 				if(bytes > 0) { // TODO: redundant?
-					pthread_spin_lock(&conn_state->mtx);
-					conn_state->time_of_head_change = clock();
-					pthread_spin_unlock(&conn_state->mtx);
+					pthread_spin_lock(&endp->conn_state.mtx);
+					endp->conn_state.time_of_head_change = clock();
+					pthread_spin_unlock(&endp->conn_state.mtx);
 				}
 			}
 
-			if(conn_state->ack_num == seq_num) {
+			if(endp->conn_state.ack_num == seq_num) {
 				uint32_t added_bytes =
-				  char_ring_buffer_add(conn_state->rx_buffer, payload, payload_size);
-				conn_state->ack_num += added_bytes;
+				  char_ring_buffer_add(endp->conn_state.rx_buffer, payload, payload_size);
+				endp->conn_state.ack_num += added_bytes;
 
 				/* send ACK packet */
-				object_id_t object_id;
 				if(added_bytes > 0) {
 					int ret = encap_tcp_packet_2(conn.local.ip,
 					  conn.remote.ip,
 					  conn.local.port,
 					  conn.remote.port,
 					  ACK_PKT,
-					  conn_state->seq_num,
-					  conn_state->ack_num,
+					  endp->conn_state.seq_num,
+					  endp->conn_state.ack_num,
 					  NULL,
 					  0);
 				}
@@ -1037,17 +1212,14 @@ void handle_tcp_recv(const char *interface_name,
 	}
 }
 
-int tcp_recv(uint16_t client_id, char *buffer, uint16_t buffer_size)
+int tcp_recv(std::shared_ptr<tcp_endpoint> endp, char *buffer, uint16_t buffer_size)
 {
-	tcp_conn_t conn = tcp_client_table_get(client_id);
-	assert(conn.local.port != 0 && conn.remote.port != 0);
-	tcp_conn_state_t *conn_state = conn_table_get(conn);
-	assert(conn_state != NULL);
-	return char_ring_buffer_remove(conn_state->rx_buffer, buffer, buffer_size);
+	return char_ring_buffer_remove(endp->conn_state.rx_buffer, buffer, buffer_size);
 }
 
 void cleanup_tcp_conn(tcp_conn_t conn)
 {
+#if 0
 	/* cleanup entry from outstanding_conns table (for server) */
 	outstanding_conns_delete(conn.local);
 
@@ -1061,4 +1233,5 @@ void cleanup_tcp_conn(tcp_conn_t conn)
 
 	/* cleanup entry from conn table */
 	conn_table_delete(conn);
+#endif
 }

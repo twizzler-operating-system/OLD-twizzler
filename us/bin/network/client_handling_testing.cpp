@@ -1,5 +1,7 @@
 #include "client.h"
 
+#include "tcp_conn.h"
+
 #define DEBUG 1
 
 static id_allocator<uint16_t> tcp_client_id_alloc;
@@ -20,101 +22,6 @@ std::string netaddr_string(struct netaddr *na)
 	return s;
 }
 
-net_client::connection::connection(std::shared_ptr<net_client> client, uint16_t id, int tcp_id)
-  : state(net_client::connection::NONE)
-  , id(id)
-  , client(client)
-{
-	tcp_client_id = tcp_id == -1 ? tcp_client_id_alloc.get() : tcp_id;
-	thrd = std::thread(&net_client::connection::recv_thrd, this);
-	fprintf(stderr, "created new connection for client %p\n", client.get());
-}
-
-ip_addr_t extract_ip_addr(struct netaddr *na)
-{
-	ip_addr_t ip;
-	for(int i = 0; i < 4; i++) {
-		ip.ip[i] = (na->ipv4 >> (3 - i) * 8) & 0xff;
-	}
-	return ip;
-}
-
-uint16_t extract_port(struct netaddr *na)
-{
-	return na->port;
-}
-
-int net_client::connection::bind(struct netaddr *na)
-{
-	std::lock_guard<std::mutex> _lg(lock);
-	if(state != net_client::connection::NONE) {
-		return -1; // TODO
-	}
-	uint16_t port = extract_port(na);
-	ip_addr_t ip = extract_ip_addr(na);
-	local.ip = ip;
-	local.port = port;
-	int ret = bind_to_tcp_port(tcp_client_id, ip, port);
-	if(ret == 0) {
-		state = net_client::connection::BOUND;
-	}
-	return ret;
-}
-
-int net_client::connection::connect(struct netaddr *na)
-{
-	std::lock_guard<std::mutex> _lg(lock);
-	if(state != net_client::connection::NONE) {
-		return -1; // TODO
-	}
-	remote.ip = extract_ip_addr(na);
-	remote.port = extract_port(na);
-	int ret = establish_tcp_conn_client(tcp_client_id, &local, remote);
-	if(ret == 0) {
-		state = net_client::connection::CONNECTED;
-	}
-	return ret;
-}
-
-int net_client::connection::accept(uint16_t *newid)
-{
-	std::lock_guard<std::mutex> _lg(lock);
-	if(state != net_client::connection::BOUND) {
-		return -1; // TODO
-	}
-
-	int ret = establish_tcp_conn_server(tcp_client_id, local, &remote);
-	if(ret == 0) {
-		*newid = client->create_connection(client, tcp_client_id);
-		auto conn = client->get_connection(*newid);
-		conn->local = local;
-		conn->remote = remote;
-		conn->state = net_client::connection::CONNECTED;
-	}
-	return ret;
-}
-
-ssize_t net_client::connection::send(std::shared_ptr<net_client> client,
-  nstack_queue_entry *nqe,
-  void *ptr,
-  size_t len)
-{
-	std::lock_guard<std::mutex> _lg(lock);
-	int ret = tcp_send(tcp_client_id, client, nqe, (char *)ptr, len);
-	if(ret == 0)
-		return len;
-	return -ret;
-}
-
-void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
-{
-	/* TODO: handle error, non-blocking (?) */
-	std::lock_guard<std::mutex> _lg(lock);
-	if(queue_submit(&rxq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
-		fprintf(stderr, "warning - submission would have blocked\n");
-	}
-}
-
 void submit_command(std::shared_ptr<net_client> client,
   struct nstack_queue_entry *nqe,
   void (*fn)(std::shared_ptr<net_client>, struct nstack_queue_entry *, void *),
@@ -131,6 +38,137 @@ void submit_command(std::shared_ptr<net_client> client,
 	client->enqueue_cmd(nqe);
 }
 
+net_client::connection::connection(std::shared_ptr<net_client> client,
+  uint16_t id,
+  std::shared_ptr<tcp_endpoint> endp)
+  : state(net_client::connection::NONE)
+  , id(id)
+  , client(client)
+  , endp(endp)
+{
+	// tcp_client_id = tcp_id == -1 ? tcp_client_id_alloc.get() : tcp_id;
+	thrd = std::thread(&net_client::connection::recv_thrd, this);
+}
+
+ip_addr_t extract_ip_addr(struct netaddr *na)
+{
+	ip_addr_t ip;
+	for(int i = 0; i < 4; i++) {
+		ip.ip[i] = (na->ipv4 >> (3 - i) * 8) & 0xff;
+	}
+	return ip;
+}
+
+uint16_t extract_port(struct netaddr *na)
+{
+	return na->port;
+}
+
+void net_client::insert_connection(std::shared_ptr<tcp_endpoint> endp)
+{
+	conns.insert(std::make_pair(
+	  endp->client_cid, std::make_shared<connection>(endp->client, endp->client_cid, endp)));
+}
+
+void net_client::connection::complete_connection()
+{
+	fprintf(stderr, "COMPLETE CONNECTION %d\n", id);
+	std::lock_guard<std::mutex> _lg(lock);
+	if(state != net_client::connection::WAITING_CONNECT)
+		return;
+	connect_nqe->connid = id;
+	connect_nqe->ret = 0;
+	state = net_client::connection::CONNECTED;
+	client->complete(connect_nqe);
+	delete connect_nqe;
+}
+
+void net_client::connection::notify_accept()
+{
+	fprintf(stderr, "ACCEPT CONNECTION %d\n", id);
+	std::lock_guard<std::mutex> _lg(lock);
+	if(state != net_client::connection::NONE)
+		return;
+	state = net_client::connection::CONNECTED;
+	nstack_queue_entry nqe;
+	nqe.cmd = NSTACK_CMD_ACCEPT;
+	nqe.connid = id;
+	nqe.ret = 0;
+	submit_command(client, &nqe, NULL, NULL);
+}
+
+int net_client::connection::connect(nstack_queue_entry *nqe)
+{
+	fprintf(stderr, "FORMING CONNECTION %d\n", id);
+	std::lock_guard<std::mutex> _lg(lock);
+
+	if(endp)
+		return -1; // TODO
+	endp = std::make_shared<tcp_endpoint>(client, id);
+	half_conn_t hc;
+	hc.ip = extract_ip_addr(&nqe->addr);
+	hc.port = extract_port(&nqe->addr);
+	connect_nqe = new nstack_queue_entry(*nqe);
+	state = net_client::connection::WAITING_CONNECT;
+	return tcp_endpoint_connect(endp, hc);
+
+#if 0
+	if(state != net_client::connection::NONE) {
+		return -1; // TODO
+	}
+	remote.ip = extract_ip_addr(na);
+	remote.port = extract_port(na);
+	int ret = establish_tcp_conn_client(tcp_client_id, &local, remote);
+	if(ret == 0) {
+		state = net_client::connection::CONNECTED;
+	}
+	return ret;
+#endif
+	return 0;
+}
+
+int net_client::connection::accept(uint16_t *newid)
+{
+#if 0
+	std::lock_guard<std::mutex> _lg(lock);
+	if(state != net_client::connection::BOUND) {
+		return -1; // TODO
+	}
+
+	int ret = establish_tcp_conn_server(tcp_client_id, local, &remote);
+	if(ret == 0) {
+		*newid = client->create_connection(client, tcp_client_id);
+		auto conn = client->get_connection(*newid);
+		conn->local = local;
+		conn->remote = remote;
+		conn->state = net_client::connection::CONNECTED;
+	}
+	return ret;
+#endif
+	return 0;
+}
+
+ssize_t net_client::connection::send(std::shared_ptr<net_client> client,
+  nstack_queue_entry *nqe,
+  void *ptr,
+  size_t len)
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	int ret = tcp_send(endp, nqe, (char *)ptr, len);
+	if(ret == 0)
+		return len;
+	return -ret;
+}
+
+void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
+{
+	/* TODO: handle error, non-blocking (?) */
+	std::lock_guard<std::mutex> _lg(lock);
+	if(queue_submit(&rxq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
+		fprintf(stderr, "warning - submission would have blocked\n");
+	}
+}
+
 void net_client::connection::recv_thrd()
 {
 	kso_set_name(NULL, "net_client::connection::recv_thrd %d", id);
@@ -144,7 +182,7 @@ void net_client::connection::recv_thrd()
 				usleep(10000);
 				continue;
 			}
-			int r = tcp_recv(tcp_client_id, buffer, 5000);
+			int r = tcp_recv(endp, buffer, 5000);
 
 			if(r <= 0) {
 				lock.unlock();
@@ -167,21 +205,6 @@ void net_client::connection::recv_thrd()
 			nqe.data_len = r;
 			submit_command(client, &nqe, nullptr, nullptr);
 			lock.unlock();
-		} else if(state == net_client::connection::BOUND) {
-			uint16_t cid;
-			lock.unlock();
-			if(this->accept(&cid) == 0) {
-				struct nstack_queue_entry nqe;
-				nqe.cmd = NSTACK_CMD_ACCEPT;
-				nqe.connid = id;
-				nqe.ret = cid;
-				/* TODO: set addr */
-				submit_command(client, &nqe, nullptr, nullptr);
-				for(;;)
-					usleep(1000000);
-			} else {
-				usleep(100);
-			}
 		} else {
 			lock.unlock();
 			usleep(1000);
@@ -223,17 +246,34 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 				nqe->ret = -1; // TODO
 				return true;
 			}
-			int ret = conn->connect(&nqe->addr);
+			int ret = conn->connect(nqe);
 			if(ret != 0) {
 				client->remove_connection(cid);
-			} else {
-				nqe->connid = cid;
+				nqe->ret = ret;
+				return true;
 			}
-			nqe->ret = ret;
-			return true;
+			return false;
 		} break;
 
 		case NSTACK_CMD_BIND: {
+			if(client->listener) {
+				nqe->ret = -1; // TODO
+				return true;
+			}
+			uint16_t port = extract_port(&nqe->addr);
+			ip_addr_t ip = extract_ip_addr(&nqe->addr);
+
+			client->listener = std::make_shared<tcp_rendezvous>(client, ip, port);
+			int r = tcp_rendezvous_start_listen(client->listener);
+			if(!r) {
+				tcp_rendezvous_start_accept(client->listener);
+			} else {
+				client->listener = nullptr;
+			}
+
+			nqe->ret = r;
+			return true;
+#if 0
 			uint16_t cid = client->create_connection(client);
 			if(cid == 0xffff) {
 				nqe->ret = -ENOMEM;
@@ -257,6 +297,7 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 				nqe->connid = cid;
 			}
 			return true;
+#endif
 		} break;
 
 		case NSTACK_CMD_SEND: {
