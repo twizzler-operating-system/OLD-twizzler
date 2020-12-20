@@ -47,7 +47,6 @@ net_client::connection::connection(std::shared_ptr<net_client> client,
   , endp(endp)
 {
 	// tcp_client_id = tcp_id == -1 ? tcp_client_id_alloc.get() : tcp_id;
-	thrd = std::thread(&net_client::connection::recv_thrd, this);
 }
 
 ip_addr_t extract_ip_addr(struct netaddr *na)
@@ -169,6 +168,26 @@ void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
 	}
 }
 
+size_t net_client::connection::recv_data(void *data, size_t len)
+{
+	size_t off = client->testing_rxb_off;
+	client->testing_rxb_off += len;
+	if(client->testing_rxb_off >= OBJ_TOPDATA) {
+		client->testing_rxb_off = OBJ_NULLPAGE_SIZE;
+	}
+	char *buf = (char *)twz_object_base(&client->rxbuf_obj);
+	buf += off;
+	memcpy(buf, data, len);
+	struct nstack_queue_entry nqe;
+	nqe.cmd = NSTACK_CMD_RECV;
+	nqe.connid = id;
+	nqe.data_ptr = twz_ptr_swizzle(&client->rxq_obj, buf, FE_READ | FE_WRITE);
+	nqe.data_len = len;
+	submit_command(client, &nqe, nullptr, nullptr);
+	return len;
+}
+
+#if 0
 void net_client::connection::recv_thrd()
 {
 	kso_set_name(NULL, "net_client::connection::recv_thrd %d", id);
@@ -211,6 +230,7 @@ void net_client::connection::recv_thrd()
 		}
 	}
 }
+#endif
 
 static void __callback_complete(std::shared_ptr<net_client> client,
   struct nstack_queue_entry *nqe = nullptr,
