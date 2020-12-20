@@ -1155,7 +1155,6 @@ void handle_tcp_recv(const char *interface_name,
 			pthread_spin_lock(&endp->conn_state.mtx);
 			endp->conn_state.curr_state = CONN_ESTABLISHED;
 			pthread_spin_unlock(&endp->conn_state.mtx);
-			fprintf(stderr, "!!!! WE SHOULD TELL THE CLIENT (TODO)\n");
 			auto con = endp->client->get_connection(endp->client_cid);
 			if(con) {
 				con->complete_connection();
@@ -1168,7 +1167,6 @@ void handle_tcp_recv(const char *interface_name,
 			endp->conn_state.curr_state = CONN_ESTABLISHED;
 			endp->conn_state.seq_num = ack_num;
 			pthread_spin_unlock(&endp->conn_state.mtx);
-			fprintf(stderr, "!!!!! WE SHOULD TELL THE CLIENT (2) (TODO)\n");
 			auto con = endp->client->get_connection(endp->client_cid);
 			if(con) {
 				con->notify_accept();
@@ -1190,13 +1188,19 @@ void handle_tcp_recv(const char *interface_name,
 				}
 			}
 
-			if(endp->conn_state.ack_num == seq_num) {
-				uint32_t added_bytes =
-				  char_ring_buffer_add(endp->conn_state.rx_buffer, payload, payload_size);
-				endp->conn_state.ack_num += added_bytes;
+			if(endp->conn_state.ack_num == seq_num && payload_size > 0) {
+				//	uint32_t added_bytes =
+				//	  char_ring_buffer_add(endp->conn_state.rx_buffer, payload, payload_size);
+
+				auto con = endp->client->get_connection(endp->client_cid);
+				size_t ret = 0;
+				if(con) {
+					ret = con->recv_data(payload, payload_size);
+				}
+				endp->conn_state.ack_num += ret;
 
 				/* send ACK packet */
-				if(added_bytes > 0) {
+				if(ret > 0) {
 					int ret = encap_tcp_packet_2(conn.local.ip,
 					  conn.remote.ip,
 					  conn.local.port,

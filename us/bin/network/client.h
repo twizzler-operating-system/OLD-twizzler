@@ -105,7 +105,7 @@ class net_client
 		void notify_accept();
 		int accept(uint16_t *);
 		ssize_t send(std::shared_ptr<net_client>, nstack_queue_entry *, void *, size_t);
-		void recv_thrd();
+		size_t recv_data(void *data, size_t len);
 	};
 
 	twzobj txq_obj, rxq_obj;
