@@ -24,7 +24,15 @@ enum {
 	/* these are commands that the networking stack will send back to the client */
 	NSTACK_CMD_RECV,
 	NSTACK_CMD_DROP,
+
+	/* these are shared commands */
+	NSTACK_CMD_SHUTDOWN,
 };
+
+#define CMD_SHUT_READ 1
+#define CMD_SHUT_WRITE 2
+#define CMD_SHUT_RESET 4
+#define CMD_SHUT_RELEASE 8
 
 struct nstack_queue_entry {
 	/* the client and nstack use qe.info to coordinate which queue command this (for async

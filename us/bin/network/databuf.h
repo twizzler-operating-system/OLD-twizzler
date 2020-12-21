@@ -66,6 +66,7 @@ class databuf
 	std::mutex lock;
 	std::list<entry *> entries;
 	size_t have_read = 0;
+	size_t amount;
 
   public:
 	databuf()
@@ -76,6 +77,13 @@ class databuf
 		std::lock_guard<std::mutex> _lg(lock);
 		// fprintf(stderr, "APPENDING %ld\n", len);
 		entries.push_back(new entry(client, nqe, ptr, len));
+		amount += len;
+	}
+
+	size_t pending()
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		return amount;
 	}
 
 	databufptr get_next(size_t max)
@@ -126,6 +134,7 @@ class databuf
 		}
 		assert(have_read >= count);
 		have_read -= count;
+		amount -= count;
 	}
 
 	void reset()

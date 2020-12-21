@@ -72,6 +72,9 @@ class tcp_endpoint
 
 	uint16_t client_cid;
 	std::shared_ptr<net_client> client;
+	uint64_t id;
+
+	~tcp_endpoint();
 
 	tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid, tcp_conn_t conn, tcp_state_t);
 	tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid);
