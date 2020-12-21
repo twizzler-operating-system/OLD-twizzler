@@ -85,13 +85,30 @@ int main(int argc, char **argv)
 			assert(cc);
 			printf("Accepted Conn! %d\n", cc->id);
 
-			while(1) {
+			int shut = 0;
+			while(!shut) {
+#if 0
 				char buf[5000] = {};
 				size_t len = 5000;
 				printf("Waiting on recv\n");
 				ssize_t ret = netcon_recv(cc, buf, len, 0);
 				printf("Recv got :: %ld :: <%s>\n", ret, buf);
+#else
+				struct netevent *nev = netevent_next_con(cc, 0);
+				switch(nev->event) {
+					case NETEVENT_RX:
+						printf("RECV: %ld:<%s>\n", nev->data_len, nev->data_ptr);
+						break;
+					case NETEVENT_SHUTDOWN:
+						printf("SHUTDOWN: %x\n", nev->info);
+						shut = 1;
+						break;
+				}
+				netevent_done(nev);
+#endif
 			}
+			// netcon_shutdown(cc, NETCON_SHUTDOWN_WRITE);
+			netcon_destroy(cc);
 		}
 	} else {
 		printf("STARTIN AS CLIENT\n");
@@ -103,11 +120,22 @@ int main(int argc, char **argv)
 		}
 		fprintf(stderr, "netmgr_connect returned!\n");
 		while(1) {
+#if 0
 			const char *hw = "hello, world!\n";
 			ssize_t ret = netcon_send(con, hw, strlen(hw) + 1, 0);
 			printf("Sent Data\n");
-			for(;;)
-				usleep(100000);
+#else
+			struct netbuf buf;
+			netmgr_get_buf(mgr, &buf);
+			const char *hw = "hello, world!\n";
+			size_t hw_len = strlen(hw) + 1; // null byte
+			assert(buf.len >= hw_len);
+			memcpy(buf.ptr, hw, hw_len);
+			buf.len = hw_len;
+			netcon_transmit_buf(con, &buf);
+#endif
+			// for(;;)
+			usleep(1000000);
 			// printf("Recv got :: %ld :: <%s>\n", ret, buf);
 		}
 

@@ -37,6 +37,26 @@ struct netevent *netevent_create(struct netmgr *mgr,
 	return ev;
 }
 
+struct netevent *netevent_create_con(struct netcon *con,
+  struct nstack_queue_entry *nqe,
+  int event,
+  int info,
+  int flags,
+  void *ptr,
+  size_t len)
+{
+	struct netevent *ev = malloc(sizeof(*ev));
+	ev->event = event;
+	ev->con = con;
+	ev->flags = flags | NETEVENT_FLAGS_CON;
+	ev->info = info;
+	ev->data_ptr = ptr;
+	ev->data_len = len;
+	ev->nqe = *nqe;
+	ev->next = ev->prev = NULL;
+	return ev;
+}
+
 static void __netevent_append(struct netevent *sentry, struct netevent *ne)
 {
 	ne->next = sentry;
@@ -56,8 +76,69 @@ static void __netevent_remove(struct netevent *ev)
 void netevent_destroy(struct netevent *ev)
 {
 	assert(ev->next == NULL);
-	queue_complete(&ev->mgr->rxq_obj, (struct queue_entry *)&ev->nqe, 0);
+	struct netmgr *mgr = (ev->flags & NETEVENT_FLAGS_CON) ? ev->con->mgr : ev->mgr;
+	queue_complete(&mgr->rxq_obj, (struct queue_entry *)&ev->nqe, 0);
 	free(ev);
+}
+
+void netevent_done(struct netevent *ev)
+{
+	netevent_destroy(ev);
+#if 0
+	if(ev->flags & NETEVENT_FLAGS_CON) {
+		struct netcon *con = ev->con;
+		pthread_mutex_lock(&con->lock);
+		pthread_mutex_unlock(&con->lock);
+		netevent_destroy(ev);
+	} else {
+		struct netmgr *mgr = ev->mgr;
+		pthread_mutex_lock(&mgr->lock);
+		pthread_mutex_unlock(&mgr->lock);
+		netevent_destroy(ev);
+	}
+#endif
+}
+
+struct netevent *netevent_next_con(struct netcon *con, int flags)
+{
+	pthread_mutex_lock(&con->lock);
+	struct netevent *ev;
+	while(1) {
+		ev = con->eventlist_sentry.next;
+		if(ev != &con->eventlist_sentry) {
+			__netevent_remove(ev);
+			break;
+		} else {
+			if(flags & NETEVENT_WAIT_NONBLOCK) {
+				ev = NULL;
+				break;
+			}
+			pthread_cond_wait(&con->event_cv, &con->lock);
+		}
+	}
+	pthread_mutex_unlock(&con->lock);
+	return ev;
+}
+
+struct netevent *netevent_next_mgr(struct netmgr *mgr, int flags)
+{
+	pthread_mutex_lock(&mgr->lock);
+	struct netevent *ev;
+	while(1) {
+		ev = mgr->eventlist_sentry.next;
+		if(ev != &mgr->eventlist_sentry) {
+			__netevent_remove(ev);
+			break;
+		} else {
+			if(flags & NETEVENT_WAIT_NONBLOCK) {
+				ev = NULL;
+				break;
+			}
+			pthread_cond_wait(&mgr->event_cv, &mgr->lock);
+		}
+	}
+	pthread_mutex_unlock(&mgr->lock);
+	return ev;
 }
 
 static uint32_t alloc_id(struct netmgr *mgr)
@@ -105,7 +186,7 @@ static void add_outstanding_tx(struct netmgr *mgr, struct netreq *req)
 
 static void handle_completion_from_tx(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 {
-	// fprintf(stderr, "got compl: %d %x\n", nqe->qe.info, nqe->qe.cmd_id);
+	fprintf(stderr, "got compl: %d %x\n", nqe->qe.info, nqe->qe.cmd_id);
 	pthread_mutex_lock(&mgr->lock);
 	struct netreq *req, *prev = NULL;
 	for(req = mgr->outstanding; req; (prev = req), req = req->next) {
@@ -155,7 +236,9 @@ static void handle_cmd(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 	switch(nqe->cmd) {
 		case NSTACK_CMD_RECV: {
 			struct netcon *con = netmgr_lookup_netcon(mgr, nqe->connid);
-			struct netevent *ev = netevent_create(mgr,
+			if(!con)
+				break;
+			struct netevent *ev = netevent_create_con(con,
 			  nqe,
 			  NETEVENT_RX,
 			  0,
@@ -163,6 +246,38 @@ static void handle_cmd(struct netmgr *mgr, struct nstack_queue_entry *nqe)
 			  twz_object_lea(&mgr->rxq_obj, nqe->data_ptr),
 			  nqe->data_len);
 			pthread_mutex_lock(&con->lock);
+			if(con->state == NETCON_STATE_CONNECTED && !(con->flags & NETCON_FLAGS_READEOF)) {
+				__netevent_append(&con->eventlist_sentry, ev);
+				pthread_cond_signal(&con->event_cv);
+			} else {
+				netevent_destroy(ev);
+			}
+			pthread_mutex_unlock(&con->lock);
+			complete = false;
+		} break;
+		case NSTACK_CMD_SHUTDOWN: {
+			long args = nqe->args[0];
+			struct netcon *con = netmgr_lookup_netcon(mgr, nqe->connid);
+			if(!con)
+				break;
+			pthread_mutex_lock(&con->lock);
+			int info = 0;
+			if(args & CMD_SHUT_READ) {
+				con->flags |= NETCON_FLAGS_READEOF;
+				info |= NETEVENT_SHUTDOWN_READ;
+			}
+			if(args & CMD_SHUT_WRITE) {
+				con->flags |= NETCON_FLAGS_WRITEEOF;
+				info |= NETEVENT_SHUTDOWN_WRITE;
+			}
+			if(args & CMD_SHUT_RESET) {
+				info |= NETEVENT_SHUTDOWN_RESET;
+			}
+			if(((args & CMD_SHUT_READ) && (args & CMD_SHUT_WRITE)) || (args & CMD_SHUT_RESET)) {
+				con->state = NETCON_STATE_SHUTDOWN;
+			}
+			struct netevent *ev =
+			  netevent_create_con(con, nqe, NETEVENT_SHUTDOWN, info, 0, NULL, 0);
 			__netevent_append(&con->eventlist_sentry, ev);
 			pthread_cond_signal(&con->event_cv);
 			pthread_mutex_unlock(&con->lock);
@@ -449,6 +564,15 @@ static bool __waiter_pred(void *data)
 	return ret;
 }
 
+static struct nstack_queue_entry nqe_build_shutdown(long arg)
+{
+	struct nstack_queue_entry nqe = {
+		.cmd = NSTACK_CMD_SHUTDOWN,
+		.args[0] = arg,
+	};
+	return nqe;
+}
+
 static struct nstack_queue_entry nqe_build_connect(struct netaddr *addr, int flags)
 {
 	struct nstack_queue_entry nqe = {
@@ -468,10 +592,13 @@ static struct nstack_queue_entry nqe_build_bind(struct netaddr *addr, int flags)
 	};
 	return nqe;
 }
+
 static struct netcon *__create_netcon(struct netmgr *mgr, uint16_t id)
 {
 	struct netcon *con = malloc(sizeof(*con));
 	con->id = id;
+	con->state = NETCON_STATE_CONNECTED;
+	con->flags = 0;
 	con->mgr = mgr;
 	con->eventlist_sentry.next = &con->eventlist_sentry;
 	con->eventlist_sentry.prev = &con->eventlist_sentry;
@@ -482,6 +609,50 @@ static struct netcon *__create_netcon(struct netmgr *mgr, uint16_t id)
 	mgr->conlist = con;
 	pthread_mutex_unlock(&mgr->lock);
 	return con;
+}
+
+void netcon_shutdown(struct netcon *con, int flags)
+{
+	pthread_mutex_lock(&con->lock);
+	long arg = 0;
+	if(flags & NETCON_SHUTDOWN_READ) {
+		arg |= CMD_SHUT_READ;
+		con->flags |= NETCON_FLAGS_READEOF;
+	}
+	if(flags & NETCON_SHUTDOWN_WRITE) {
+		arg |= CMD_SHUT_WRITE;
+		con->flags |= NETCON_FLAGS_WRITEEOF;
+	}
+	if((con->flags & NETCON_FLAGS_READEOF) && (con->flags & NETCON_FLAGS_WRITEEOF)) {
+		con->state = NETCON_STATE_SHUTDOWN;
+	}
+	struct nstack_queue_entry nqe = nqe_build_shutdown(arg);
+	submit_tx(con->mgr, &nqe, NULL, NULL);
+	pthread_mutex_unlock(&con->lock);
+}
+
+void netcon_destroy(struct netcon *con)
+{
+	struct netmgr *mgr = con->mgr;
+	pthread_mutex_lock(&mgr->lock);
+	pthread_cond_destroy(&con->event_cv);
+	pthread_mutex_destroy(&con->lock);
+
+	struct netcon *prev = NULL;
+	for(struct netcon *i = mgr->conlist; i != con; i = i->next) {
+		prev = i;
+	}
+	if(prev)
+		prev->next = con->next;
+	else
+		mgr->conlist = con->next;
+
+	con->next = NULL;
+	pthread_mutex_unlock(&mgr->lock);
+	free(con);
+
+	struct nstack_queue_entry nqe = nqe_build_shutdown(CMD_SHUT_RELEASE);
+	submit_tx(mgr, &nqe, NULL, NULL);
 }
 
 struct netcon *netmgr_connect(struct netmgr *mgr,
@@ -525,6 +696,34 @@ static struct nstack_queue_entry nqe_build_send(struct netcon *con, void *vptr, 
 	return nqe;
 }
 
+int netmgr_get_buf(struct netmgr *mgr, struct netbuf *buf)
+{
+	size_t buflen = pbuf_datalen(&mgr->txbuf_obj);
+	struct pbuf *pb = pbuf_alloc(&mgr->txbuf_obj);
+	if(pb) {
+		buf->len = buflen;
+		buf->ptr = pb->data;
+		buf->_pb = pb;
+	}
+	return 0;
+}
+
+int netcon_transmit_buf(struct netcon *con, struct netbuf *buf)
+{
+	complete_tx(con->mgr);
+	pthread_mutex_lock(&con->lock);
+	if(con->state != NETCON_STATE_CONNECTED || (con->flags & NETCON_FLAGS_WRITEEOF)) {
+		return -EPIPE;
+	}
+	pthread_mutex_unlock(&con->lock);
+	struct nstack_queue_entry nqe = nqe_build_send(con, buf->_pb->data, buf->len);
+	struct waiter_callback_info *info;
+	info = waiter_callback_create(con->mgr, WAITER_INFO_AUTODESTROY);
+	info->pbuf = buf->_pb;
+	submit_tx(con->mgr, &nqe, __waiter_callback, info);
+	return 0;
+}
+
 ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
 {
 	size_t count = 0;
@@ -536,6 +735,11 @@ ssize_t netcon_send(struct netcon *con, const void *buf, size_t len, int flags)
 	// printf("cmpl: %ld\n", b - a); //SLOW
 	/* TODO: check connection state */
 	while(count < len) {
+		pthread_mutex_lock(&con->lock);
+		if(con->state != NETCON_STATE_CONNECTED || (con->flags & NETCON_FLAGS_WRITEEOF)) {
+			return -EPIPE;
+		}
+		pthread_mutex_unlock(&con->lock);
 		// a = rdtsc();
 		struct pbuf *pb = pbuf_alloc(&con->mgr->txbuf_obj);
 		// b = rdtsc();
@@ -617,6 +821,10 @@ ssize_t netcon_recv(struct netcon *con, void *buf, size_t len, int flags)
 					netevent_destroy(ev);
 				}
 				count += thislen;
+			} else {
+				__netevent_remove(ev);
+				netevent_destroy(ev);
+				break;
 			}
 		}
 		if(count == 0) {

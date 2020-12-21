@@ -1,9 +1,12 @@
 #include "tcp_conn.h"
 
 #include "encapsulate.h"
+#include "idalloc.h"
 #include "interface.h"
 #include "ipv4.h"
 #include "twz.h"
+
+static id_allocator<uint64_t> tcp_id_alloc;
 
 std::map<half_conn_t, std::vector<outstanding_conn_t>, cmp1> outstanding_conns;
 std::mutex outstanding_conns_mutex;
@@ -520,6 +523,7 @@ tcp_endpoint::tcp_endpoint(std::shared_ptr<net_client> client,
 	conn_state.rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state.tx_head = 1;
 	conn_state.curr_state = state;
+	id = tcp_id_alloc.get();
 }
 
 tcp_endpoint::tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid)
@@ -535,6 +539,12 @@ tcp_endpoint::tcp_endpoint(std::shared_ptr<net_client> client, uint16_t cid)
 	conn_state.rx_buffer = create_char_ring_buffer(CHAR_RING_BUFFER_SIZE);
 	conn_state.tx_head = 1;
 	conn_state.curr_state = SYN_SENT;
+	id = tcp_id_alloc.get();
+}
+
+tcp_endpoint::~tcp_endpoint()
+{
+	tcp_id_alloc.put(id);
 }
 
 std::map<tcp_conn_t, std::shared_ptr<tcp_endpoint>, cmp2> connections;
@@ -854,20 +864,90 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 }
 #endif
 
-static void __try_send(tcp_conn_t &conn, tcp_conn_state_t *conn_state, size_t amount)
+#include <condition_variable>
+static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount);
+class tcp_timer
+{
+  public:
+	std::mutex lock;
+	std::map<uint64_t, std::shared_ptr<tcp_endpoint>> tasks;
+	std::condition_variable cv;
+	std::thread timer_thread;
+
+	tcp_timer()
+	{
+		timer_thread = std::thread(&tcp_timer::timer_thread_main, this);
+	}
+
+	void timer_arm(std::shared_ptr<tcp_endpoint> endp)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		tasks.insert(std::make_pair(endp->id, endp));
+	}
+
+	void timer_disarm(std::shared_ptr<tcp_endpoint> endp)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		tasks.erase(endp->id);
+	}
+
+	int timer_tick()
+	{
+		std::shared_ptr<tcp_endpoint> endp_timeout = nullptr;
+		{
+			clock_t current_time = clock();
+			std::unique_lock<std::mutex> _lg(lock);
+			if(tasks.size() == 0) {
+				cv.wait(_lg);
+			}
+			for(auto it : tasks) {
+				auto endp = it.second;
+				clock_t time_elapsed_msec =
+				  ((current_time - endp->conn_state.time_of_head_change) * 1000) / CLOCKS_PER_SEC;
+				if(time_elapsed_msec >= TCP_TIMEOUT) {
+					endp_timeout = endp;
+					break;
+				}
+			}
+		}
+		if(endp_timeout) {
+			endp_timeout->conn_state.seq_num = endp_timeout->conn_state.tx_head;
+			endp_timeout->conn_state.tx_buf_mgr->reset();
+			__try_send(endp_timeout, endp_timeout->conn_state.tx_buf_mgr->pending());
+		}
+
+		return 0;
+	}
+
+	void timer_thread_main()
+	{
+		while(1) {
+			int r = timer_tick();
+			if(r) {
+				usleep(10000);
+			} else {
+				usleep(500000);
+			}
+		}
+	}
+};
+
+static tcp_timer timer;
+
+static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount)
 {
 	int count = 0;
 	while(true) {
-		uint32_t seq_num = conn_state->seq_num;
-		uint32_t ack_num = conn_state->ack_num;
-		std::lock_guard<std::mutex> _lg(*conn_state->lock);
-		auto data = conn_state->tx_buf_mgr->get_next(MSS);
+		uint32_t seq_num = endp->conn_state.seq_num;
+		uint32_t ack_num = endp->conn_state.ack_num;
+		std::lock_guard<std::mutex> _lg(*endp->conn_state.lock);
+		auto data = endp->conn_state.tx_buf_mgr->get_next(MSS);
 		if(data.ptr) {
 			// fprintf(stderr, "SEND %d bytes\n", data.len);
-			int ret = encap_tcp_packet_2(conn.local.ip,
-			  conn.remote.ip,
-			  conn.local.port,
-			  conn.remote.port,
+			int ret = encap_tcp_packet_2(endp->conn.local.ip,
+			  endp->conn.remote.ip,
+			  endp->conn.local.port,
+			  endp->conn.remote.port,
 			  DATA_PKT,
 			  seq_num,
 			  ack_num,
@@ -884,20 +964,15 @@ static void __try_send(tcp_conn_t &conn, tcp_conn_state_t *conn_state, size_t am
 			}
 		}
 		/* update seq num */
-		if(seq_num == conn_state->tx_head) {
-			pthread_spin_lock(&conn_state->mtx);
-			conn_state->time_of_head_change = clock();
-			pthread_spin_unlock(&conn_state->mtx);
+		if(seq_num == endp->conn_state.tx_head) {
+			pthread_spin_lock(&endp->conn_state.mtx);
+			endp->conn_state.time_of_head_change = clock();
+			pthread_spin_unlock(&endp->conn_state.mtx);
 		}
-		clock_t time_elapsed_msec =
-		  ((clock() - conn_state->time_of_head_change) * 1000) / CLOCKS_PER_SEC;
-		if(time_elapsed_msec >= TCP_TIMEOUT) {
-			conn_state->seq_num = conn_state->tx_head;
-			conn_state->tx_buf_mgr->reset();
-			break;
-		} else {
-			conn_state->seq_num += data.len;
-		}
+		endp->conn_state.seq_num += data.len;
+
+		timer.timer_arm(endp);
+
 		if(!data.ptr || amount == 0)
 			break;
 		if(count++ > 10 && amount == 0)
@@ -915,7 +990,8 @@ int tcp_send(std::shared_ptr<tcp_endpoint> endp,
 	// tcp_conn_state_t *conn_state = conn_table_get(conn);
 	// assert(conn_state != NULL);
 	endp->conn_state.tx_buf_mgr->append(endp->client, nqe, payload, payload_size);
-	__try_send(endp->conn, &endp->conn_state, payload_size);
+	__try_send(endp, payload_size);
+	// timer.timer_arm(endp);
 	return 0;
 	/*
 	int ret = char_ring_buffer_add(conn_state->tx_buffer, payload, payload_size);
@@ -929,12 +1005,12 @@ int tcp_send(std::shared_ptr<tcp_endpoint> endp,
 
 void handle_tcp_send()
 {
-	fprintf(stderr, "Started TCP send thread\n");
+	fprintf(stderr, "Started TCP send thread (TODO: remove)\n");
 
 	srand(time(NULL));
 
 	while(true) {
-		usleep(100000);
+		usleep(500000);
 
 		// fprintf(stderr, "TODO!\n");
 		//	tcp_conn_t conn;
@@ -1181,6 +1257,9 @@ void handle_tcp_recv(const char *interface_name,
 				//  char_ring_buffer_remove(conn_state->tx_buffer, NULL, bytes);
 				// assert(removed_bytes == bytes);
 				endp->conn_state.tx_head += bytes;
+				if(endp->conn_state.tx_head == endp->conn_state.seq_num) {
+					timer.timer_disarm(endp);
+				}
 				if(bytes > 0) { // TODO: redundant?
 					pthread_spin_lock(&endp->conn_state.mtx);
 					endp->conn_state.time_of_head_change = clock();
