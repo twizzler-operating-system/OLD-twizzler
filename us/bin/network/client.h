@@ -81,6 +81,9 @@ class net_client
 		int accept(uint16_t *);
 		ssize_t send(std::shared_ptr<net_client>, nstack_queue_entry *, void *, size_t);
 		size_t recv_data(void *data, size_t len);
+		void shut_read();
+		void shut_write();
+		void end_of_transmission();
 	};
 
 	twzobj txq_obj, rxq_obj;
