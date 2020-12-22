@@ -24,6 +24,11 @@ typedef enum {
 	SYN_ACK_SENT,
 	ACK_RECVD,
 	CONN_ESTABLISHED,
+	FIN_WAIT_1,
+	FIN_WAIT_2,
+	TIME_WAIT,
+	CLOSE_WAIT,
+	LAST_ACK,
 } tcp_state_t;
 
 // TCP packet types
@@ -53,6 +58,7 @@ typedef struct tcp_conn_state {
 	tcp_state_t curr_state;
 	uint32_t seq_num;
 	uint32_t ack_num;
+	uint32_t fin_seq_num;
 
 	databuf *rx_buf_mgr;
 	databuf *tx_buf_mgr;
@@ -69,6 +75,7 @@ class tcp_endpoint
   public:
 	tcp_conn_state_t conn_state;
 	tcp_conn conn;
+	uint8_t shutstate;
 
 	uint16_t client_cid;
 	std::shared_ptr<net_client> client;
@@ -177,6 +184,7 @@ void handle_tcp_recv(const char *interface_name,
   uint8_t fin);
 
 int tcp_recv(std::shared_ptr<tcp_endpoint>, char *buffer, uint16_t buffer_size);
+void tcp_endpoint_shutdown(std::shared_ptr<tcp_endpoint> endp, int what);
 
 void cleanup_tcp_conn(tcp_conn_t conn);
 

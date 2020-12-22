@@ -69,6 +69,22 @@ void net_client::insert_connection(std::shared_ptr<tcp_endpoint> endp)
 	  endp->client_cid, std::make_shared<connection>(endp->client, endp->client_cid, endp)));
 }
 
+void net_client::connection::shut_write()
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	if(state != net_client::connection::CONNECTED)
+		return;
+	tcp_endpoint_shutdown(endp, SHUTDOWN_WRITE);
+}
+
+void net_client::connection::shut_read()
+{
+	std::lock_guard<std::mutex> _lg(lock);
+	if(state != net_client::connection::CONNECTED)
+		return;
+	tcp_endpoint_shutdown(endp, SHUTDOWN_READ);
+}
+
 void net_client::connection::complete_connection()
 {
 	fprintf(stderr, "COMPLETE CONNECTION %d\n", id);
@@ -168,6 +184,15 @@ void net_client::enqueue_cmd(struct nstack_queue_entry *nqe)
 	}
 }
 
+void net_client::connection::end_of_transmission()
+{
+	struct nstack_queue_entry nqe;
+	nqe.cmd = NSTACK_CMD_SHUTDOWN;
+	nqe.connid = id;
+	nqe.args[0] = CMD_SHUT_READ;
+	submit_command(client, &nqe, nullptr, nullptr);
+}
+
 size_t net_client::connection::recv_data(void *data, size_t len)
 {
 	size_t off = client->testing_rxb_off;
@@ -175,6 +200,7 @@ size_t net_client::connection::recv_data(void *data, size_t len)
 	if(client->testing_rxb_off >= OBJ_TOPDATA) {
 		client->testing_rxb_off = OBJ_NULLPAGE_SIZE;
 	}
+	/* TODO: actual buffer allocation */
 	char *buf = (char *)twz_object_base(&client->rxbuf_obj);
 	buf += off;
 	memcpy(buf, data, len);
@@ -253,6 +279,37 @@ bool handle_command(std::shared_ptr<net_client> client, struct nstack_queue_entr
 #endif
 
 	switch(nqe->cmd) {
+		case NSTACK_CMD_SHUTDOWN: {
+			long arg = nqe->args[0];
+			auto conn = client->get_connection(nqe->connid);
+			fprintf(stderr, "  got shutdown %lx\n", arg);
+			if(!conn) {
+				nqe->ret = -ENOENT;
+				return true;
+			}
+
+			if(arg & CMD_SHUT_RESET) {
+				nqe->ret = -EINVAL; // client is not allowed to reset
+				return true;
+			}
+
+			if(arg & CMD_SHUT_READ) {
+				conn->shut_read();
+			}
+
+			if(arg & CMD_SHUT_WRITE) {
+				conn->shut_write();
+			}
+
+			if(arg & CMD_SHUT_RELEASE) {
+				fprintf(stderr, "removing connection %d\n", nqe->connid);
+				conn->shut_read();
+				conn->shut_write();
+				client->remove_connection(nqe->connid);
+			}
+			nqe->ret = 0;
+			return true;
+		} break;
 		case NSTACK_CMD_CONNECT: {
 			fprintf(stderr, "creating conn\n");
 			uint16_t cid = client->create_connection(client);

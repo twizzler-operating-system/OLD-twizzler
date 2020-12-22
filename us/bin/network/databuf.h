@@ -16,13 +16,22 @@ class databuf
 		std::shared_ptr<net_client> client;
 		nstack_queue_entry nqe;
 		void *ptr;
-		size_t len;
+		uint32_t len;
+		uint32_t tag;
 		size_t off = 0;
-		entry(std::shared_ptr<net_client> client, nstack_queue_entry *nqe, void *ptr, size_t len)
+		entry(std::shared_ptr<net_client> client, nstack_queue_entry *nqe, void *ptr, uint32_t len)
 		  : client(client)
 		  , nqe(nqe ? *nqe : nstack_queue_entry{})
 		  , ptr(ptr)
 		  , len(len)
+		{
+			tag = 0;
+		}
+
+		entry(uint32_t tag)
+		  : client(nullptr)
+		  , len(1)
+		  , tag(tag)
 		{
 		}
 
@@ -54,10 +63,12 @@ class databuf
 	{
 	  public:
 		void *ptr;
-		size_t len;
-		databufptr(void *ptr, size_t len)
+		uint32_t len;
+		uint32_t tag;
+		databufptr(void *ptr, uint32_t len, uint32_t tag)
 		  : ptr(ptr)
 		  , len(len)
+		  , tag(tag)
 		{
 		}
 	};
@@ -72,12 +83,22 @@ class databuf
 	databuf()
 	{
 	}
-	void append(std::shared_ptr<net_client> client, nstack_queue_entry *nqe, void *ptr, size_t len)
+	void append(std::shared_ptr<net_client> client,
+	  nstack_queue_entry *nqe,
+	  void *ptr,
+	  uint32_t len)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		// fprintf(stderr, "APPENDING %ld\n", len);
 		entries.push_back(new entry(client, nqe, ptr, len));
 		amount += len;
+	}
+
+	void append(uint32_t tag)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		entries.push_back(new entry(tag));
+		amount += 1;
 	}
 
 	size_t pending()
@@ -86,12 +107,22 @@ class databuf
 		return amount;
 	}
 
+	size_t tried_pending()
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		return amount - have_read;
+	}
+
 	databufptr get_next(size_t max)
 	{
 		std::lock_guard<std::mutex> _lg(lock);
 		// fprintf(stderr, "GET_NEXT: %ld :: %ld\n", max, have_read);
 		size_t off = have_read;
 		for(auto entry : entries) {
+			if(entry->tag) {
+				have_read += 1;
+				return databufptr(NULL, entry->len, entry->tag);
+			}
 			// entry *entry = entries.front();
 			size_t thisrem = entry->rem();
 			if(thisrem <= off) {
@@ -102,7 +133,7 @@ class databuf
 			size_t amount = max;
 			if(amount > thisrem - off)
 				amount = thisrem - off;
-			databufptr dbp(entry->next_ptr(off), amount);
+			databufptr dbp(entry->next_ptr(off), amount, 0);
 			have_read += amount;
 #if 0
 			fprintf(stderr, "GET_NEXT RET %ld (%p %p %ld) :: ", amount, entry, dbp.ptr, entry->off);
@@ -112,7 +143,7 @@ class databuf
 #endif
 			return dbp;
 		}
-		return databufptr(NULL, 0);
+		return databufptr(NULL, 0, 0);
 	}
 
 	void remove(size_t count)

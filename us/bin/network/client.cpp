@@ -177,11 +177,13 @@ class handler
 	{
 		if(is_incoming) {
 			uint32_t info = nqe->qe.info;
-			if(handle_command(client, nqe) && !drain) {
+			if(handle_command(client, nqe)) {
 				/* TODO: make this non-blocking, and handle the case where it wants to block */
 				if(nqe->qe.info != info) {
 					fprintf(stderr, "WARNING - incorrect info\n");
 				}
+				if(drain)
+					return;
 				// fprintf(stderr, ":: %d %d %x\n", nqe->qe.info, info, nqe->qe.cmd_id.load());
 				if(queue_complete(&client->txq_obj, (struct queue_entry *)nqe, QUEUE_NONBLOCK)) {
 					fprintf(stderr, "WARNING - completion would have blocked\n");

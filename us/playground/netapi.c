@@ -134,8 +134,11 @@ int main(int argc, char **argv)
 			buf.len = hw_len;
 			netcon_transmit_buf(con, &buf);
 #endif
-			// for(;;)
-			usleep(1000000);
+
+			netcon_destroy(con);
+			for(;;)
+				usleep(1000000);
+			break;
 			// printf("Recv got :: %ld :: <%s>\n", ret, buf);
 		}
 

@@ -6,6 +6,7 @@
 #include "ipv4.h"
 #include "twz.h"
 
+static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount);
 static id_allocator<uint64_t> tcp_id_alloc;
 
 std::map<half_conn_t, std::vector<outstanding_conn_t>, cmp1> outstanding_conns;
@@ -550,6 +551,20 @@ tcp_endpoint::~tcp_endpoint()
 std::map<tcp_conn_t, std::shared_ptr<tcp_endpoint>, cmp2> connections;
 std::mutex connections_lock;
 
+#define TAG_FIN 1
+
+void tcp_endpoint_shutdown(std::shared_ptr<tcp_endpoint> endp, int what)
+{
+	if(what & SHUTDOWN_WRITE) {
+		if(endp->conn_state.curr_state == CLOSE_WAIT)
+			endp->conn_state.curr_state = LAST_ACK;
+		else
+			endp->conn_state.curr_state = FIN_WAIT_1;
+		endp->conn_state.tx_buf_mgr->append(TAG_FIN);
+		__try_send(endp, 0);
+	}
+}
+
 int tcp_endpoint_connect(std::shared_ptr<tcp_endpoint> endp, half_conn_t remote)
 {
 	char interface_name[MAX_INTERFACE_NAME_SIZE];
@@ -865,7 +880,6 @@ int establish_tcp_conn_server(uint16_t client_id, half_conn_t local, half_conn_t
 #endif
 
 #include <condition_variable>
-static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount);
 class tcp_timer
 {
   public:
@@ -934,6 +948,12 @@ class tcp_timer
 
 static tcp_timer timer;
 
+void tcp_endpoint_cleanup(std::shared_ptr<tcp_endpoint> endp)
+{
+	std::lock_guard<std::mutex> _lg(connections_lock);
+	connections.erase(endp->conn);
+}
+
 static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount)
 {
 	int count = 0;
@@ -943,7 +963,7 @@ static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount)
 		std::lock_guard<std::mutex> _lg(*endp->conn_state.lock);
 		auto data = endp->conn_state.tx_buf_mgr->get_next(MSS);
 		if(data.ptr) {
-			// fprintf(stderr, "SEND %d bytes\n", data.len);
+			//		fprintf(stderr, "SEND %d bytes\n", data.len);
 			int ret = encap_tcp_packet_2(endp->conn.local.ip,
 			  endp->conn.remote.ip,
 			  endp->conn.local.port,
@@ -962,6 +982,19 @@ static void __try_send(std::shared_ptr<tcp_endpoint> endp, size_t amount)
 				else
 					amount -= data.len;
 			}
+		} else if(data.tag) {
+			fprintf(stderr, "got a queued TAG %d\n", data.tag);
+			assert(data.tag == TAG_FIN);
+			endp->conn_state.fin_seq_num = seq_num;
+			int ret = encap_tcp_packet_2(endp->conn.local.ip,
+			  endp->conn.remote.ip,
+			  endp->conn.local.port,
+			  endp->conn.remote.port,
+			  FIN_PKT,
+			  seq_num,
+			  ack_num,
+			  NULL,
+			  0);
 		}
 		/* update seq num */
 		if(seq_num == endp->conn_state.tx_head) {
@@ -1187,6 +1220,16 @@ void handle_tcp_recv(const char *interface_name,
 		/* TODO: err ?*/
 		return;
 	}
+	fprintf(stderr,
+	  "TCP PACKET [%d]: %d %d :: syn=%d, ack=%d, rst=%d, fin=%d :: %d\n",
+	  endp != nullptr ? endp->conn_state.curr_state : -1,
+	  seq_num,
+	  ack_num,
+	  syn,
+	  ack,
+	  rst,
+	  fin,
+	  payload_size);
 
 	if(syn == 1 && ack == 0) { /* received SYN packet */
 		half_conn_t local;
@@ -1248,7 +1291,18 @@ void handle_tcp_recv(const char *interface_name,
 				con->notify_accept();
 			}
 		}
-		if(endp->conn_state.curr_state == CONN_ESTABLISHED) {
+		if(ack_num == endp->conn_state.fin_seq_num + 1
+		   && endp->conn_state.curr_state == FIN_WAIT_1) {
+			endp->conn_state.curr_state = FIN_WAIT_2;
+		}
+		if(ack_num == endp->conn_state.fin_seq_num + 1 && endp->conn_state.curr_state == LAST_ACK) {
+			fprintf(stderr, "FINAL CLEANUP!\n");
+			tcp_endpoint_cleanup(endp);
+		}
+
+		if(endp->conn_state.curr_state == CONN_ESTABLISHED
+		   || endp->conn_state.curr_state == FIN_WAIT_1
+		   || endp->conn_state.curr_state == FIN_WAIT_2) {
 			if(ack_num > endp->conn_state.tx_head) {
 				uint32_t bytes = ack_num - endp->conn_state.tx_head;
 				// fprintf(stderr, "ACK %d bytes\n", bytes);
@@ -1268,28 +1322,74 @@ void handle_tcp_recv(const char *interface_name,
 			}
 
 			if(endp->conn_state.ack_num == seq_num && payload_size > 0) {
-				//	uint32_t added_bytes =
-				//	  char_ring_buffer_add(endp->conn_state.rx_buffer, payload, payload_size);
-
-				auto con = endp->client->get_connection(endp->client_cid);
-				size_t ret = 0;
-				if(con) {
-					ret = con->recv_data(payload, payload_size);
-				}
-				endp->conn_state.ack_num += ret;
-
-				/* send ACK packet */
-				if(ret > 0) {
+				if(endp->shutstate == (SHUTDOWN_WRITE | SHUTDOWN_READ)) {
 					int ret = encap_tcp_packet_2(conn.local.ip,
 					  conn.remote.ip,
 					  conn.local.port,
 					  conn.remote.port,
-					  ACK_PKT,
+					  RST_PKT,
 					  endp->conn_state.seq_num,
 					  endp->conn_state.ack_num,
 					  NULL,
 					  0);
+				} else {
+					auto con = endp->client->get_connection(endp->client_cid);
+					size_t ret = 0;
+					if(con) {
+						ret = con->recv_data(payload, payload_size);
+					}
+					endp->conn_state.ack_num += ret;
+
+					/* send ACK packet */
+					if(ret > 0) {
+						int ret = encap_tcp_packet_2(conn.local.ip,
+						  conn.remote.ip,
+						  conn.local.port,
+						  conn.remote.port,
+						  ACK_PKT,
+						  endp->conn_state.seq_num,
+						  endp->conn_state.ack_num,
+						  NULL,
+						  0);
+					}
 				}
+			}
+		}
+
+		if(fin == 1) {
+			if(endp->conn_state.curr_state == FIN_WAIT_2) {
+				endp->conn_state.curr_state = TIME_WAIT;
+				fprintf(stderr, "TODO: set timeout to cleanup this connection\n");
+				auto con = endp->client->get_connection(endp->client_cid);
+				if(con)
+					con->end_of_transmission();
+				endp->conn_state.ack_num += 1;
+				int ret = encap_tcp_packet_2(conn.local.ip,
+				  conn.remote.ip,
+				  conn.local.port,
+				  conn.remote.port,
+				  ACK_PKT,
+				  endp->conn_state.seq_num,
+				  endp->conn_state.ack_num,
+				  NULL,
+				  0);
+
+			} else if(endp->conn_state.curr_state == CONN_ESTABLISHED) {
+				fprintf(stderr, "SENDING ACK FOR FIN\n");
+				auto con = endp->client->get_connection(endp->client_cid);
+				if(con)
+					con->end_of_transmission();
+				endp->conn_state.curr_state = CLOSE_WAIT;
+				endp->conn_state.ack_num += 1;
+				int ret = encap_tcp_packet_2(conn.local.ip,
+				  conn.remote.ip,
+				  conn.local.port,
+				  conn.remote.port,
+				  ACK_PKT,
+				  endp->conn_state.seq_num,
+				  endp->conn_state.ack_num,
+				  NULL,
+				  0);
 			}
 		}
 	}

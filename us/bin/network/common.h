@@ -24,6 +24,9 @@
 
 typedef enum { LITTLEENDIAN, BIGENDIAN } endianess_t;
 
+#define SHUTDOWN_WRITE 1
+#define SHUTDOWN_READ 2
+
 #define MAX_INTERFACE_NAME_SIZE 248
 #define MAC_ADDR_SIZE 6 // bytes
 #define IP_ADDR_SIZE 4 // bytes
