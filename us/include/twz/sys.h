@@ -109,7 +109,7 @@ __must_check static inline long sys_thrd_spawn(objid_t tid,
 	return __syscall6(SYS_THRD_SPAWN, ID_LO(tid), ID_HI(tid), (long)tsa, flags, (long)tctrl, 0);
 }
 
-__must_check static inline long sys_become(struct sys_become_args *ba, long arg0, long arg1)
+__must_check static inline long sys_become(const struct sys_become_args *ba, long arg0, long arg1)
 {
 	return __syscall6(SYS_BECOME, (long)ba, arg0, arg1, 0, 0, 0);
 }

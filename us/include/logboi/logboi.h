@@ -13,7 +13,7 @@ int logboi_open_connection(struct secure_api *api, const char *_name, int flags,
 	void *id = twz_secure_api_alloc_stackarg(sizeof(*_id), &ctx);
 	char *name = (char *)twz_secure_api_alloc_stackarg(strlen(_name) + 1, &ctx);
 	strcpy(name, _name);
-	int r = twz_secure_api_call3(api->hdr, LOGBOI_GATE_OPEN, name, flags, id);
+	int r = twz_secure_api_call3(api, LOGBOI_GATE_OPEN, name, flags, id);
 	*_id = *(objid_t *)id;
 	return r;
 }

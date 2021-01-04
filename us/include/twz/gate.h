@@ -82,10 +82,13 @@ struct secure_api_header {
 	objid_t view;
 };
 
+#define __SAPI_ATTACHED 1
+#define __SAPI_STACK 2
 struct secure_api {
 	struct secure_api_header *hdr;
 	twzobj obj;
 	const char *name;
+	int flags;
 };
 
 #include <stdlib.h>
@@ -112,6 +115,7 @@ static inline int twz_secure_api_open_name(const char *name, struct secure_api *
 	}
 	api->hdr = (struct secure_api_header *)twz_object_base(&api->obj);
 	api->name = strdup(name);
+	api->flags = 0;
 	return 0;
 }
 
@@ -124,11 +128,40 @@ static inline void twz_secure_api_close(struct secure_api *api)
 	}
 }
 
-#define twz_secure_api_call1(hdr, gate, arg)                                                       \
+#include <twz/_kso.h>
+#include <twz/_sys.h>
+#include <twz/debug.h>
+
+static __inline__ unsigned long long ___rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
+static inline long __do_sapi_call(struct secure_api *api, const struct sys_become_args *args)
+{
+	long r = 0;
+	if(!(api->flags & __SAPI_ATTACHED)) {
+		r = sys_attach(0, api->hdr->sctx, 0, KSO_SECCTX);
+		if(r == 0)
+			api->flags |= __SAPI_ATTACHED;
+	}
+	// long long b = ___rdtsc();
+	// debug_printf("::::: %ld %d\n", b - args->r15, api->flags);
+	if(r == 0)
+		r = sys_become(args, 0, 0);
+	return r;
+}
+
+#define twz_secure_api_call1(api, gate, arg)                                                       \
 	({                                                                                             \
-		twz_secure_api_setup_tmp_stack();                                                          \
+		if(!(api->flags & __SAPI_STACK)) {                                                         \
+			api->flags |= __SAPI_STACK;                                                            \
+			twz_secure_api_setup_tmp_stack();                                                      \
+		}                                                                                          \
 		struct sys_become_args args = {                                                            \
-			.target_view = hdr->view,                                                              \
+			.target_view = api->hdr->view,                                                         \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rax = 0,                                                                              \
 			.rbx = 0,                                                                              \
@@ -147,10 +180,7 @@ static inline void twz_secure_api_close(struct secure_api *api)
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
 		};                                                                                         \
-		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-		if(r == 0)                                                                                 \
-			r = sys_become(&args, 0, 0);                                                           \
-		r;                                                                                         \
+		__do_sapi_call(api, &args);                                                                \
 	})
 
 /*
@@ -171,11 +201,14 @@ static inline void twz_secure_api_close(struct secure_api *api)
     })
 */
 
-#define twz_secure_api_call3(hdr, gate, arg1, arg2, arg3)                                          \
+#define twz_secure_api_call3(api, gate, arg1, arg2, arg3)                                          \
 	({                                                                                             \
-		twz_secure_api_setup_tmp_stack();                                                          \
+		if(!(api->flags & __SAPI_STACK)) {                                                         \
+			api->flags |= __SAPI_STACK;                                                            \
+			twz_secure_api_setup_tmp_stack();                                                      \
+		}                                                                                          \
 		struct sys_become_args args = {                                                            \
-			.target_view = hdr->view,                                                              \
+			.target_view = api->hdr->view,                                                         \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rax = 0,                                                                              \
 			.rbx = 0,                                                                              \
@@ -194,17 +227,17 @@ static inline void twz_secure_api_close(struct secure_api *api)
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
 		};                                                                                         \
-		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-		if(r == 0)                                                                                 \
-			r = sys_become(&args, 0, 0);                                                           \
-		r;                                                                                         \
+		__do_sapi_call(api, &args);                                                                \
 	})
 
-#define twz_secure_api_call6(hdr, gate, arg1, arg2, arg3, arg4, arg5, arg6)                        \
+#define twz_secure_api_call6(api, gate, arg1, arg2, arg3, arg4, arg5, arg6)                        \
 	({                                                                                             \
-		twz_secure_api_setup_tmp_stack();                                                          \
+		if(!(api->flags & __SAPI_STACK)) {                                                         \
+			api->flags |= __SAPI_STACK;                                                            \
+			twz_secure_api_setup_tmp_stack();                                                      \
+		}                                                                                          \
 		struct sys_become_args args = {                                                            \
-			.target_view = hdr->view,                                                              \
+			.target_view = api->hdr->view,                                                         \
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rax = 0,                                                                              \
 			.rbx = 0,                                                                              \
@@ -223,10 +256,7 @@ static inline void twz_secure_api_close(struct secure_api *api)
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
 		};                                                                                         \
-		long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-		if(r == 0)                                                                                 \
-			r = sys_become(&args, 0, 0);                                                           \
-		r;                                                                                         \
+		__do_sapi_call(api, &args);                                                                \
 	})
 
 #define DECLARE_SAPI_ENTRY(name, gate, ret_type, ...)                                              \

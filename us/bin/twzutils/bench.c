@@ -42,8 +42,8 @@ int main()
 
 	for(int i = 0; i < 80; i++) {
 		clock_gettime(CLOCK_MONOTONIC, &st);
-		for(volatile long i = 0; i < 1000000000l; i++)
-			;
+		for(long i = 0; i < 1000000000l; i++)
+			asm volatile("" ::"m"(i) : "memory");
 		//	do_test(mem, 1ul << (i / 4 + 1), (i / 2) % 2);
 		clock_gettime(CLOCK_MONOTONIC, &en);
 		timespec_diff(&st, &en, &df);

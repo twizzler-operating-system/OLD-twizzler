@@ -86,7 +86,7 @@ static inline int nstack_open_client(struct secure_api *api,
 	void *ret = twz_secure_api_alloc_stackarg(sizeof(struct nstack_open_ret), &ctx);
 	char *name = (char *)twz_secure_api_alloc_stackarg(strlen(_name) + 1, &ctx);
 	strcpy(name, _name);
-	int r = twz_secure_api_call3(api->hdr, NSTACK_GATE_OPEN_CLIENT, flags, name, ret);
+	int r = twz_secure_api_call3(api, NSTACK_GATE_OPEN_CLIENT, flags, name, ret);
 	*_ret = *(struct nstack_open_ret *)ret;
 	return r;
 }

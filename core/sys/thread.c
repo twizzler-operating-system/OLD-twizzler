@@ -181,11 +181,19 @@ static long __syscall_become_return(long a0)
 	return a0;
 }
 
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
 long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 {
 	if(_ba == NULL) {
 		return __syscall_become_return(a0);
 	}
+	long _a = rdtsc();
 	if(!verify_user_pointer(_ba, sizeof(*_ba)))
 		return -EINVAL;
 	struct arch_syscall_become_args ba;
@@ -193,6 +201,7 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 	struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
 	oldframe->view = NULL;
 	struct object *target_view = NULL;
+	long a = rdtsc();
 	if(ba.target_view) {
 		//	printk("become: switch to " IDFMT "\n", IDPR(ba.target_view));
 		target_view = obj_lookup(ba.target_view, 0);
@@ -207,8 +216,10 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 
 		arch_mm_switch_context(current_thread->ctx);
 	}
+	long b = rdtsc();
 	arch_thread_become(&ba, oldframe, a1 & SYS_BECOME_INPLACE);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
+	long c = rdtsc();
 
 	/* TODO: call check_fault directly, use IP target */
 	int r;
@@ -220,6 +231,8 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 		__syscall_become_return(0);
 		return r;
 	}
+	long d = rdtsc();
+	// printk("become: %ld %ld %ld %ld\n", _a - a, b - a, c - b, d - c);
 
 	if(target_view) {
 		obj_put(target_view);

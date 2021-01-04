@@ -184,6 +184,7 @@ int main()
 	int status;
 	r = wait(&status);
 
+#if 0
 	if(access("/dev/nvme", F_OK) == 0) {
 		if(!fork()) {
 			execlp("pager", "pager", NULL);
@@ -279,7 +280,9 @@ int main()
 			free(path);
 		}
 	}
+#endif
 
+#if 0
 	twzobj rxqobj;
 	twzobj txqobj;
 	twzobj infoobj;
@@ -335,6 +338,7 @@ int main()
 	} else {
 		fprintf(stderr, "no supported framebuffer found; skipping starting terminal: %d\n", errno);
 	}
+#endif
 
 	setenv("PATH", "/bin:/usr/bin:/usr/local/bin:/opt/usr/bin", 1);
 

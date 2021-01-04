@@ -382,19 +382,35 @@ bool obj_get_pflags(struct object *obj, uint32_t *pf)
 	return true;
 }
 
+static __inline__ unsigned long long krdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
 objid_t obj_compute_id(struct object *obj)
 {
 	void *kaddr = obj_get_kaddr(obj);
 	struct metainfo *mi = (void *)((char *)kaddr + (OBJ_MAXSIZE - OBJ_METAPAGE_SIZE));
 
+	typeof(mi->p_flags) p_flags = mi->p_flags;
+	typeof(mi->nonce) nonce = mi->nonce;
+	objid_t kuid = mi->kuid;
+	atomic_thread_fence(memory_order_seq_cst);
+
+	long _tstart = clksrc_get_nanoseconds();
+	long a = krdtsc();
+
 	_Alignas(16) blake2b_state S;
 	blake2b_init(&S, 32);
-	blake2b_update(&S, &mi->nonce, sizeof(mi->nonce));
-	blake2b_update(&S, &mi->p_flags, sizeof(mi->p_flags));
-	blake2b_update(&S, &mi->kuid, sizeof(mi->kuid));
+	// long b = krdtsc();
+	blake2b_update(&S, &nonce, sizeof(nonce));
+	blake2b_update(&S, &p_flags, sizeof(p_flags));
+	blake2b_update(&S, &kuid, sizeof(kuid));
+	// long c = krdtsc();
 	size_t tl = 0;
-	atomic_thread_fence(memory_order_seq_cst);
-	if(mi->p_flags & MIP_HASHDATA) {
+	if(unlikely(p_flags & MIP_HASHDATA)) {
 		for(size_t s = 0; s < mi->sz; s += mm_page_size(0)) {
 			size_t rem = mm_page_size(0);
 			if(s + mm_page_size(0) > mi->sz) {
@@ -420,9 +436,28 @@ objid_t obj_compute_id(struct object *obj)
 
 	unsigned char tmp[32];
 	blake2b_final(&S, tmp, 32);
+	// long d = krdtsc();
 	_Alignas(16) unsigned char out[16];
 	for(int i = 0; i < 16; i++) {
 		out[i] = tmp[i] ^ tmp[i + 16];
+	}
+	long e = krdtsc();
+	long _tend = clksrc_get_nanoseconds();
+
+	long tdiff = _tend - _tstart;
+	if(mi->p_flags & MIP_HASHDATA) {
+		// printk("### TIME id_compute_data %ld ns :: %ld\n", tdiff, e - a);
+	} else {
+#if 0
+		printk("### TIME id_compute_meta %ld ns :: %ld %ld %ld %ld\n",
+		  tdiff,
+		  b - a,
+		  c - b,
+		  d - c,
+		  e - d);
+#else
+		//	printk("### TIME id_compute_meta %ld ns :: %ld\n", tdiff, e - a);
+#endif
 	}
 
 	obj_release_kaddr(obj);

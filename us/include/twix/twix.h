@@ -15,7 +15,7 @@ static inline int twix_open_queue(struct secure_api *api, int flags, objid_t *_q
 	size_t ctx = 0;
 	void *qid = twz_secure_api_alloc_stackarg(sizeof(*_qid), &ctx);
 	void *bid = twz_secure_api_alloc_stackarg(sizeof(*_bid), &ctx);
-	int r = twz_secure_api_call3(api->hdr, TWIX_GATE_OPEN_QUEUE, flags, qid, bid);
+	int r = twz_secure_api_call3(api, TWIX_GATE_OPEN_QUEUE, flags, qid, bid);
 	*_qid = *(objid_t *)qid;
 	*_bid = *(objid_t *)bid;
 	return r;

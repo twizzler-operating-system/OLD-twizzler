@@ -161,6 +161,7 @@ extern long (*syscall_table[])();
 __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 {
 	long num = frame->rax;
+	// long xx = krdtsc();
 #if CONFIG_PRINT_SYSCALLS
 	long long a = krdtsc();
 #endif
@@ -195,6 +196,9 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		  frame->rax,
 		  b - a);
 #endif
+	// long long xxy = krdtsc();
+	// if(num == SYS_BECOME)
+	//	printk(":: become sys %ld\n", xxy - xx);
 	arch_interrupt_set(false);
 	thread_schedule_resume();
 }

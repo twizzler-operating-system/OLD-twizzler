@@ -275,8 +275,6 @@ __noinstrument __attribute__((used)) static void x86_64_vmexit_handler(struct pr
 	unsigned long reason = vmcs_readl(VMCS_EXIT_REASON);
 	unsigned long qual = vmcs_readl(VMCS_EXIT_QUALIFICATION);
 	unsigned long grip = vmcs_readl(VMCS_GUEST_RIP);
-	// unsigned long grsp = vmcs_readl(VMCS_GUEST_RSP);
-	// unsigned long iinfo = vmcs_readl(VMCS_VM_INSTRUCTION_INFO);
 	/*
 	    if(reason != VMEXIT_REASON_CPUID
 	            && reason != VMEXIT_REASON_VMCALL
@@ -284,6 +282,8 @@ __noinstrument __attribute__((used)) static void x86_64_vmexit_handler(struct pr
 	            && reason != VMEXIT_REASON_INVEPT)
 	            */
 #if 0
+	unsigned long grsp = vmcs_readl(VMCS_GUEST_RSP);
+	unsigned long iinfo = vmcs_readl(VMCS_VM_INSTRUCTION_INFO);
 	printk("VMEXIT occurred at %lx: reason=%ld, qual=%lx, iinfo=%lx, grsp=%lx\n",
 	  grip,
 	  reason,
@@ -640,7 +640,7 @@ static void vtx_setup_vcpu(struct processor *proc)
 		if(!eptp_list)
 			eptp_list = (uintptr_t)mm_virtual_early_alloc();
 		proc->arch.eptp_list = (void *)eptp_list;
-		proc->arch.eptp_list[0] = _bootstrap_object_space.arch.ept_phys;
+		proc->arch.eptp_list[0] = _bootstrap_object_space.arch.ept_phys | (3 << 3) | 6;
 		vmcs_writel(VMCS_EPTP_LIST, mm_vtop(proc->arch.eptp_list));
 	}
 
@@ -692,31 +692,44 @@ static long x86_64_rootcall(long fn, long a0, long a1, long a2)
 	return ret;
 }
 
+struct spinlock eptp_lock = SPINLOCK_INIT;
 void x86_64_switch_ept(uintptr_t root)
 {
-	if(support_ept_switch_vmfunc && 0) {
+	if(support_ept_switch_vmfunc) {
+		spinlock_acquire_save(&eptp_lock);
 		/* TODO: Support this vmfunc ability */
 		int index = -1;
 		for(int i = 0; i < 512; i++) {
-			if(current_processor->arch.eptp_list[i] == root) {
+#if 0
+			if(current_processor->arch.eptp_list[i]) {
+				printk(" :: %d test %lx %lx\n",
+				  i,
+				  current_processor->arch.eptp_list[i],
+				  root | (3 << 3) | 6);
+			}
+#endif
+			if(current_processor->arch.eptp_list[i] == (root | (3 << 3) | 6)) {
 				index = i;
 				break;
 			}
 		}
-		printk("::    idx=%d\n", index);
+		// printk("::    idx=%d\n", index);
 		if(index != -1) {
 			asm volatile("vmfunc" ::"a"(VM_FUNCTION_SWITCH_EPTP), "c"(index) : "memory");
 		} else {
 			x86_64_rootcall(VMX_RC_SWITCHEPT, root, 0, 0);
 			/* TODO (perf): add to trusted list */
-#if 0
+#if 1
+			//	printk(" :: trying to add %lx\n", root | (3 << 3) | 6);
 			for(int i = 0; i < 512; i++) {
 				if(current_processor->arch.eptp_list[i] == 0) {
-					current_processor->arch.eptp_list[i] = root;
+					current_processor->arch.eptp_list[i] = root | (3 << 3) | 6;
+					break;
 				}
 			}
 #endif
 		}
+		spinlock_release_restore(&eptp_lock);
 	} else {
 		x86_64_rootcall(VMX_RC_SWITCHEPT, root, 0, 0);
 	}

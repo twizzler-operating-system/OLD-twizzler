@@ -1,4 +1,4 @@
-PLAYGROUND_PROGS=example queue net logtest ut netapi queue2
+PLAYGROUND_PROGS=example queue net logtest ut netapi queue2 bstream-bench
 
 PLAYGROUND_LIBS=-Wl,--whole-archive -lbacktrace -Wl,--no-whole-archive
 
