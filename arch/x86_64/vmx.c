@@ -594,8 +594,10 @@ static void vtx_setup_vcpu(struct processor *proc)
 	    | (support_ept_switch_vmfunc ? (1 << 13) : 0) /* enable VMFUNC */
 	    | (1 << 12)                                   /* allow invpcid */
 	    | (support_virt_exception ? (1 << 18) : 0)    /* guest handles EPT violations */
+	    | (1 << 5)                                    /* enable VPID */
 	);
 
+	vmcs_writel(VMCS_VPID, proc->arch.vpid);
 	vmcs_writel(VMCS_EXCEPTION_BITMAP, 0);
 	vmcs_writel(VMCS_PF_ERROR_CODE_MASK, 0);
 	vmcs_writel(VMCS_PF_ERROR_CODE_MATCH, 0);
@@ -659,10 +661,15 @@ static void vtx_setup_vcpu(struct processor *proc)
 
 _Static_assert(VMCS_SIZE <= 0x1000, "");
 
+static _Atomic size_t vpid_counter = 0;
+
 void x86_64_start_vmx(struct processor *proc)
 {
 	x86_64_enable_vmx(proc);
 
+	proc->arch.vpid = ++vpid_counter;
+	if(proc->arch.vpid >= 4096)
+		panic("NI");
 	proc->arch.launched = 0;
 	memset(proc->arch.vcpu_state_regs, 0, sizeof(proc->arch.vcpu_state_regs));
 	proc->arch.vcpu_state_regs[HOST_RSP] = (uintptr_t)proc->arch.hyper_stack + mm_page_size(0);
@@ -690,6 +697,13 @@ static long x86_64_rootcall(long fn, long a0, long a1, long a2)
 	long ret;
 	asm volatile("vmcall" : "=a"(ret) : "D"(fn), "S"(a0), "d"(a1), "c"(a2) : "memory");
 	return ret;
+}
+
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 
 struct spinlock eptp_lock = SPINLOCK_INIT;

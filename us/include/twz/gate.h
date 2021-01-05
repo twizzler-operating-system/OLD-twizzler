@@ -135,7 +135,7 @@ static inline void twz_secure_api_close(struct secure_api *api)
 static __inline__ unsigned long long ___rdtsc(void)
 {
 	unsigned hi, lo;
-	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi)::"memory");
 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 

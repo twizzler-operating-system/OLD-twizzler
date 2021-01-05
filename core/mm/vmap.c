@@ -206,6 +206,33 @@ bool vm_vaddr_lookup(void *addr, objid_t *id, uint64_t *off)
 	return lookup_by_slot(slot, id, NULL);
 }
 
+struct object *vm_vaddr_lookup_obj(void *addr, uint64_t *off)
+{
+	size_t slot = (uintptr_t)addr / mm_page_size(MAX_PGLEVEL);
+	uint64_t o = (uintptr_t)addr % mm_page_size(MAX_PGLEVEL);
+
+	if(off)
+		*off = o;
+
+	struct vm_context *ctx = current_thread->ctx;
+	spinlock_acquire_save(&ctx->lock);
+	struct rbnode *node = rb_search(&ctx->root, slot, struct vmap, node, vmap_compar_key);
+	if(node) {
+		struct vmap *map = rb_entry(node, struct vmap, node);
+		struct object *obj = map->obj;
+		krc_get(&map->obj->refs);
+		spinlock_release_restore(&ctx->lock);
+		return map->obj;
+	} else {
+		spinlock_release_restore(&ctx->lock);
+		objid_t id;
+		if(vm_vaddr_lookup(addr, &id, NULL)) {
+			return obj_lookup(id, OBJ_LOOKUP_HIDDEN);
+		}
+		return NULL;
+	}
+}
+
 static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 {
 	spinlock_acquire_save(&obj->lock);
@@ -243,20 +270,48 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 	return true;
 }
 
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
+
 bool vm_setview(struct thread *t, struct object *viewobj)
 {
+	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
+		if(t->backup_views[i].id == viewobj->id) {
+			t->ctx = t->backup_views[i].ctx;
+			return true;
+		}
+	}
+	// long long a = rdtsc();
 	obj_kso_init(viewobj, KSO_VIEW);
 	struct vm_context *oldctx = t->ctx;
+	// long long b = rdtsc();
 
 	t->ctx = vm_context_create();
 	krc_get(&viewobj->refs);
+	// long long c = rdtsc();
 	spinlock_acquire_save(&viewobj->lock);
 	t->ctx->view = &viewobj->view;
 	list_insert(&viewobj->view.contexts, &t->ctx->entry);
 	spinlock_release_restore(&viewobj->lock);
 
-	if(oldctx)
-		vm_context_destroy(oldctx);
+	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
+		if(t->backup_views[i].id == 0) {
+			t->backup_views[i].id = viewobj->id;
+			t->backup_views[i].ctx = t->ctx;
+			return true;
+		}
+	}
+	printk("warning -- NI\n");
+	// long long d = rdtsc();
+
+	// if(oldctx)
+	//	vm_context_destroy(oldctx);
+	// long long e = rdtsc();
+	// printk("set view: %ld %ld %ld %ld\n", b - a, c - b, d - c, e - d);
 	return true;
 }
 

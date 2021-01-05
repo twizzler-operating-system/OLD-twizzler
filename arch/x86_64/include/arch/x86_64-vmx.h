@@ -12,6 +12,7 @@ enum {
 };
 
 enum {
+	VMCS_VPID = 0,
 	VMCS_GUEST_CS_SEL = 0x802,
 	VMCS_GUEST_CS_BASE = 0x6808,
 	VMCS_GUEST_CS_LIM = 0x4802,

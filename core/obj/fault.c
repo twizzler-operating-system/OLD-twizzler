@@ -5,7 +5,6 @@
 #include <slots.h>
 #include <thread.h>
 #include <tmpmap.h>
-
 int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip)
 {
 	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));

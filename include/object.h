@@ -32,6 +32,12 @@ struct kso_invl_args {
 	uint16_t result;
 };
 
+#define kso_get_obj_noref(ptr, type)                                                               \
+	({                                                                                             \
+		struct object *_o = container_of(ptr, struct object, type);                                \
+		_o;                                                                                        \
+	})
+
 #define kso_get_obj(ptr, type)                                                                     \
 	({                                                                                             \
 		struct object *_o = container_of(ptr, struct object, type);                                \

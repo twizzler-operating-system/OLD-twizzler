@@ -42,6 +42,14 @@ struct thread_sctx_entry {
 	uint32_t attr, backup_attr;
 };
 
+struct thread_view {
+	objid_t id;
+	struct vm_context *ctx;
+};
+
+/* TODO: maybe a better system for this? */
+#define MAX_BACK_VIEWS 8
+
 struct thread {
 	struct arch_thread arch;
 	struct spinlock lock;
@@ -55,6 +63,8 @@ struct thread {
 
 	struct processor *processor;
 	struct vm_context *ctx;
+
+	struct thread_view backup_views[MAX_BACK_VIEWS];
 
 	struct spinlock sc_lock;
 	struct sctx *active_sc;

@@ -8,6 +8,7 @@ struct arch_vm_context {
 	uint64_t *pml4;
 	uint64_t **kernel_pdpts;
 	uint64_t **user_pdpts;
+	int id;
 };
 
 /* Intel 3A 4.5 */

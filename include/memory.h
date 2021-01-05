@@ -154,6 +154,7 @@ bool arch_vm_getmap(struct vm_context *ctx,
 struct thread;
 bool vm_setview(struct thread *, struct object *viewobj);
 bool vm_vaddr_lookup(void *addr, objid_t *id, uint64_t *off);
+struct object *vm_vaddr_lookup_obj(void *addr, uint64_t *off);
 int vm_context_wire(const void *p);
 
 void vm_context_put(struct vm_context *);

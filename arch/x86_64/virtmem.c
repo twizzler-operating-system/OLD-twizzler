@@ -34,13 +34,13 @@ static bool __do_vm_map(struct vm_context *ctx,
 		  (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
 		/* TODO: right flags? */
 		ctx->arch.pml4[pml4_idx] = mm_vtoo(table[is_kernel ? pml4_idx / 2 : pml4_idx])
-		                           | PAGE_PRESENT | VM_MAP_WRITE | VM_MAP_USER;
+		                           | PAGE_PRESENT | VM_MAP_WRITE | VM_MAP_USER | (1 << 5);
 	}
 	uintptr_t *pdpt = table[is_kernel ? pml4_idx / 2 : pml4_idx];
 	if(pdpt[pdpt_idx]) {
 		return false;
 	}
-	pdpt[pdpt_idx] = phys | flags | PAGE_PRESENT | PAGE_LARGE;
+	pdpt[pdpt_idx] = phys | flags | PAGE_PRESENT | PAGE_LARGE | (1 << 5);
 	return true;
 }
 
@@ -131,9 +131,14 @@ void arch_vm_map_object(struct vm_context *ctx, struct vmap *map, struct slot *s
 {
 	uintptr_t vaddr = (uintptr_t)SLOT_TO_VADDR(map->slot);
 	uintptr_t oaddr = SLOT_TO_OADDR(slot->num);
+	bool is_kernel = VADDR_IS_KERNEL(vaddr);
 
 	/* TODO: map protections, what happens if fails */
-	if(arch_vm_map(ctx, vaddr, oaddr, MAX_PGLEVEL, VM_MAP_USER | VM_MAP_EXEC | VM_MAP_WRITE)
+	if(arch_vm_map(ctx,
+	     vaddr,
+	     oaddr,
+	     MAX_PGLEVEL,
+	     VM_MAP_USER | VM_MAP_EXEC | VM_MAP_WRITE | (is_kernel ? VM_MAP_GLOBAL : 0))
 	   == false) {
 		// panic("map fail");
 	}
@@ -155,9 +160,17 @@ void arch_vm_unmap_object(struct vm_context *ctx, struct vmap *map)
 #define PHYS(x) ((x)-PHYS_ADDR_DELTA)
 void arch_mm_switch_context(struct vm_context *ctx)
 {
-	if(ctx == NULL)
+	bool inv = false;
+	if(ctx == NULL) {
 		ctx = &kernel_ctx;
-	asm volatile("mov %0, %%cr3" ::"r"(ctx->arch.pml4_phys) : "memory");
+		inv = true;
+	}
+	uint64_t op = ctx->arch.pml4_phys;
+	op |= ctx->arch.id;
+	if(!inv)
+		op |= (1ul << 63);
+	// printk("SWITCH %lx\n", op);
+	asm volatile("mov %0, %%cr3" ::"r"(op) : "memory");
 }
 
 void x86_64_vm_kernel_context_init(void)
@@ -204,6 +217,8 @@ void arch_mm_context_destroy(struct vm_context *ctx)
 	}
 }
 
+static _Atomic int context_id = 0;
+
 void arch_mm_context_init(struct vm_context *ctx)
 {
 	ctx->arch.pml4 = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
@@ -217,4 +232,8 @@ void arch_mm_context_init(struct vm_context *ctx)
 
 	ctx->arch.kernel_pdpts = kernel_virts_pdpt;
 	ctx->arch.user_pdpts = (void *)mm_memory_alloc(256 * sizeof(void *), PM_TYPE_DRAM, true);
+	ctx->arch.id = ++context_id;
+	if(ctx->arch.id >= 4096)
+		panic("NI");
+	printk("Alloc new context: %d\n", ctx->arch.id);
 }

@@ -620,6 +620,12 @@ int secctx_check_default_perms(struct object *target, uint32_t needed, uint32_t 
 		*perms |= OBJSPACE_EXEC_U;
 }
 #endif
+static __inline__ unsigned long long rdtsc(void)
+{
+	unsigned hi, lo;
+	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
+}
 
 static int check_if_valid(struct sctx *sc,
   void *ip,
@@ -628,12 +634,7 @@ static int check_if_valid(struct sctx *sc,
   size_t ipoff,
   uint32_t *perms)
 {
-	/* grab the current executing object according to the instruction pointer */
-	objid_t eoid;
-	if(!vm_vaddr_lookup(ip, &eoid, NULL)) {
-		return -1;
-	}
-	struct object *eo = obj_lookup(eoid, OBJ_LOOKUP_HIDDEN);
+	struct object *eo = vm_vaddr_lookup_obj(ip, NULL);
 	if(!eo) {
 		return -1;
 	}
@@ -653,6 +654,7 @@ static int check_if_valid(struct sctx *sc,
 	uint32_t p;
 	EPRINTK("    - __lookup " IDFMT ": %lx\n", IDPR(target->id), ipoff);
 	__lookup_perms(sc, target, ipoff, &p, &gok);
+	// printk("__CHECK %ld %ld %ld %ld %ld\n", b - a, c - b, d - c, e - d, f - e);
 	EPRINTK("    - __lookup: %x %x, %d\n", p, flags, gok);
 	if(((p & flags) == flags) && gok) {
 		if(perms)
@@ -722,6 +724,7 @@ int secctx_fault_resolve(void *ip,
 		goto fault_noperm;
 	}
 
+	// long long a = rdtsc();
 	/* try out the active context and see if that's enough. As an optimization, we don't have to
 	 * check gates or if the ip is executable, since it must be */
 	uint32_t p;
@@ -735,10 +738,11 @@ int secctx_fault_resolve(void *ip,
 			*perms = p;
 		return 0;
 	}
+	// long long b = rdtsc();
 
 	/* try out the other attached contexts. If a given context is valid for this access, switch
 	 * to it. */
-	for(int i = 0; i < MAX_SC; i++) {
+	for(int i = MAX_SC - 1; i >= 0; i--) {
 		struct sctx *sc = current_thread->sctx_entries[i].context;
 		if(!sc || sc == current_thread->active_sc)
 			continue;
@@ -756,10 +760,13 @@ int secctx_fault_resolve(void *ip,
 
 		if(check_if_valid(sc, ip, target, needed, ipoff, &p) == 0) {
 			spinlock_release_restore(&current_thread->sc_lock);
+			//	long long c = rdtsc();
 			EPRINTK("  - Success, switching\n");
 			if(perms)
 				*perms = p;
 			secctx_switch(i);
+			//	long long d = rdtsc();
+			//	printk("CHECK PERM %ld %ld %ld\n", b - a, c - b, d - c);
 			return 0;
 		}
 	}

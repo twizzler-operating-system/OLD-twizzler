@@ -26,10 +26,10 @@ static __inline__ unsigned long long rdtsc(void)
 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 
-DECLARE_SAPI_ENTRY(test_fn, 1, long, int arg)
+DECLARE_SAPI_ENTRY(test_fn, 1, long, int arg, long arg2)
 {
 	long a = rdtsc();
-	// debug_printf("INSIDE CALL\n");
+	// debug_printf("INSIDE CALL %ld\n", arg2);
 	// debug_printf("Hello from test fn: %d\n", arg);
 	return a;
 }
