@@ -670,7 +670,8 @@ int secctx_fault_resolve(void *ip,
   struct object *target,
   uint32_t needed,
   uint32_t *perms,
-  bool do_fault)
+  bool do_fault,
+  objid_t hint_id)
 {
 	char fls[8];
 	int __flt = 0;
@@ -724,10 +725,44 @@ int secctx_fault_resolve(void *ip,
 		goto fault_noperm;
 	}
 
+	uint32_t p;
+	if(hint_id) {
+		for(int i = 0; i < MAX_SC; i++) {
+			struct sctx *sc = current_thread->sctx_entries[i].context;
+			if(!sc)
+				continue;
+			if(sc->obj->id != hint_id)
+				continue;
+			if(sc == current_thread->active_sc)
+				break;
+
+			size_t ipoff = 0;
+			/* if we need executable permission, then we are jumping into an object, possibly
+			 * through a
+			 * gate. If so, we need to check if the gates this objects provides match our target IP.
+			 */
+			if(needed & SCP_EXEC) {
+				assert(ip == vaddr);
+				ipoff = (uintptr_t)ip % OBJ_MAXSIZE;
+			}
+
+			if(check_if_valid(sc, ip, target, needed, ipoff, &p) == 0) {
+				spinlock_release_restore(&current_thread->sc_lock);
+				//	long long c = rdtsc();
+				EPRINTK("  - Success, switching\n");
+				if(perms)
+					*perms = p;
+				secctx_switch(i);
+				//	long long d = rdtsc();
+				//	printk("CHECK PERM %ld %ld %ld\n", b - a, c - b, d - c);
+				return 0;
+			}
+		}
+	}
+
 	// long long a = rdtsc();
 	/* try out the active context and see if that's enough. As an optimization, we don't have to
 	 * check gates or if the ip is executable, since it must be */
-	uint32_t p;
 	EPRINTK("  - trying active context (" IDFMT ")\n",
 	  IDPR(current_thread->active_sc->obj ? current_thread->active_sc->obj->id : (objid_t)0));
 	__lookup_perms(current_thread->active_sc, target, 0, &p, NULL);
@@ -785,11 +820,19 @@ fault_noperm:
 	return -1;
 }
 
+int secctx_check_permissions_hint(void *ip, struct object *to, uint32_t flags, objid_t hint_id)
+{
+	if(secctx_fault_resolve(ip, 0, NULL, to, flags, NULL, false, hint_id)) {
+		return -EACCES;
+	}
+	return 0;
+}
+
 /* TODO: we could first see if it's mapped in any security context, thereby allowing us to check
  * a "cached" value of the permissions */
 int secctx_check_permissions(void *ip, struct object *to, uint32_t flags)
 {
-	if(secctx_fault_resolve(ip, 0, NULL, to, flags, NULL, false)) {
+	if(secctx_fault_resolve(ip, 0, NULL, to, flags, NULL, false, 0)) {
 		return -EACCES;
 	}
 	return 0;

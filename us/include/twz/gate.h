@@ -179,6 +179,7 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 			.r13 = 0,                                                                              \
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
+			.sctx_hint = api->hdr->sctx,                                                           \
 		};                                                                                         \
 		__do_sapi_call(api, &args);                                                                \
 	})
@@ -226,6 +227,7 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 			.r13 = 0,                                                                              \
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
+			.sctx_hint = api->hdr->sctx,                                                           \
 		};                                                                                         \
 		__do_sapi_call(api, &args);                                                                \
 	})
@@ -255,6 +257,7 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 			.r13 = 0,                                                                              \
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
+			.sctx_hint = api->hdr->sctx,                                                           \
 		};                                                                                         \
 		__do_sapi_call(api, &args);                                                                \
 	})

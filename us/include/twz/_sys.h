@@ -99,6 +99,7 @@ struct sys_become_args {
 	uint64_t r13;
 	uint64_t r14;
 	uint64_t r15;
+	objid_t sctx_hint;
 };
 
 struct sys_thrd_spawn_args {

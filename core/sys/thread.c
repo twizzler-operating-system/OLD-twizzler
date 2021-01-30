@@ -226,7 +226,13 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 		if(!early_find) {
 			target_view = obj_lookup(ba.target_view, 0);
 			if(!target_view) {
-				kfree(oldframe);
+				/* TODO: cleanup oldframe */
+				//		kfree(oldframe);
+				return -ENOENT;
+			}
+
+			if(!obj_verify_id(target_view, true, false)) {
+				/* TODO: undo things? */
 				return -ENOENT;
 			}
 			//	a_1 = rdtsc();
@@ -248,11 +254,19 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 	arch_thread_become(&ba, oldframe, a1 & SYS_BECOME_INPLACE);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
 	// long c = rdtsc();
-
 	/* TODO: call check_fault directly, use IP target */
 	int r;
+
+#if 0
 	/* TODO (sec): use current IP if INPLACE. */
 	if((r = obj_check_permission_ip(target_view, SCP_USE, ba.target_rip))) {
+		__syscall_become_return(0);
+		return r;
+	}
+#endif
+
+	if((r = secctx_check_permissions_hint(
+	      (void *)ba.target_rip, target_view, SCP_USE, ba.sctx_hint))) {
 		__syscall_become_return(0);
 		return r;
 	}

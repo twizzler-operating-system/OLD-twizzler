@@ -127,7 +127,7 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 		*perms = 0;
 		uint32_t res;
 		if(secctx_fault_resolve(
-		     (void *)ip, loaddr, (void *)vaddr, o, __conv_objperm_to_scp(flags), &res, true)
+		     (void *)ip, loaddr, (void *)vaddr, o, __conv_objperm_to_scp(flags), &res, true, 0)
 		   == -1) {
 			return false;
 		}

@@ -6,6 +6,7 @@
 #define THRD_CTL_SET_GS 2
 #define THRD_CTL_SET_IOPL 3
 
+/* TODO: move this to us/include? */
 struct arch_syscall_become_args {
 	objid_t target_view;
 	uint64_t target_rip;
@@ -25,4 +26,5 @@ struct arch_syscall_become_args {
 	uint64_t r13;
 	uint64_t r14;
 	uint64_t r15;
+	objid_t sctx_hint;
 };

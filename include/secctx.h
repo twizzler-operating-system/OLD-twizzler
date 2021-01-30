@@ -39,6 +39,7 @@ int secctx_fault_resolve(void *ip,
   struct object *target,
   uint32_t flags,
   uint32_t *perms,
-  bool);
+  bool,
+  objid_t);
 struct object;
 int secctx_check_permissions(void *, struct object *, uint32_t flags);
