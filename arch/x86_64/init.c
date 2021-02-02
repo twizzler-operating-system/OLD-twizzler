@@ -62,7 +62,7 @@ static void proc_init(void)
 	asm volatile("mov %%cr4, %0" : "=r"(cr4));
 	cr4 |= (1 << 10); // enable fast fxsave etc, sse
 	cr4 |= (1 << 16); // rdgsbase
-	cr4 |= (1 << 17); // PCID
+	// cr4 |= (1 << 17); // PCID
 	cr4 |= (1 << 18);
 	cr4 |= (1 << 9);
 	cr4 |= (1 << 6); // enable MCE

@@ -166,9 +166,9 @@ void arch_mm_switch_context(struct vm_context *ctx)
 		inv = true;
 	}
 	uint64_t op = ctx->arch.pml4_phys;
-	op |= ctx->arch.id;
-	if(!inv)
-		op |= (1ul << 63);
+	// op |= ctx->arch.id;
+	// if(!inv)
+	//	op |= (1ul << 63);
 	// printk("SWITCH %lx\n", op);
 	asm volatile("mov %0, %%cr3" ::"r"(op) : "memory");
 }
@@ -235,5 +235,4 @@ void arch_mm_context_init(struct vm_context *ctx)
 	ctx->arch.id = ++context_id;
 	if(ctx->arch.id >= 4096)
 		panic("NI");
-	printk("Alloc new context: %d\n", ctx->arch.id);
 }
