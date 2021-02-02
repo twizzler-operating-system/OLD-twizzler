@@ -284,12 +284,10 @@ static void _obj_release(void *_obj)
 		obj_tie_free(obj);
 
 		arch_object_unmap_all(obj);
-		//		printk("releasin object pages\n");
 		struct rbnode *next;
 		for(struct rbnode *node = rb_first(&obj->pagecache_root); node; node = next) {
 			next = rb_next(node);
 			struct objpage *pg = rb_entry(node, struct objpage, node);
-			//		printk(":: %ld\n", pg->refs.count);
 			rb_delete(node, &obj->pagecache_root);
 			objpage_release(pg, 0);
 		}
@@ -297,7 +295,6 @@ static void _obj_release(void *_obj)
 		for(struct rbnode *node = rb_first(&obj->pagecache_level1_root); node; node = next) {
 			next = rb_next(node);
 			struct objpage *pg = rb_entry(node, struct objpage, node);
-			//		printk(":: %ld\n", pg->refs.count);
 			rb_delete(node, &obj->pagecache_root);
 			objpage_release(pg, 0);
 		}
@@ -404,11 +401,9 @@ objid_t obj_compute_id(struct object *obj)
 
 	_Alignas(16) blake2b_state S;
 	blake2b_init(&S, 32);
-	// long b = krdtsc();
 	blake2b_update(&S, &nonce, sizeof(nonce));
 	blake2b_update(&S, &p_flags, sizeof(p_flags));
 	blake2b_update(&S, &kuid, sizeof(kuid));
-	// long c = krdtsc();
 	size_t tl = 0;
 	if(unlikely(p_flags & MIP_HASHDATA)) {
 		for(size_t s = 0; s < mi->sz; s += mm_page_size(0)) {
@@ -441,33 +436,9 @@ objid_t obj_compute_id(struct object *obj)
 	for(int i = 0; i < 16; i++) {
 		out[i] = tmp[i] ^ tmp[i + 16];
 	}
-	long e = krdtsc();
-	long _tend = clksrc_get_nanoseconds();
-
-	long tdiff = _tend - _tstart;
-	if(mi->p_flags & MIP_HASHDATA) {
-		// printk("### TIME id_compute_data %ld ns :: %ld\n", tdiff, e - a);
-	} else {
-#if 0
-		printk("### TIME id_compute_meta %ld ns :: %ld %ld %ld %ld\n",
-		  tdiff,
-		  b - a,
-		  c - b,
-		  d - c,
-		  e - d);
-#else
-		//	printk("### TIME id_compute_meta %ld ns :: %ld\n", tdiff, e - a);
-#endif
-	}
 
 	obj_release_kaddr(obj);
 
-#if 0
-	printk("computed ID tl=%ld " IDFMT " for object " IDFMT "\n",
-	  tl,
-	  IDPR(*(objid_t *)out),
-	  IDPR(obj->id));
-#endif
 	return *(objid_t *)out;
 }
 

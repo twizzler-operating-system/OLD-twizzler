@@ -209,19 +209,13 @@ static bool __verify_region(void *item,
   uint32_t etype,
   objid_t target)
 {
-	printk("Starting VERIFY REGION!\n");
 	unsigned char hash[64];
-	long a, b, c, d, _e, f, g, h, i, j;
-	a = clksrc_get_nanoseconds();
 	ssize_t hashlen = __verify_get_hash(htype, item, data, ilen, dlen, hash);
-	b = clksrc_get_nanoseconds();
 	if(hashlen < 0) {
 		return false;
 	}
 
-	c = clksrc_get_nanoseconds();
 	objid_t kuid = __verify_get_object_kuid(target);
-	d = clksrc_get_nanoseconds();
 	struct object *ko = obj_lookup(kuid, OBJ_LOOKUP_HIDDEN);
 	if(!ko) {
 		EPRINTK("COULD NOT LOCATE KU OBJ " IDFMT "\n", IDPR(kuid));
@@ -229,9 +223,7 @@ static bool __verify_region(void *item,
 	}
 
 	size_t kdout;
-	_e = clksrc_get_nanoseconds();
 	unsigned char *keydata = __verify_load_keydata(ko, etype, &kdout);
-	f = clksrc_get_nanoseconds();
 	obj_put(ko);
 	if(!keydata) {
 		return false;
@@ -257,23 +249,18 @@ static bool __verify_region(void *item,
 	bool ret = false;
 	switch(etype) {
 		case SCENC_DSA:
-			g = clksrc_get_nanoseconds();
 			if((e = dsa_import(keydata, kdout, &dk)) != CRYPT_OK) {
 				printk("dsa import error: %s\n", error_to_string(e));
 				dsa_free(&dk);
 				break;
 			}
-			h = clksrc_get_nanoseconds();
 			int stat = 0;
-			i = clksrc_get_nanoseconds();
 			if((e = dsa_verify_hash((unsigned char *)sig, slen, hash, hashlen, &stat, &dk))
 			   != CRYPT_OK) {
 				printk("dsa verify error: %s\n", error_to_string(e));
 				dsa_free(&dk);
 				break;
 			}
-			j = clksrc_get_nanoseconds();
-			printk("### TIME key verify %ld %ld %ld %ld %ld\n", b - a, d - c, f - _e, h - g, j - i);
 			dsa_free(&dk);
 			if(!stat) {
 				EPRINTK("verification failed\n");

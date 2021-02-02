@@ -163,6 +163,12 @@ long syscall_thrd_ctl(int op, long arg)
 
 #include <slab.h>
 static DECLARE_SLABCACHE(_sc_frame, sizeof(struct thread_become_frame), NULL, NULL, NULL);
+
+void thread_free_become_frame(struct thread_become_frame *frame)
+{
+	slabcache_free(&_sc_frame, frame);
+}
+
 static long __syscall_become_return(long a0)
 {
 	struct list *entry = list_pop(&current_thread->become_stack);

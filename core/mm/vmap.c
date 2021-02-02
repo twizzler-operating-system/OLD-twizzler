@@ -285,14 +285,11 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 			return true;
 		}
 	}
-	// long long a = rdtsc();
 	obj_kso_init(viewobj, KSO_VIEW);
 	struct vm_context *oldctx = t->ctx;
-	// long long b = rdtsc();
 
 	t->ctx = vm_context_create();
 	krc_get(&viewobj->refs);
-	// long long c = rdtsc();
 	spinlock_acquire_save(&viewobj->lock);
 	t->ctx->view = &viewobj->view;
 	list_insert(&viewobj->view.contexts, &t->ctx->entry);
@@ -305,13 +302,6 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 			return true;
 		}
 	}
-	printk("warning -- NI\n");
-	// long long d = rdtsc();
-
-	// if(oldctx)
-	//	vm_context_destroy(oldctx);
-	// long long e = rdtsc();
-	// printk("set view: %ld %ld %ld %ld\n", b - a, c - b, d - c, e - d);
 	return true;
 }
 

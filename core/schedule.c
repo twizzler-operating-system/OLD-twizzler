@@ -290,13 +290,13 @@ void thread_exit(void)
 	spinlock_release_restore(&allthreads_lock);
 
 	struct list *entry;
-#if 0
+#if 1
 	while((entry = list_pop(&current_thread->become_stack))) {
 		struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
 		if(frame->view) {
 			obj_put(frame->view);
 		}
-		kfree(frame);
+		thread_free_become_frame(frame);
 	}
 #endif
 

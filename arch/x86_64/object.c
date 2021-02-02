@@ -176,8 +176,6 @@ void arch_object_map_slot(struct object_space *space,
 	  pdpt[pdpt_idx]);
 #endif
 
-	ef |= (1 << 8);
-
 	if(pdpt[pdpt_idx] == 0) {
 		space->arch.counts[pml4_idx]++;
 	}
@@ -231,8 +229,7 @@ bool arch_object_premap_page(struct object *obj, int idx, int level)
 
 	if(!obj->arch.pts[pd_idx]) {
 		obj->arch.pts[pd_idx] = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
-		obj->arch.pd[pd_idx] =
-		  mm_vtop(obj->arch.pts[pd_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC | (1 << 8);
+		obj->arch.pd[pd_idx] = mm_vtop(obj->arch.pts[pd_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC;
 	}
 	return true;
 }
@@ -308,7 +305,7 @@ bool arch_object_map_page(struct object *obj, struct objpage *op)
 	}
 
 	if(op->page->level == 1) {
-		obj->arch.pd[pd_idx] = op->page->addr | flags | PAGE_LARGE | (1 << 8);
+		obj->arch.pd[pd_idx] = op->page->addr | flags | PAGE_LARGE;
 	} else {
 		if(!obj->arch.pts[pd_idx]) {
 			obj->arch.pts[pd_idx] = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
@@ -316,7 +313,7 @@ bool arch_object_map_page(struct object *obj, struct objpage *op)
 			//	printk(";; %lx\n", obj->arch.pd[pd_idx]);
 		}
 		uint64_t *pt = obj->arch.pts[pd_idx];
-		pt[pt_idx] = op->page->addr | flags | (1 << 8);
+		pt[pt_idx] = op->page->addr | flags;
 	}
 	return true;
 }

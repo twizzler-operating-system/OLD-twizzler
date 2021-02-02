@@ -34,13 +34,13 @@ static bool __do_vm_map(struct vm_context *ctx,
 		  (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
 		/* TODO: right flags? */
 		ctx->arch.pml4[pml4_idx] = mm_vtoo(table[is_kernel ? pml4_idx / 2 : pml4_idx])
-		                           | PAGE_PRESENT | VM_MAP_WRITE | VM_MAP_USER | (1 << 5);
+		                           | PAGE_PRESENT | VM_MAP_WRITE | VM_MAP_USER;
 	}
 	uintptr_t *pdpt = table[is_kernel ? pml4_idx / 2 : pml4_idx];
 	if(pdpt[pdpt_idx]) {
 		return false;
 	}
-	pdpt[pdpt_idx] = phys | flags | PAGE_PRESENT | PAGE_LARGE | (1 << 5);
+	pdpt[pdpt_idx] = phys | flags | PAGE_PRESENT | PAGE_LARGE;
 	return true;
 }
 
@@ -133,12 +133,9 @@ void arch_vm_map_object(struct vm_context *ctx, struct vmap *map, struct slot *s
 	uintptr_t oaddr = SLOT_TO_OADDR(slot->num);
 	bool is_kernel = VADDR_IS_KERNEL(vaddr);
 
+	/* TODO: map global for some things? */
 	/* TODO: map protections, what happens if fails */
-	if(arch_vm_map(ctx,
-	     vaddr,
-	     oaddr,
-	     MAX_PGLEVEL,
-	     VM_MAP_USER | VM_MAP_EXEC | VM_MAP_WRITE | (is_kernel ? VM_MAP_GLOBAL : 0))
+	if(arch_vm_map(ctx, vaddr, oaddr, MAX_PGLEVEL, VM_MAP_USER | VM_MAP_EXEC | VM_MAP_WRITE)
 	   == false) {
 		// panic("map fail");
 	}
@@ -233,6 +230,4 @@ void arch_mm_context_init(struct vm_context *ctx)
 	ctx->arch.kernel_pdpts = kernel_virts_pdpt;
 	ctx->arch.user_pdpts = (void *)mm_memory_alloc(256 * sizeof(void *), PM_TYPE_DRAM, true);
 	ctx->arch.id = ++context_id;
-	if(ctx->arch.id >= 4096)
-		panic("NI");
 }
