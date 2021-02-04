@@ -56,9 +56,9 @@ $(MUSL_HDRS): $(BUILDDIR)/us/musl-config.mk $(MUSL_SRCS)
 	@TWZKROOT=$(shell pwd) TWZKBUILDDIR=$(BUILDDIR) CONFIGFILEPATH=../musl-config.mk $(MAKE) -C $(BUILDDIR)/us/$(MUSL) $(MUSL_H_GEN)
 	@TWZKROOT=$(shell pwd) TWZKBUILDDIR=$(BUILDDIR) CONFIGFILEPATH=../musl-config.mk $(MAKE) -C $(BUILDDIR)/us/$(MUSL) install-headers DESTDIR=$(shell pwd)/$(BUILDDIR)/us/sysroot
 	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twz twz
-	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/logboi logboi
-	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/twix twix
-	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twz ] && ln -s ../../../../../../../us/include/nstack nstack
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e logboi ] && ln -s ../../../../../../../us/include/logboi logboi
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e twix ] && ln -s ../../../../../../../us/include/twix twix
+	-@cd $(BUILDDIR)/us/sysroot/usr/include && [ ! -e nstack ] && ln -s ../../../../../../../us/include/nstack nstack
 	@touch $@
 
 $(BUILDDIR)/us/sysroot/usr/include/%.h: $(MUSL_HDRS)
