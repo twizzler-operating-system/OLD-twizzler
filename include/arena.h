@@ -1,10 +1,17 @@
 #pragma once
 
+/** @file
+ * @brief Arena allocation
+ *
+ * Useful for allocating memory that you know can be freed all at once.
+ */
+
 #include <debug.h>
 #include <memory.h>
 #include <spinlock.h>
 #include <system.h>
 
+#include <lib/iter.h>
 #include <lib/list.h>
 
 struct arena_node {
@@ -20,6 +27,7 @@ struct arena {
 	struct spinlock lock;
 };
 
+/** Initialize an arena allocator. Must be called before other functions on the arena allocator. */
 static inline void arena_create(struct arena *arena)
 {
 	arena->lock = SPINLOCK_INIT;
@@ -34,11 +42,16 @@ static inline void arena_create(struct arena *arena)
 	list_insert(&arena->nodes, &node->entry);
 }
 
-#include <lib/iter.h>
-/* TODO (perf): this could be optimized by saving the last-allocated pointer to start from instead
- * of starting from the beginning each time. */
+/** Allocate memory from the arena. This memory cannot be freed without destroying the entire arena
+ * (that's kinda the point of an arena allocator). The memory is zeroed before returning.
+ *
+ * @param arena The arena to allocate from
+ * @param length Length of the allocation in bytes
+ * @return Virtual pointer to the allocated memory. The memory will be aligned on 16. */
 static inline void *arena_allocate(struct arena *arena, size_t length)
 {
+	/* TODO (perf): this could be optimized by saving the last-allocated pointer to start from
+	 * instead of starting from the beginning each time. */
 	length = (length & ~15) + 16;
 	assert((length + sizeof(struct arena_node) < mm_page_size(0)));
 	spinlock_acquire_save(&arena->lock);
@@ -102,6 +115,7 @@ static inline void *arena_allocate(struct arena *arena, size_t length)
 	*/
 }
 
+/** Destroy the arena and free all memory that was allocated. */
 static inline void arena_destroy(struct arena *arena)
 {
 	struct list *e, *next;
