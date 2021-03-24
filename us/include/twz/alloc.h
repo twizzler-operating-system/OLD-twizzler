@@ -1,13 +1,7 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-
-struct _twz_object;
-typedef struct _twz_object twzobj;
-
 /** @file
- * @breif Allocate and manage memory inside Twizzler objects.
+ * @brief Allocate and manage memory inside Twizzler objects.
  *
  * Memory is managed inside Twizzler objects according to the user, but can optionally be made
  * managed through this allocator. This allocator is able to allocation custom sized regions of
@@ -17,7 +11,7 @@ typedef struct _twz_object twzobj;
  * The thing that makes this more complex than simple "malloc" and "free" is failure-atomicity and
  * ownership. Let's look at a simple memory allocator interface to see why it won't work:
  *
- *     `void *alloc(size_t sz);`
+ *     void *alloc(size_t sz);
  *
  * This function returns a pointer to the newly allocated memory. Ideally, we would now write the
  * pointer returned into a persistent data structure (and then persisting that update properly). But
@@ -37,16 +31,23 @@ typedef struct _twz_object twzobj;
  * region part of the failure-atomicity of the allocation and ownership transfer.
  */
 
+/// \cond DO_NOT_DOCUMENT
 #define TWZ_ALLOC_ALIGN(x) ((uint64_t)(x) << 32)
 #define TWZ_ALLOC_VOLATILE 1
 #define TWZ_ALLOC_CTOR_ZERO (void *)1
 
+#define ALLOC_METAINFO_TAG 0xaaaaaaaa11223344
+#include <stddef.h>
+#include <stdint.h>
+struct _twz_object;
+typedef struct _twz_object twzobj;
 struct alloc_hdr;
-
+/// \endcond
 /** Initialize an object for memory allocation, starting at offset bytes into the object, until
  * reaching the end of the object's data region.
  *
- * @par[Failure-Atomicity] This function is failure-atomic.
+ * @par[Failure-Atomicity]
+ * This function is failure-atomic.
  *
  * @param obj The object to initialize allocation for.
  * @param offset The starting point for allocator-owned memory in the object, with 0 being the base
@@ -58,7 +59,8 @@ int twz_object_init_alloc(twzobj *obj, size_t offset);
 /** Allocate region of memory within an object, returning it to the "owned pointer" owner.
  * Optionally initializes the memory region with a constructor. This function is thread-safe.
  *
- * @par[Failure-Atomicity] The allocation, construction (with ctor), and
+ * @par[Failure-Atomicity]
+ * The allocation, construction (with ctor), and
  * write of the final pointer into *owner are all failure-atomic. The contents of the newly
  * allocated region will be made durable after the constructor is run as part of the
  * failure-atomicity.
@@ -93,7 +95,8 @@ int twz_alloc(twzobj *obj,
 /** Free a previously allocated region of memory, and NULL-ing the owned pointer. May return memory
  * to the kernel and deallocate object pages. This function is thread-safe.
  *
- * @par[Failure-Atomicity] Freeing the memory and NULL-ing the value in *owner are both
+ * @par[Failure-Atomicity]
+ * Freeing the memory and NULL-ing the value in *owner are both
  * failure-atomic.
  *
  * @param obj The object for which we're freeing data.
@@ -101,14 +104,15 @@ int twz_alloc(twzobj *obj,
  * @param[out] Pointer to the owned location of the memory region. Will be NULL-ed as part of the
  *             free.
  * @param flags Flags affecting operation. Bitwise OR of of the following:
- *                - TWZ_ALLOC_VOLATILE: @see twz_alloc
+ *                - TWZ_ALLOC_VOLATILE: see twz_alloc()
  */
 void twz_free(twzobj *obj, void *p, void **owner, uint64_t flags);
 
 /** Perform a reallocation on a region of memory, replacing the value in the owned pointer to point
  * to a new region. This function is thread-safe.
  *
- * @par[Failure-Atomicity] The reallocation, possibly copy of data, and update of the owned pointer
+ * @par[Failure-Atomicity]
+ * The reallocation, possibly copy of data, and update of the owned pointer
  * are all failure-atomic. If a new region is allocated and a copy is performed, the contents of the
  * new region are made durable as part of the transaction.
  *
@@ -117,9 +121,7 @@ void twz_free(twzobj *obj, void *p, void **owner, uint64_t flags);
  * @param[out] Pointer to the owned location of the memory region. Gets updated to point to the new
  *             location if reallocation is performed.
  * @param flags Flags affecting operation. Bitwise OR of the following:
- *                - TWZ_ALLOC_VOLATILE: @see twz_alloc
- * @return 0 on success, -ERROR on failure, with the same failure modes as twz_alloc.
+ *                - TWZ_ALLOC_VOLATILE: see twz_alloc()
+ * @return 0 on success, -ERROR on failure, with the same failure modes as twz_alloc().
  */
 int twz_realloc(twzobj *obj, void *p, void **owner, size_t newlen, uint64_t flags);
-
-#define ALLOC_METAINFO_TAG 0xaaaaaaaa11223344
