@@ -191,19 +191,15 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 int twz_sctx_init(twzobj *obj, const char *name)
 {
 	struct secctx *sc = twz_object_base(obj);
-	_Static_assert(sizeof(struct twzoa_header) <= sizeof(sc->userdata));
 	if(name) {
 		kso_set_name(obj, name);
 	}
 	sc->nbuckets = 1024;
 	sc->nchain = 4096;
-	struct twzoa_header *oa = (void *)sc->userdata;
-	oa_hdr_init(obj,
-	  oa,
+	twz_object_init_alloc(obj,
 	  align_up(
 	    sizeof(*sc) + sizeof(struct scbucket) * (sc->nbuckets + sc->nchain) + OBJ_NULLPAGE_SIZE,
-	    0x1000),
-	  OBJ_TOPDATA);
+	    0x1000));
 
 	return 0;
 }
@@ -267,7 +263,6 @@ int twz_sctx_add(twzobj *obj,
   struct scgates *gatemask)
 {
 	struct secctx *sc = twz_object_base(obj);
-	struct twzoa_header *oa = (void *)sc->userdata;
 
 	/* this is a bit of a hack with bootstrapped security contexts (generated outside twizzler).
 	 * TODO: a better solution would be to properly support setting up an OA header from outside
@@ -275,11 +270,13 @@ int twz_sctx_add(twzobj *obj,
 	 */
 
 	/* this isn't thread safe, but... it's okay for now (see above TODO) */
-	if(oa->end == 0) {
-		oa_hdr_init(obj, oa, align_up(sc->alloc.max, 0x1000), OBJ_TOPDATA);
-	}
+	// if(oa->end == 0) {
+	//	oa_hdr_init(obj, oa, align_up(sc->alloc.max, 0x1000), OBJ_TOPDATA);
+	//}
 
-	void *data = oa_hdr_alloc(obj, oa, itemlen);
+	/* TODO: need to switch to new alloc API */
+	void *data = NULL;
+	twz_alloc(obj, itemlen, &data, 0, NULL, NULL);
 	if(!data) {
 		return -ENOMEM;
 	}
@@ -288,8 +285,7 @@ int twz_sctx_add(twzobj *obj,
 
 	int r = __sctx_add_bucket(sc, target, data, pmask, gatemask, 0);
 	if(r) {
-		/* TODO: twz_ptr_local for free? */
-		oa_hdr_free(obj, oa, twz_ptr_local(data));
+		/* TODO:free */
 	}
 
 	return r;

@@ -5,6 +5,7 @@
 #include <stdio.h>
 
 /* access to the twizzler object API */
+#include <twz/alloc.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 
@@ -143,23 +144,28 @@ void example_allocate_from_object(void)
 		return;
 
 	/* init the object to respond to the default allocation API */
-	twz_object_build_alloc(&obj, 0);
+	twz_object_init_alloc(&obj, sizeof(struct example_hdr));
 
 	/* that second argument is an offset within the object starting from the base (as returned by
 	 * twz_object_base). This is to enable the user to have some data at the start of the object
 	 * (like some common header) */
+	struct example_hdr *hdr = twz_object_base(&obj);
 
-	/* now we can allocate from the object. Here's some size-8 data. */
-	void *p = twz_object_alloc(&obj, 8);
+	/* now we can allocate from the object. Here's some size-8 data. Note this API requires
+	 * ownership of the allocated data to be transferred as part of the allocation. */
+	int r = twz_alloc(&obj, 8, &hdr->some_data, 0, NULL, NULL);
+	printf("Allocated: %d %p\n", r, hdr->some_data);
 
 	/* note that the returned pointer is a persistent pointer! So it must be LEA'd to be used: */
-	void *v = twz_object_lea(&obj, p);
+	void *v = twz_object_lea(&obj, hdr->some_data);
 	(void)v;
 
 	/* to free, you can pass either the p-ptr or the v-ptr to free. This is because Twizzler will
 	 * assume you're referring to some data within the object you pass to it, so don't screw that
-	 * up! :) */
-	twz_object_free(&obj, p); // or v
+	 * up! :)
+	 *
+	 * Also note that this requires ownership transfer as part of the deallocation */
+	twz_free(&obj, hdr->some_data, &hdr->some_data, 0); // or v
 }
 
 int main(int argc, char **argv)

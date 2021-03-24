@@ -1,10 +1,10 @@
+#include <errno.h>
 #include <libgen.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <twz/_err.h>
-#include <twz/btree.h>
 #include <twz/hier.h>
 #include <twz/name.h>
 #include <twz/obj.h>
