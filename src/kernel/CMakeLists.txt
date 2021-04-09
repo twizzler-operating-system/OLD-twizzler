@@ -254,6 +254,8 @@ SET(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> \
 	${CRTI_OBJ} \
 	${CRTBEGIN_OBJ} \
 	<OBJECTS> -o <TARGET> <LINK_LIBRARIES> \
+	${CMAKE_SOURCE_DIR}/tools/libtomcrypt-kernel/libtomcrypt.a \
+	${CMAKE_SOURCE_DIR}/tools/libtommath-kernel/libtommath.a \
 	${CRTEND_OBJ} \
 	${CRTN_OBJ}")
 
@@ -269,8 +271,8 @@ target_link_options(kernel PRIVATE
 
 set_target_properties(kernel PROPERTIES LINK_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/link.ld;${CRTI_OBJ};${CRTN_OBJ})
 
-target_link_libraries(kernel ${CMAKE_SOURCE_DIR}/tools/libtomcrypt-kernel/libtomcrypt.a)
-target_link_libraries(kernel ${CMAKE_SOURCE_DIR}/tools/libtommath-kernel/libtommath.a)
+#target_link_libraries(kernel ${CMAKE_SOURCE_DIR}/tools/libtomcrypt-kernel/libtomcrypt.a)
+#target_link_libraries(kernel ${CMAKE_SOURCE_DIR}/tools/libtommath-kernel/libtommath.a)
 target_link_libraries(kernel "${COMPILER_RT}")
 
 target_include_directories(kernel PRIVATE ${CMAKE_SOURCE_DIR}/tools/libtommath-kernel)
