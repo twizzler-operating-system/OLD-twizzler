@@ -3,14 +3,21 @@
 
 INSTANCES=$@
 
-if [ ! -f $BUILDDIR/pmem.img ]; then
-	touch $BUILDDIR/pmem.img
-	truncate -s 4G $BUILDDIR/pmem.img
+QEMU="qemu-system-x86_64 -cpu host,migratable=false,host-cache-info=true,host-phys-bits -machine
+q35,nvdimm,kernel-irqchip=on -device intel-iommu,intremap=off,aw-bits=48,x-scalable-mode=true -m
+1024,slots=2,maxmem=8G -object memory-backend-file,id=mem1,share=on,mem-path=pmem.img,size=4G
+-device nvdimm,id=nvdimm1,memdev=mem1"
+
+if [ ! -f pmem.img ]; then
+	touch pmem.img
+	truncate -s 4G pmem.img
 fi
 
 if [[ "$INSTANCES" == "" ]]; then
-	echo $QEMU
-	$QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom $BUILDDIR/boot.iso -serial mon:stdio -drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 -device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
+	#echo $QEMU
+	$QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom boot.iso -serial mon:stdio $QEMU_FLAGS
+	#-device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
+	#-drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 
 	exit
 fi
 
