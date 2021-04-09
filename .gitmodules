@@ -18,3 +18,7 @@
 	path = src/lib/musl
 	url = git@github.com:twizzler-operating-system/musl-twizzler.git
 	branch = twizzler
+[submodule "tools/llvm-project"]
+	path = tools/llvm-project
+	url = git@github.com:twizzler-operating-system/llvm-project.git
+	branch = twizzler

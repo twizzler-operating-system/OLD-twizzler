@@ -51,6 +51,10 @@ emulator).
 Building Twizzer the First Time
 -------------------------------
 
+Before you begin! Make sure your git submodules are updated:
+
+   git submodule update --init --recursive
+
 *Part 1 -- The Toolchain*
 
 First, we need to make a build directory in which all (*cough* er, most) of the build artifacts will
