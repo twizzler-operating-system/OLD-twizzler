@@ -266,8 +266,8 @@ ExternalProject_Add(
 		"-DCMAKE_BUILD_TYPE:STRING=Release"
 		"-DCMAKE_TOOLCHAIN_FILE:STRING=${TOOLCHAIN_FILE}"
 		"-DCMAKE_INSTALL_PREFIX:STRING=${SYSROOT_DIR}/usr"
-        "-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} -nostdlib"
-        "-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} -nostdlib"
+		"-DCMAKE_C_FLAGS:STRING=${CMAKE_C_FLAGS} -nostdlib -fPIC"
+		"-DCMAKE_CXX_FLAGS:STRING=${CMAKE_CXX_FLAGS} -nostdlib -fPIC"
     SOURCE_DIR
         "${CMAKE_SOURCE_DIR}/llvm-project/libunwind"
     USES_TERMINAL_CONFIGURE ON
@@ -381,3 +381,32 @@ ExternalProject_Add(
 	LOG_INSTALL ON
 	BUILD_ALWAYS ${REBUILD_TOOLCHAIN}
 )
+
+ExternalProject_Add(
+	"rustc"
+	DEPENDS
+	"twz-bootstrap"
+	"twix-bootstrap"
+	"musl"
+	"libunwind"
+	"libc++"
+	"compiler-rt-phase-2"
+	SOURCE_DIR "${CMAKE_SOURCE_DIR}/rust"
+	CONFIGURE_COMMAND
+	  "sed"
+	  "-e" "s|@sysroot@|${SYSROOT_DIR}|g"
+	  "-e" "s|@toolchain@|${TOOLCHAIN_DIR}|g"
+	  "-e" "s|@target@|${TWIZZLER_TRIPLE}|g"
+	  "${CMAKE_SOURCE_DIR}/rust-config.toml"
+	  ">" "${CMAKE_BINARY_DIR}/rust/config.toml"
+	  BINARY_DIR "${CMAKE_BINARY_DIR}/rust"
+	  BUILD_COMMAND
+	  "${CMAKE_SOURCE_DIR}/rust/x.py" "build" "-j" "${BUILD_CORES}"
+	  INSTALL_COMMAND
+	  "${CMAKE_SOURCE_DIR}/rust/x.py" "install" "-j" "${BUILD_CORES}"
+	  USES_TERMINAL_CONFIGURE ON
+	  USES_TERMINAL_BUILD ON
+	  USES_TERMINAL_INSTALL ON
+	  BUILD_ALWAYS ${REBUILD_TOOLCHAIN}
+)
+
