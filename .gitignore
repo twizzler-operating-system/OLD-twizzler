@@ -1,11 +1,2 @@
-projects/*/build
-projects/*/config.mk
-bx_enh_dbg.ini
 .lvimrc
-.toolchain
-toolchain
-serial.txt
-tools/gcc-*
-tools/binutils-*
-tools/build-*
-.tc
+build
