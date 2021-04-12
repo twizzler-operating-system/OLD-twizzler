@@ -136,6 +136,7 @@ static int __internal_do_exec(twzobj *view,
 	str -= strlen(exename) + 1 + 1 + strlen("TWZEXENAME");
 	strcpy(str, "TWZEXENAME=");
 	strcpy(str + strlen("TWZEXENAME="), exename);
+	char *copied_exename = str + strlen("TWZEXENAME=");
 	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
 
 	vector[v++] = 0;
@@ -157,6 +158,9 @@ static int __internal_do_exec(twzobj *view,
 
 	vector[v++] = AT_PHDR;
 	vector[v++] = (long)phdr;
+
+	vector[v++] = AT_EXECFN;
+	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, copied_exename);
 
 	vector[v++] = AT_UID;
 	vector[v++] = 0;

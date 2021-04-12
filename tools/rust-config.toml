@@ -257,12 +257,12 @@ compiler-docs = false
 # which are used to install Rust and Cargo together. This is disabled by
 # default. The `tools` option (immediately below) specifies which tools should
 # be built if `extended = true`.
-#extended = false
+extended = false
 
 # Installs chosen set of extended tools if `extended = true`. By default builds all.
 # If chosen tool failed to build the installation fails. If `extended = false`, this
 # option is ignored.
-#tools = ["cargo", "rls", "clippy", "rustfmt", "analysis", "src"]
+# tools = ["cargo", "rustup"]
 
 # Verbosity level: 0 == not verbose, 1 == verbose, 2 == very verbose
 #verbose = 0
@@ -311,7 +311,7 @@ prefix = "@toolchain@"
 
 # Where to install system configuration files
 # If this is a relative path, it will get installed in `prefix` above
-#sysconfdir = "/etc"
+sysconfdir = "etc"
 
 # Where to install documentation in `prefix` above
 #docdir = "share/doc/rust"
@@ -333,7 +333,7 @@ prefix = "@toolchain@"
 
 # Where to install local state (currently unused)
 # If this is a relative path, it will get installed in `prefix` above
-#localstatedir = "/var/lib"
+localstatedir = "var/lib"
 
 # =============================================================================
 # Options for compiling Rust code itself
@@ -434,7 +434,7 @@ prefix = "@toolchain@"
 # Debuginfo level for the standard library.
 #
 # Defaults to rust.debuginfo-level value
-#debuginfo-level-std = 0
+debuginfo-level-std = 1
 
 # Debuginfo level for the tools.
 #
@@ -457,7 +457,7 @@ prefix = "@toolchain@"
 #backtrace = true
 
 # Whether to always use incremental compilation when building rustc
-#incremental = false
+incremental = true
 
 # Build a multi-threaded rustc
 # FIXME(#75760): Some UI tests fail when this option is enabled.

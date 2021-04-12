@@ -2,12 +2,29 @@ cmake_minimum_required(VERSION 3.14)
 
 project(Twizzler VERSION 0.1 DESCRIPTION "Twizzler OS")
 
+#include(FetchContent)
+
+#set(Rust_COMPILER ${TOOLCHAIN_DIR}/bin/rustc)
+#set(Rust_CARGO_TARGET ${TWIZZLER_TRIPLE})
+#set(Rust_ROOT ${TOOLCHAIN_DIR}/lib/rustlib/x86_64-pc-twizzler-musl)
+#FetchContent_Declare(
+#	Corrosion
+#	GIT_REPOSITORY https://github.com/AndrewGaspar/corrosion.git
+#	GIT_TAG origin/master # Optionally specify a version tag or branch here
+#)
+
+#FetchContent_MakeAvailable(Corrosion)
+
+set(ENV{RUSTFLAGS} "--target=${TWIZZLER_TRIPLE} -C link-args=\"--sysroot ${SYSROOT_DIR}\" -C linker=${TOOLCHAIN_DIR}/bin/clang")
+
 add_compile_options("-mclwb" "-mclflushopt")
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 	add_compile_options("-g" "-DDEBUG" "-Og" "-Werror")
+	set(CARGO_BUILD_TYPE "debug")
 elseif("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
 	add_compile_options("-g" "-O3")
+	set(CARGO_BUILD_TYPE "release")
 else()
 	message(FATAL_ERROR "Please specify CMAKE_BUILD_TYPE as either `Release' or `Debug'")
 endif()
@@ -64,6 +81,11 @@ add_subdirectory(drivers/nvme)
 add_subdirectory(drivers/serial)
 
 add_subdirectory(playground)
+
+
+#"CARGO_TERM_VERBOSE=true"
+
+add_rust_target(rust-test playground/rust-test)
 
 add_custom_command(
 	OUTPUT
