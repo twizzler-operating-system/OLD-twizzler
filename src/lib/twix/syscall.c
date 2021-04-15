@@ -72,10 +72,28 @@ long linux_sys_unlink(char *path)
 
 #define LINUX_SYS_mremap 25
 
+#include <sys/mman.h>
+long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t off);
 long linux_sys_mremap(void *old, size_t old_sz, size_t new_sz, int flags, void *new)
 {
-	twix_log("mremap: %p %lx %lx %x %p\n", old, old_sz, new_sz, flags, new);
-	return (long)old;
+	if(old_sz > new_sz)
+		return (long)old;
+
+	if(flags & 2)
+		return -EINVAL;
+
+	if(!(flags & 1)) {
+		return -EINVAL;
+	}
+
+	long p = linux_sys_mmap(NULL, new_sz, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+	if(p < 0)
+		return p;
+
+	memcpy((void *)p, old, old_sz);
+
+	// twix_log("mremap: %p %lx %lx %x %p\n", old, old_sz, new_sz, flags, new);
+	return p;
 	return -ENOSYS;
 }
 

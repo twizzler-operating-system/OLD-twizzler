@@ -4,8 +4,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <twz/debug.h>
 #include <twz/sys.h>
 static bool disable_backtrace = false;
+
+__attribute__((weak)) extern void __twz_rust_twz_init(void);
+
+__attribute__((constructor)) void __init_langs()
+{
+	if(__twz_rust_twz_init) {
+		__twz_rust_twz_init();
+	}
+}
 
 __attribute__((noreturn)) void libtwz_panic(const char *s, ...)
 {
@@ -20,7 +30,6 @@ __attribute__((noreturn)) void libtwz_panic(const char *s, ...)
 	abort();
 }
 
-#include <twz/debug.h>
 #if __has_include(<backtrace.h>)
 #include <backtrace-supported.h>
 #include <backtrace.h>

@@ -252,9 +252,14 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
 	/* we provide default handling for FAULT_OBJECT that always runs. We also handle double-faults
 	 * here explicitly. Unlike FAULT_OBJECT, a thread cannot catch double-faults, and they are
 	 * fatal. */
-	//debug_printf("handling a fault %d %p\n", fault, _fault_table);
+	// debug_printf("handling a fault %d %p\n", fault, _fault_table);
+
 	if(fault == FAULT_OBJECT) {
 		if(__fault_obj_default(fault, _info) < 0) {
+			if(_fault_table[fault].fn) {
+				_fault_table[fault].fn(fault, _info, _fault_table[fault].userdata);
+				return;
+			}
 			_twz_default_exception_handler(fault, _info);
 			fprintf(stderr, "  -- FAULT %d: unhandled.\n", fault);
 			__twz_fault_unhandled_print(fault, _info);
@@ -268,13 +273,13 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
 		return;
 	}
 
-	//debug_printf("            handling a fault %d %p\n", fault, _fault_table[fault].fn);
+	// debug_printf("            handling a fault %d %p\n", fault, _fault_table[fault].fn);
 	if((fault >= NUM_FAULTS || !_fault_table[fault].fn) && fault != FAULT_OBJECT) {
 		if(fault == 7) {
 			__twix_signal_handler(fault, _info, NULL);
 			return;
 		}
-		//debug_printf("                              handling a fault %d\n", fault);
+		// debug_printf("                              handling a fault %d\n", fault);
 		_twz_default_exception_handler(fault, _info);
 		fprintf(stderr, "  -- FAULT %d: unhandled.\n", fault);
 		__twz_fault_unhandled_print(fault, _info);
@@ -295,12 +300,13 @@ __attribute__((used)) void __twz_fault_entry_c(int fault, void *_info, struct fa
  * were a function call. So set the CFA to 16 off RBP, as normal (this looks like a function without
  * a prologue; the prologue is provided by the kernel) */
 asm(" \
+		.cfi_sections .debug_frame ;\
         .extern __twz_fault_entry_c ;\
 		.globl __twz_fault_entry;\
 		.type __twz_fault_entry, @function;\
         __twz_fault_entry: ;\
 						.cfi_startproc;\
-						.cfi_def_cfa rbp, 16;\
+						.cfi_def_cfa rbp, 144; \
                         pushq %rax;\
                         pushq %rbx;\
                         pushq %rcx;\
@@ -359,6 +365,15 @@ __attribute__((used, visibility("default"))) void __twz_fault_init(void)
 	}
 }
 
+void twz_fault_set_upcall_entry(void *p, void *pd)
+{
+	struct twzview_repr *repr = (struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW);
+	repr->fault_mask = 0;
+	repr->fault_flags = 0;
+	repr->fault_handler = p;
+	repr->dbl_fault_handler = pd;
+}
+
 void *twz_fault_get_userdata(int fault)
 {
 	return _fault_table[fault].userdata;
@@ -366,7 +381,7 @@ void *twz_fault_get_userdata(int fault)
 
 int twz_fault_set(int fault, void (*fn)(int, void *, void *), void *userdata)
 {
-	//debug_printf("setting fault %d -> %p %p\n", fault, _fault_table, fn);
+	debug_printf("setting fault %d -> %p %p\n", fault, _fault_table, fn);
 	_fault_table[fault].fn = fn;
 	_fault_table[fault].userdata = userdata;
 	/*

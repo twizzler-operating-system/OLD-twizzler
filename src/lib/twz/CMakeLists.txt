@@ -10,12 +10,14 @@ endif()
 
 set_target_properties(twz_static PROPERTIES OUTPUT_NAME twz)
 set_target_properties(twz_static PROPERTIES VERSION ${PROJECT_VERSION})
-target_compile_options(twz_static PRIVATE "-include" "libtwz.h" "-fPIC" "-mclwb" "-mclflushopt")
+target_compile_options(twz_static PRIVATE "-include" "libtwz.h" "-fPIC" "-mclwb" "-mclflushopt"
+	"-fexceptions" "-fno-omit-frame-pointer" "-fdwarf-exceptions" )
 target_link_options(twz_static PRIVATE "-Wl,-z,notext")
 if(BUILD_SHARED_LIBS)
 set_target_properties(twz PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(twz PROPERTIES SOVERSION 1)
-target_compile_options(twz PRIVATE "-include" "libtwz.h" "-fPIC")
+target_compile_options(twz PRIVATE "-include" "libtwz.h" "-fPIC" "-fexceptions"
+	"-fno-omit-frame-pointer" "-fdwarf-exceptions")
 target_link_options(twz PRIVATE "-Wl,-z,notext")
 endif()
 
