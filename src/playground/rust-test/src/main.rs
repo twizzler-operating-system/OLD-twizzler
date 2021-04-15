@@ -102,14 +102,8 @@ struct Foo {
     p: twz::ptr::Pptr<Foo>,
 }
 
-#[allow(unconditional_panic)]
 fn new_test()
 {
-    unsafe {
-        let obj = twz::obj::Twzobj::init_guid(123123123).unwrap();
-        let base = obj.base::<Foo>();
-        println!("foo.x = {}", base.x);
-    };
     let foo = Foo {
         x: 42, p: twz::ptr::Pptr::new_null(),
     };

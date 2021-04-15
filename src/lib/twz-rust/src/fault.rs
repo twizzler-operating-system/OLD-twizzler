@@ -72,10 +72,32 @@ struct ObjectInfo {
     pad: u64,
 }
 
+macro_rules! flag_print {
+    ( $fm:expr, $fl:expr, $n:expr, $first:expr ) => {
+        if $fl & $n > 0 {
+            if !$first {
+                write!($fm, " | ");
+            }
+            $first = false;
+            write!($fm, stringify!($n))?;
+        }
+    };
+}
+
 impl std::fmt::Debug for ObjectInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ObjectInfo {{ id: {:x}, ip: {:x}, addr: {:x}, flags: {:x} }}",
-               self.id, self.ip, self.addr, self.flags)
+        write!(f, "ObjectInfo {{ id: {:x}, ip: {:x}, addr: {:x}, flags: ",
+               self.id, self.ip, self.addr)?;
+        let mut first = true;
+        flag_print!(f, self.flags, OBJECT_READ, first);
+        flag_print!(f, self.flags, OBJECT_WRITE, first);
+        flag_print!(f, self.flags, OBJECT_EXEC, first);
+        flag_print!(f, self.flags, OBJECT_NOMAP, first);
+        flag_print!(f, self.flags, OBJECT_EXIST, first);
+        flag_print!(f, self.flags, OBJECT_INVALID, first);
+        flag_print!(f, self.flags, OBJECT_UNKNOWN, first);
+        flag_print!(f, self.flags, OBJECT_UNSIZED, first);
+        Ok(())
     }
 }
 
@@ -206,48 +228,49 @@ enum Fault {
 
 fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std::ffi::c_void) {
     let fault = unsafe { match(fid.try_into()) {
-        Ok(FaultTypeID::Object) => Fault::Object(*(std::mem::transmute::<*mut std::ffi::c_void, &ObjectInfo>(info))),
-        Ok(FaultTypeID::Null) => Fault::Null(*(std::mem::transmute::<*mut std::ffi::c_void, &NullInfo>(info))),
+        Ok(FaultTypeID::Object)    => Fault::Object(*(std::mem::transmute::<*mut std::ffi::c_void, &ObjectInfo>(info))),
+        Ok(FaultTypeID::Null)      => Fault::Null(*(std::mem::transmute::<*mut std::ffi::c_void, &NullInfo>(info))),
         Ok(FaultTypeID::Exception) => Fault::Exception(*(std::mem::transmute::<*mut std::ffi::c_void, &ExceptionInfo>(info))),
-        Ok(FaultTypeID::Sctx) => Fault::Sctx(*(std::mem::transmute::<*mut std::ffi::c_void, &SctxInfo>(info))),
-        Ok(FaultTypeID::Page) => Fault::Page(*(std::mem::transmute::<*mut std::ffi::c_void, &PageInfo>(info))),
-        Ok(FaultTypeID::Pptr) => Fault::Pptr(*(std::mem::transmute::<*mut std::ffi::c_void, &PptrInfo>(info))),
-        Ok(FaultTypeID::Signal) => Fault::Signal(*(std::mem::transmute::<*mut std::ffi::c_void, &SignalInfo>(info))),
-        Ok(FaultTypeID::Double) => {
+        Ok(FaultTypeID::Sctx)      => Fault::Sctx(*(std::mem::transmute::<*mut std::ffi::c_void, &SctxInfo>(info))),
+        Ok(FaultTypeID::Page)      => Fault::Page(*(std::mem::transmute::<*mut std::ffi::c_void, &PageInfo>(info))),
+        Ok(FaultTypeID::Pptr)      => Fault::Pptr(*(std::mem::transmute::<*mut std::ffi::c_void, &PptrInfo>(info))),
+        Ok(FaultTypeID::Signal)    => Fault::Signal(*(std::mem::transmute::<*mut std::ffi::c_void, &SignalInfo>(info))),
+        Ok(FaultTypeID::Double)    => {
             let mut subfault_tmp = std::mem::transmute::<*mut std::ffi::c_void, &DoubleFaultInfo<()>>(info);
             if (subfault_tmp.fault as i32).try_into() == Ok(FaultTypeID::Double) {
                 panic!("encountered double fault while handing double fault");
             }
-            __twz_fault_handler(subfault_tmp.fault as i32, std::mem::transmute::<&(), *mut std::ffi::c_void>(&subfault_tmp.data), std::ptr::null_mut());
-            return;
+            panic!("unhandled upcall double fault {:?}", subfault_tmp);
         },
         Err(e) => panic!("encountered unknown fault type {}", e),
     }};
-    panic!("{:#?}", fault);
-
+    panic!("unhandled upcall fault\n     {:?}\n     ", fault);
 }
 
 extern "C" {
     fn abort() -> !;
 }
 
-
-
 static mut __fault_unwinding: bool = false;
 
 #[no_mangle]
 pub extern fn __twz_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std::ffi::c_void) {
+    /* If we encounter problems when panicking, the runtime will issue an abort via illegal
+     * instruction. Ensure that we don't end up in an infinite loop, there. */
     unsafe {
         if __fault_unwinding && fid == 2 {
             eprintln!("encountered abort during unwinding, exiting.");
             libtwz::twz_c::twz_thread_exit(fid + 256);
         }
     }
+    /* We need to catch any unwinding here so we can mark the __fault_unwinding bool as true. */
     let res = std::panic::catch_unwind( || 
                                         catching_fault_handler(fid, info, data));
     if let Err(err) = res {
         unsafe {
             __fault_unwinding = true;
+            /* make sure that the libtwz runtime also doesn't pass us any exception handling in
+             * case of abort causing that. */
             libtwz::twz_c::twz_fault_set(FaultTypeID::Exception as i32, None, std::ptr::null_mut());
             std::panic::resume_unwind(err);
             abort();
@@ -255,48 +278,103 @@ pub extern fn __twz_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *
     }
 }
 
+#[repr(C)]
+struct FaultFrame {
+	flags: u64,
+	pad: u64,
+	r15: u64,
+	r14: u64,
+	r13: u64,
+	r12: u64,
+	r11: u64,
+	r10: u64,
+	r9: u64,
+	r8: u64,
+	rbp: u64,
+	rdx: u64,
+	rcx: u64,
+	rbx: u64,
+	rax: u64,
+	rdi: u64,
+	rsi: u64,
+	rsp: u64,
+}
+
+#[no_mangle]
+fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _frame: FaultFrame)
+{
+    __twz_fault_handler(fid, info, std::ptr::null_mut());
+}
+
+pub(crate) fn __twz_fault_runtime_init()
+{
+    unsafe {
+        /* tell libtwz to call us for all of these faults */
+        libtwz::twz_c::twz_fault_set(6, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(5, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(4, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(3, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(2, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(1, Some(__twz_fault_handler), std::ptr::null_mut());
+        libtwz::twz_c::twz_fault_set(0, Some(__twz_fault_handler), std::ptr::null_mut());
+
+        /* but also, we can handle the upcalls ourselves, so lets register our upcall handler */
+        libtwz::twz_c::twz_fault_set_upcall_entry(Some(__twz_fault_upcall_entry), Some(__twz_fault_upcall_entry));
+    }
+}
+
 #[naked]
 pub extern fn __twz_fault_upcall_entry() {
     unsafe {
+        /* The kernel will enter our upcall handler here when passing us a fault. We need to
+         * preseve our registers from whereever we _were_ executing. Additionally, the kernel will
+         * have subtracted a significant amount off the stack pointer to get us to this point
+         * (becuase of the red zone), so we'll need to adjust for the old stack frame being 128 +
+         * mumble bytes above what we're given here. The CFI directives are for exception
+         * unwinding, allowing the unwinder to find frame info. */
         #[inline(never)]
         asm!(".cfi_endproc",
-                        ".cfi_startproc",
-						".cfi_def_cfa rbp, 144",
-                        "push rax",
-                        "push rbx",
-                        "push rcx",
-                        "push rdx",
-                        "push rbp",
-                        "push r8",
-                        "push r9",
-                        "push r10",
-                        "push r11",
-                        "push r12",
-                        "push r13",
-                        "push r14",
-                        "push r15",
-                        "mov rdx, rsp",
-                        "call __twz_fault_handler",
-                        "pop r15",
-                        "pop r14",
-                        "pop r13",
-                        "pop r12",
-                        "pop r11",
-                        "pop r10",
-                        "pop r9",
-                        "pop r8",
-                        "pop rbp",
-                        "pop rdx",
-                        "pop rcx",
-                        "pop rbx",
-                        "pop rax",
-                        "pop rdi",
-                        "pop rsi",
-                        "pop rsp",
-                        "sub rsp, 144",
-                        "pop rbp",
-                        "add rsp, 136",
-                        "jmp -136[rsp]",
-        );
+             ".cfi_startproc",
+             ".cfi_def_cfa rbp, 144",
+             "push rax",
+             "push rbx",
+             "push rcx",
+             "push rdx",
+             "push rbp",
+             "push r8",
+             "push r9",
+             "push r10",
+             "push r11",
+             "push r12",
+             "push r13",
+             "push r14",
+             "push r15",
+             "push r15",
+             "pushf",
+             "mov rdx, rsp",
+             "call __twz_fault_upcall_entry_rust",
+             "popf",
+             "pop r15",
+             "pop r15",
+             "pop r14",
+             "pop r13",
+             "pop r12",
+             "pop r11",
+             "pop r10",
+             "pop r9",
+             "pop r8",
+             "pop rbp",
+             "pop rdx",
+             "pop rcx",
+             "pop rbx",
+             "pop rax",
+             "pop rdi",
+             "pop rsi",
+             "pop rsp",
+             "sub rsp, 144",
+             "pop rbp",
+             "add rsp, 136",
+             "jmp -136[rsp]",
+             );
     }
 }

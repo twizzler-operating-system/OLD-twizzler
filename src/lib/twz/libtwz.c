@@ -8,12 +8,12 @@
 #include <twz/sys.h>
 static bool disable_backtrace = false;
 
-__attribute__((weak)) extern void __twz_rust_twz_init(void);
+__attribute__((weak)) extern void __twz_libtwz_runtime_init(void);
 
-__attribute__((constructor)) void __init_langs()
+__attribute__((constructor)) void __init_lang_runtme()
 {
-	if(__twz_rust_twz_init) {
-		__twz_rust_twz_init();
+	if(__twz_libtwz_runtime_init) {
+		__twz_libtwz_runtime_init();
 	}
 }
 

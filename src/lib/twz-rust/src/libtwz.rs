@@ -9,7 +9,7 @@ pub(crate) mod twz_c {
         pub(crate) fn twz_object_init_name(data: &mut [i8; 1024], name: *const i8, flags: i32) -> i32;
         pub(crate) fn twz_object_base(data: &mut [i8; 1024]) -> *mut i8;
         pub(crate) fn __twz_object_lea_foreign(data: &mut [i8; 1024], offset: u64, mask: u32) -> *mut i8;
-        pub(crate) fn twz_object_from_ptr_cpp(p: *const i8, data: &mut [i8; 1024]);
+        pub(crate) fn twz_object_from_ptr_cpp(p: *const i8, data: *mut std::ffi::c_void);
         pub(crate) fn twz_view_allocate_slot(_obj: *mut std::ffi::c_void, id: LibtwzObjID, flags: u32) -> i64;
         pub(crate) fn twz_alloc(obj: *mut std::ffi::c_void,
                                 len: usize,

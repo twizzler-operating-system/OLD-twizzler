@@ -49,7 +49,10 @@ impl Twzobj {
 
     pub(crate) fn alloc_libtwz_data(&mut self) {
         if self.libtwz_data.is_none() {
-            self.libtwz_data = Some(LibtwzData::new())
+            self.libtwz_data = Some(LibtwzData::new());
+            unsafe {
+                libtwz::twz_c::twz_object_from_ptr_cpp(std::mem::transmute::<&i8, *const i8>(self.base_unchecked::<i8>()), self.libtwz_data.as_mut().unwrap().data as *mut std::ffi::c_void);
+            }
         }
     }
 

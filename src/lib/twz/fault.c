@@ -381,7 +381,7 @@ void *twz_fault_get_userdata(int fault)
 
 int twz_fault_set(int fault, void (*fn)(int, void *, void *), void *userdata)
 {
-	debug_printf("setting fault %d -> %p %p\n", fault, _fault_table, fn);
+	// debug_printf("setting fault %d -> %p %p\n", fault, _fault_table, fn);
 	_fault_table[fault].fn = fn;
 	_fault_table[fault].userdata = userdata;
 	/*

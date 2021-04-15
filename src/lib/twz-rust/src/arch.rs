@@ -4,7 +4,7 @@ pub(crate) fn has_clwb() -> bool {
 }
 
 pub(crate) fn has_clflushopt() -> bool {
-    true
+    false
 }
 
 pub(crate) const CACHE_LINE_SIZE: usize = 64;
