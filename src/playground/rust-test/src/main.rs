@@ -141,5 +141,11 @@ fn access_test() {
 
 fn main()
 {
-    new_test();
+    let handler = std::thread::spawn(|| {
+        println!("Hello from thread!");
+    });
+    println!("Hello from parent!");
+    handler.join();
+    println!("Thread joined");
+    //new_test();
 }

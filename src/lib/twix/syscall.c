@@ -508,8 +508,30 @@ int try_twix_version2(struct twix_register_frame *frame,
   long a5,
   long *ret);
 
+static int env_state = 0;
+#define ENV_CHECKED 1
+#define ENV_SHOW_UNIMP 2
+#define ENV_SHOW_ALL 4
+static void check_env_state()
+{
+	if(env_state & ENV_CHECKED)
+		return;
+	env_state |= ENV_CHECKED;
+	char *s = getenv("TWIX_LOG");
+	if(!s)
+		return;
+	if(!strcasecmp(s, "missing") || !strcmp(s, "1") || !strcasecmp(s, "err")) {
+		env_state |= ENV_SHOW_UNIMP;
+	}
+	if(!strcasecmp(s, "all") || !strcmp(s, "2")) {
+		env_state |= ENV_SHOW_ALL;
+		env_state |= ENV_SHOW_UNIMP;
+	}
+}
+
 long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5)
 {
+	check_env_state();
 	__linux_init();
 	long t2ret;
 	int t2res = try_twix_version2(NULL, num, a0, a1, a2, a3, a4, a5, &t2ret);
@@ -517,10 +539,12 @@ long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5
 		return t2ret;
 	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
-#if 1
-		if(num != 12 && num != 13 && num != 14)
-			twix_log("Unimplemented Linux system call: %ld (%s)\n", num, syscall_names[num]);
-#endif
+		if(env_state & ENV_SHOW_UNIMP) {
+			if((env_state & ENV_SHOW_ALL) || (num != 12 && num != 13 && num != 14))
+				twix_log("[twix] unimplemented Linux system call: %ld (%s)\n",
+				  num,
+				  num >= 0 && num < stlen ? syscall_names[num] : "");
+		}
 		return -ENOSYS;
 	}
 	if(num == LINUX_SYS_clone) {
@@ -531,14 +555,16 @@ long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5
 		/* needs frame */
 		return -ENOSYS;
 	}
-	// twix_log(":: %ld: %ld %d\n", num, a0, (int)a2);
-	long r = syscall_table[num](a0, a1, a2, a3, a4, a5);
-	if(r == -ENOSYS || r == -ENOTSUP) {
-		debug_printf(":: syscall feature not implemented %ld\n", num);
+	if(env_state & ENV_SHOW_ALL) {
+		twix_log("[twix] invoked syscall %d (%s)\n", num, syscall_names[num]);
 	}
-	// debug_printf("sc %ld(%s) ret %ld\n", num, syscall_names[num], r);
-	//	if(num != LINUX_SYS_write && num != LINUX_SYS_writev)
-	//		twix_log("sc %ld(%s) ret %ld\n", num, syscall_names[num], r);
+	long r = syscall_table[num](a0, a1, a2, a3, a4, a5);
+	if((r == -ENOSYS || r == -ENOTSUP) && (env_state & ENV_SHOW_UNIMP)) {
+		twix_log("[twix] syscall %snot implemented %ld (%s)\n",
+		  r == -ENOSYS ? "" : "feature ",
+		  num,
+		  syscall_names[num]);
+	}
 	return r;
 }
 
@@ -573,6 +599,7 @@ static long twix_syscall_frame(struct twix_register_frame *frame,
   long a4,
   long a5)
 {
+	check_env_state();
 	__linux_init();
 	long t2ret;
 	int t2res = try_twix_version2(frame, num, a0, a1, a2, a3, a4, a5, &t2ret);
@@ -580,11 +607,16 @@ static long twix_syscall_frame(struct twix_register_frame *frame,
 		return t2ret;
 	}
 	if((size_t)num >= stlen || num < 0 || syscall_table[num] == NULL) {
-#if 1
-		if(num != 12 && num != 13 && num != 14)
-			twix_log("Unimplemented Linux system call: %ld (%s)\n", num, syscall_names[num]);
-#endif
+		if(env_state & ENV_SHOW_UNIMP) {
+			if((env_state & ENV_SHOW_ALL) || (num != 12 && num != 13 && num != 14))
+				twix_log("Unimplemented Linux system call: %ld (%s)\n",
+				  num,
+				  num >= 0 && num < stlen ? syscall_names[num] : "");
+		}
 		return -ENOSYS;
+	}
+	if(env_state & ENV_SHOW_ALL) {
+		twix_log("[twix] invoked syscall %d (%s)\n", num, syscall_names[num]);
 	}
 	if(num == LINUX_SYS_clone) {
 		/* needs frame */
@@ -593,11 +625,13 @@ static long twix_syscall_frame(struct twix_register_frame *frame,
 		/* needs frame */
 		return syscall_table[num](frame, a0, a1, a2, a3, a4, a5);
 	}
-	// twix_log(":: %ld: %ld %d\n", num, a0, (int)a2);
 	long r = syscall_table[num](a0, a1, a2, a3, a4, a5);
-	//	if(num != LINUX_SYS_write && num != LINUX_SYS_writev)
-	//		twix_log("sc %ld(%s) ret %ld\n", num, syscall_names[num], r);
-	// debug_printf("sc %ld(%s) ret %ld\n", num, syscall_names[num], r);
+	if((r == -ENOSYS || r == -ENOTSUP) && (env_state & ENV_SHOW_UNIMP)) {
+		twix_log(":: syscall %snot implemented %ld (%s)\n",
+		  r == -ENOSYS ? "" : "feature ",
+		  num,
+		  syscall_names[num]);
+	}
 	return r;
 }
 

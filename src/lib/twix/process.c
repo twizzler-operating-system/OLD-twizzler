@@ -541,6 +541,18 @@ asm(".global __return_from_fork\n"
 
 extern uint64_t __return_from_clone(void);
 extern uint64_t __return_from_fork(void);
+#define _GNU_SOURCE
+#include <sched.h>
+
+struct thrd_info {
+	objid_t id;
+	void *ctid;
+	struct thrd_info *next, *prev;
+};
+
+struct thrd_info *thrd_list = NULL;
+struct mutex thrd_lock;
+
 long linux_sys_clone(struct twix_register_frame *frame,
   unsigned long flags,
   void *child_stack,
@@ -554,25 +566,57 @@ long linux_sys_clone(struct twix_register_frame *frame,
 		return -ENOSYS;
 	}
 
+	if(thrd_list == NULL) {
+		thrd_list = malloc(sizeof(struct thrd_info));
+		struct twzthread_repr *repr = twz_thread_repr_base();
+		thrd_list->id = repr->reprid;
+		thrd_list->ctid = NULL;
+		thrd_list->next = thrd_list->prev = NULL;
+		mutex_init(&thrd_lock);
+	}
+
 	memcpy((void *)((uintptr_t)child_stack - sizeof(struct twix_register_frame)),
 	  frame,
 	  sizeof(struct twix_register_frame));
 	child_stack = (void *)((uintptr_t)child_stack - sizeof(struct twix_register_frame));
+
+	static _Atomic int __static_thrid = 2;
+	int new_tid = ++__static_thrid;
+	if(flags & CLONE_CHILD_SETTID) {
+		*ctid = new_tid;
+	}
+	void *arg = NULL;
+	if(flags & CLONE_CHILD_CLEARTID) {
+		arg = ctid;
+	}
+
 	/* TODO: track these, and when these exit or whatever, release these as well */
 	struct thread thr;
+	mutex_acquire(&thrd_lock);
 	int r;
 	if((r = twz_thread_spawn(&thr,
 	      &(struct thrd_spawn_args){ .start_func = (void *)__return_from_clone,
-	        .arg = NULL,
+	        .arg = arg,
 	        .stack_base = child_stack,
 	        .stack_size = 8,
 	        .tls_base = (char *)newtls }))) {
+		mutex_release(&thrd_lock);
 		return r;
 	}
 
-	/* TODO */
-	static _Atomic int __static_thrid = 0;
-	return ++__static_thrid;
+	struct thrd_info *new_info = malloc(sizeof(struct thrd_info));
+	new_info->prev = NULL;
+	new_info->next = thrd_list;
+	thrd_list = new_info;
+	new_info->id = thr.tid;
+	new_info->ctid = (flags & CLONE_CHILD_CLEARTID) ? ctid : NULL;
+	mutex_release(&thrd_lock);
+
+	if(flags & CLONE_PARENT_SETTID) {
+		*ptid = new_tid;
+	}
+
+	return new_tid;
 }
 
 #include <sys/mman.h>
@@ -801,9 +845,53 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 	return ret;
 }
 
+#define FUTEX_WAIT 0
+#define FUTEX_WAKE 1
+#define FUTEX_FD 2
+#define FUTEX_REQUEUE 3
+#define FUTEX_CMP_REQUEUE 4
+#define FUTEX_WAKE_OP 5
+#define FUTEX_LOCK_PI 6
+#define FUTEX_UNLOCK_PI 7
+#define FUTEX_TRYLOCK_PI 8
+#define FUTEX_WAIT_BITSET 9
+#define FUTEX_WAKE_BITSET 10
+#define FUTEX_WAIT_REQUEUE_PI 11
+#define FUTEX_CMP_REQUEUE_PI 12
+
+#define FUTEX_PRIVATE_FLAG 128
+#define FUTEX_CLOCK_REALTIME 256
+#define FUTEX_CMD_MASK ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
+
 #include <twz/thread.h>
 long linux_sys_exit(int code)
 {
+	struct twzthread_repr *repr = twz_thread_repr_base();
+	mutex_acquire(&thrd_lock);
+	struct thrd_info *ti = NULL, *next;
+	for(struct thrd_info *info = thrd_list; info; info = next) {
+		next = info->next;
+		if(info->id == repr->reprid) {
+			ti = info;
+			if(info->prev)
+				info->prev->next = info->next;
+			if(info->next)
+				info->next->prev = info->prev;
+			if(info == thrd_list)
+				thrd_list = info->next;
+			break;
+		}
+	}
+	if(!ti && thrd_list) {
+		twix_log("[twix] error in finding thread when exiting\n");
+	}
+	mutex_release(&thrd_lock);
+	if(ti && ti->ctid) {
+		*(_Atomic int *)ti->ctid = 0;
+		linux_sys_futex(ti->ctid, FUTEX_WAKE, 0xffffffff, NULL, NULL, 0);
+	}
+	if(ti)
+		free(ti);
 	twz_thread_exit(code);
 	return 0;
 }
@@ -1064,25 +1152,6 @@ long linux_sys_wait4(long pid, int *wstatus, int options, struct rusage *rusage)
 }
 
 #include <twz/debug.h>
-
-#define FUTEX_WAIT 0
-#define FUTEX_WAKE 1
-#define FUTEX_FD 2
-#define FUTEX_REQUEUE 3
-#define FUTEX_CMP_REQUEUE 4
-#define FUTEX_WAKE_OP 5
-#define FUTEX_LOCK_PI 6
-#define FUTEX_UNLOCK_PI 7
-#define FUTEX_TRYLOCK_PI 8
-#define FUTEX_WAIT_BITSET 9
-#define FUTEX_WAKE_BITSET 10
-#define FUTEX_WAIT_REQUEUE_PI 11
-#define FUTEX_CMP_REQUEUE_PI 12
-
-#define FUTEX_PRIVATE_FLAG 128
-#define FUTEX_CLOCK_REALTIME 256
-#define FUTEX_CMD_MASK ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
-
 long linux_sys_futex(int *uaddr,
   int op,
   int val,
