@@ -176,5 +176,12 @@ static unsigned int rdrand_get_bytes(unsigned int n, unsigned char *dest)
 long linux_sys_getrandom(char *buf, size_t len, unsigned int flags)
 {
 	(void)flags;
+	/* TODO: use a csprng */
 	return rdrand_get_bytes(len, (unsigned char *)buf);
+}
+
+/* musl didn't add this till later, so we'll provide it ourselves for now */
+ssize_t getrandom(void *buf, size_t buflen, unsigned int flags)
+{
+	return linux_sys_getrandom(buf, buflen, flags);
 }
