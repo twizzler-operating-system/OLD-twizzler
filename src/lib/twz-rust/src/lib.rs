@@ -7,6 +7,7 @@ mod fault;
 pub mod ptr;
 pub mod obj;
 mod persist;
+pub mod queue;
 
 #[no_mangle]
 pub extern fn __twz_libtwz_runtime_init()
@@ -17,6 +18,7 @@ pub extern fn __twz_libtwz_runtime_init()
 #[derive(Debug)]
 pub enum TxResultErr<E> {
     UserErr(E),
+    OSError(i32),
     OutOfLog,
 }
 

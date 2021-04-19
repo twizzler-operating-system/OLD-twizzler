@@ -13,12 +13,11 @@ enum FaultTypeID {
     Signal = 7
 }
 
-use std::convert::TryFrom;
 use std::convert::TryInto;
 impl std::convert::TryFrom<i32> for FaultTypeID {
     type Error = i32;
     fn try_from(val: i32) -> Result<Self, Self::Error> {
-        match(val) {
+        match val {
             0 => Ok(FaultTypeID::Object),
             1 => Ok(FaultTypeID::Null),
             2 => Ok(FaultTypeID::Exception),
@@ -76,10 +75,12 @@ macro_rules! flag_print {
     ( $fm:expr, $fl:expr, $n:expr, $first:expr ) => {
         if $fl & $n > 0 {
             if !$first {
-                write!($fm, " | ");
+                write!($fm, " | ")?;
             }
             $first = false;
-            write!($fm, stringify!($n))?;
+            write!($fm, stringify!($n))
+        } else {
+            Ok(())
         }
     };
 }
@@ -89,14 +90,15 @@ impl std::fmt::Debug for ObjectInfo {
         write!(f, "ObjectInfo {{ id: {:x}, ip: {:x}, addr: {:x}, flags: ",
                self.id, self.ip, self.addr)?;
         let mut first = true;
-        flag_print!(f, self.flags, OBJECT_READ, first);
-        flag_print!(f, self.flags, OBJECT_WRITE, first);
-        flag_print!(f, self.flags, OBJECT_EXEC, first);
-        flag_print!(f, self.flags, OBJECT_NOMAP, first);
-        flag_print!(f, self.flags, OBJECT_EXIST, first);
-        flag_print!(f, self.flags, OBJECT_INVALID, first);
-        flag_print!(f, self.flags, OBJECT_UNKNOWN, first);
-        flag_print!(f, self.flags, OBJECT_UNSIZED, first);
+        flag_print!(f, self.flags, OBJECT_READ, first)?;
+        flag_print!(f, self.flags, OBJECT_WRITE, first)?;
+        flag_print!(f, self.flags, OBJECT_EXEC, first)?;
+        flag_print!(f, self.flags, OBJECT_NOMAP, first)?;
+        flag_print!(f, self.flags, OBJECT_EXIST, first)?;
+        flag_print!(f, self.flags, OBJECT_INVALID, first)?;
+        flag_print!(f, self.flags, OBJECT_UNKNOWN, first)?;
+        #[allow(unused_assignments)]
+        flag_print!(f, self.flags, OBJECT_UNSIZED, first)?;
         Ok(())
     }
 }
@@ -216,7 +218,6 @@ impl std::fmt::Debug for PptrInfo {
 
 #[derive(Debug)]
 enum Fault {
-    Unknown,
     Object(ObjectInfo),
     Null(NullInfo),
     Exception(ExceptionInfo),
@@ -226,8 +227,8 @@ enum Fault {
     Signal(SignalInfo),
 }
 
-fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std::ffi::c_void) {
-    let fault = unsafe { match(fid.try_into()) {
+fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void, _data: *mut std::ffi::c_void) {
+    let fault = unsafe { match fid.try_into() {
         Ok(FaultTypeID::Object)    => Fault::Object(*(std::mem::transmute::<*mut std::ffi::c_void, &ObjectInfo>(info))),
         Ok(FaultTypeID::Null)      => Fault::Null(*(std::mem::transmute::<*mut std::ffi::c_void, &NullInfo>(info))),
         Ok(FaultTypeID::Exception) => Fault::Exception(*(std::mem::transmute::<*mut std::ffi::c_void, &ExceptionInfo>(info))),
@@ -236,7 +237,7 @@ fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std:
         Ok(FaultTypeID::Pptr)      => Fault::Pptr(*(std::mem::transmute::<*mut std::ffi::c_void, &PptrInfo>(info))),
         Ok(FaultTypeID::Signal)    => Fault::Signal(*(std::mem::transmute::<*mut std::ffi::c_void, &SignalInfo>(info))),
         Ok(FaultTypeID::Double)    => {
-            let mut subfault_tmp = std::mem::transmute::<*mut std::ffi::c_void, &DoubleFaultInfo<()>>(info);
+            let subfault_tmp = std::mem::transmute::<*mut std::ffi::c_void, &DoubleFaultInfo<()>>(info);
             if (subfault_tmp.fault as i32).try_into() == Ok(FaultTypeID::Double) {
                 panic!("encountered double fault while handing double fault");
             }
@@ -247,18 +248,14 @@ fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std:
     panic!("unhandled upcall fault\n     {:?}\n     ", fault);
 }
 
-extern "C" {
-    fn abort() -> !;
-}
-
-static mut __fault_unwinding: bool = false;
+static mut __FAULT_UNWINDING: bool = false;
 
 #[no_mangle]
 pub extern fn __twz_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *mut std::ffi::c_void) {
     /* If we encounter problems when panicking, the runtime will issue an abort via illegal
      * instruction. Ensure that we don't end up in an infinite loop, there. */
     unsafe {
-        if __fault_unwinding && fid == 2 {
+        if __FAULT_UNWINDING && fid == 2 {
             eprintln!("encountered abort during unwinding, exiting.");
             libtwz::twz_c::twz_thread_exit(fid + 256);
         }
@@ -268,12 +265,11 @@ pub extern fn __twz_fault_handler(fid: i32, info: *mut std::ffi::c_void, data: *
                                         catching_fault_handler(fid, info, data));
     if let Err(err) = res {
         unsafe {
-            __fault_unwinding = true;
+            __FAULT_UNWINDING = true;
             /* make sure that the libtwz runtime also doesn't pass us any exception handling in
              * case of abort causing that. */
             libtwz::twz_c::twz_fault_set(FaultTypeID::Exception as i32, None, std::ptr::null_mut());
             std::panic::resume_unwind(err);
-            abort();
         }
     }
 }
@@ -375,6 +371,6 @@ pub extern fn __twz_fault_upcall_entry() {
              "pop rbp",
              "add rsp, 136",
              "jmp -136[rsp]",
-             );
+             options(noreturn));
     }
 }

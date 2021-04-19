@@ -1,100 +1,7 @@
-
 use twz;
 
-/*
-#[derive(Debug)]
-#[repr(C)]
-struct Foo {
-    x: u32,
-    p: Pptr<u32>,
-}
-
-struct Obj<T> {
-    base: *mut T,
-}
-
-impl<T> Obj<T> {
-    pub fn base_unchecked(&self) -> &T {
-        unsafe { &*self.base }
-    }
-
-    pub fn base(&self) -> &mut T {
-        unsafe { &mut *self.base }
-    }   
-}
-
-#[repr(C)]
-#[derive(Debug)]
-struct Pptr<T> {
-    p: u64,
-    pd: std::marker::PhantomData<T>
-}
-
-#[repr(C)]
-#[derive(Debug)]
-struct Psafe<T> {
-    data: T,
-    pd: std::marker::PhantomData<T>
-}
-
-impl<T> Pptr<T> {
-    pub fn new_null() -> Pptr<T> {
-        Pptr { p: 0, pd: std::marker::PhantomData }
-    }
-}
-
-impl<T> std::ops::Deref for Pptr<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe {
-            std::mem::transmute::<u64, &Self::Target>(self.p)
-        }
-    }
-}
-
-struct Tx {
-}
-
-
-extern "C" {
-    fn twz_name_resolve(o: *mut i32, name: *const i8, p: u64, fl: i32, id: &mut u128) -> i32;
-}
-
-fn transaction<T, F>(obj: &Obj<T>, f: F)
-    where F: FnOnce(Tx)
-{
-
-}
-
-impl Tx {
-    fn record<'a, T>(&'a self, v: &'a mut T) -> &'a mut T {
-        v
-    }
-}
-
-fn gadad(obj: &Obj<Foo>)
-{
-    {
-        let base = obj.base();
-        transaction(obj, |tx: Tx| {
-            let ref_x = tx.record(&mut base.x);
-            *ref_x = 42;
-        });
-    }
-}
-
-
-use std::ffi::CString;
-*/
-
-
-
-
-
-
-
-
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
 struct Foo {
     /* some data */
     x: u32,
@@ -102,17 +9,50 @@ struct Foo {
     p: twz::ptr::Pptr<Foo>,
 }
 
+#[derive(Copy, Clone, Debug)]
+struct Bar {
+    x: i32,
+    y: i32,
+}
+
+use twz::queue::*;
+fn queue_test()
+{
+    let mut queue = twz::queue::Queue::<Bar, Bar>::new_private(8, 8).unwrap();
+    let bar = QueueEntry::new(Bar { x: 42, y: 69 }, 0);
+    queue.send_callback(bar, 0, |c| { println!("completed! {:?}", c); }).unwrap();
+    let res = queue.recv(0).unwrap();
+    queue.complete(res, 0);
+    queue.check_completions_callback(0);
+    //queue.send(bar, 0);
+    //let res = queue.recv(0).unwrap();
+    //println!("{:?}", res);
+    //let res = queue.recv(0).unwrap();
+    //println!("{:?}", res);
+}
+
+#[allow(dead_code)]
 fn new_test()
 {
     let foo = Foo {
         x: 42, p: twz::ptr::Pptr::new_null(),
     };
-    let obj = twz::obj::Twzobj::create(twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, Some(foo), None, None).expect("ha");
+    let obj = twz::obj::Twzobj::create(
+        twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, 
+        Some(foo), None, None).expect("failed to create object");
 
-    let base = obj.base::<Foo>();
+    let base = unsafe { obj.base_unchecked_mut::<Foo>() };
     println!(":: {}", base.x);
+
+    let foo2 = Foo {
+        x: 69,
+        p: twz::ptr::Pptr::new_null(),
+    };
+    obj.move_item::<_, ()>(foo2, &mut base.p, None).unwrap();
+    let _foo_m = obj.lea(&base.p);
 }
 
+#[allow(dead_code)]
 fn access_test() {
     /* get a handle to the object (by name) */
     let obj = twz::obj::Twzobj::init_name("some_object").unwrap();
@@ -145,7 +85,8 @@ fn main()
         println!("Hello from thread!");
     });
     println!("Hello from parent!");
-    handler.join();
+    handler.join().unwrap();
     println!("Thread joined");
-    //new_test();
+    queue_test();
+ //   new_test();
 }

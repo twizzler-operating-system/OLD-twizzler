@@ -23,13 +23,78 @@ pub(crate) mod twz_c {
         pub(crate) fn twz_fault_set(fault: i32, cb: Option<extern fn(i32, *mut std::ffi::c_void, *mut std::ffi::c_void)>, data: *mut std::ffi::c_void) -> i32;
         pub(crate) fn twz_fault_set_upcall_entry(cb: Option<extern fn()>, dbl_cb: Option<extern fn()>);
 		pub(crate) fn twz_thread_exit(code: i32) -> !;
+
+        pub(crate) fn queue_submit(obj: *mut std::ffi::c_void, item: *const std::ffi::c_void, flags: i32) -> i32;
+        pub(crate) fn queue_receive(obj: *mut std::ffi::c_void, item: *mut std::ffi::c_void, flags: i32) -> i32;
+        pub(crate) fn queue_complete(obj: *mut std::ffi::c_void, item: *const std::ffi::c_void, flags: i32) -> i32;
+        pub(crate) fn queue_get_finished(obj: *mut std::ffi::c_void, item: *mut std::ffi::c_void, flags: i32) -> i32;
+        pub(crate) fn queue_init_hdr(obj: *mut std::ffi::c_void, sqlen: usize, sqstride: usize, cqlen: usize, cqstride: usize) -> i32;
     }
 }
 
-pub(crate) fn twz_object_init_alloc(obj: &mut Twzobj, offset: usize) -> i32 {
+pub(crate) fn queue_init_hdr<S, C>(obj: &Twzobj, sqlen: usize, cqlen: usize) -> i32 {
     unsafe {
         obj.alloc_libtwz_data();
-        twz_c::twz_object_init_alloc(obj.libtwz_data.as_mut().unwrap().data as *mut std::ffi::c_void, offset)
+        twz_c::queue_init_hdr(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            sqlen, std::mem::size_of::<S>(),
+            cqlen, std::mem::size_of::<C>())
+    }
+}
+
+pub(crate) fn queue_submit<T>(obj: &Twzobj, item: &T, flags: i32) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::queue_submit(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::transmute::<&T, *const std::ffi::c_void>(item), flags)
+    }
+}
+
+pub(crate) fn queue_receive<T>(obj: &Twzobj, item: &mut T, flags: i32) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::queue_receive(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::transmute::<&mut T, *mut std::ffi::c_void>(item), flags)
+    }
+}
+
+pub(crate) fn queue_complete<T>(obj: &Twzobj, item: &T, flags: i32) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::queue_complete(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::transmute::<&T, *const std::ffi::c_void>(item), flags)
+    }
+}
+
+pub(crate) fn queue_get_completion<T>(obj: &Twzobj, item: &mut T, flags: i32) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::queue_get_finished(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::transmute::<&mut T, *mut std::ffi::c_void>(item), flags)
+    }
+}
+
+pub(crate) fn twz_object_init_alloc(obj: &Twzobj, offset: usize) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::twz_object_init_alloc(obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void, offset)
+    }
+}
+
+pub(crate) fn twz_object_alloc_move<T>(obj: &Twzobj, owner: &mut crate::ptr::Pptr<T>, flags: u64, ctor: extern fn(&mut T, &T), item: T) -> i32
+{
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::twz_alloc(obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::size_of::<T>(),
+            std::mem::transmute::<&mut crate::ptr::Pptr<T>, *mut *const std::ffi::c_void>(owner),
+            flags,
+            std::mem::transmute::<extern fn(&mut T, &T), extern fn(*mut std::ffi::c_void, *mut std::ffi::c_void)>(ctor),
+            std::mem::transmute::<&T, *mut std::ffi::c_void>(&item))
     }
 }
 

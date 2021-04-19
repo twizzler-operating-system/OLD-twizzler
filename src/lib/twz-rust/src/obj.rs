@@ -36,7 +36,7 @@ impl std::ops::Drop for LibtwzData {
 pub struct Twzobj {
     slot: u64,
     id: ObjID,
-    pub(crate) libtwz_data: Option<LibtwzData>,
+    pub(crate) libtwz_data: std::sync::Arc<std::sync::Mutex<Option<LibtwzData>>>,
 }
 
 pub struct Tx {
@@ -47,11 +47,12 @@ impl Twzobj {
         self.id
     }
 
-    pub(crate) fn alloc_libtwz_data(&mut self) {
-        if self.libtwz_data.is_none() {
-            self.libtwz_data = Some(LibtwzData::new());
+    pub(crate) fn alloc_libtwz_data(&self) {
+        let mut data = self.libtwz_data.lock().unwrap();
+        if data.is_none() {
+            *data = Some(LibtwzData::new());
             unsafe {
-                libtwz::twz_c::twz_object_from_ptr_cpp(std::mem::transmute::<&i8, *const i8>(self.base_unchecked::<i8>()), self.libtwz_data.as_mut().unwrap().data as *mut std::ffi::c_void);
+                libtwz::twz_c::twz_object_from_ptr_cpp(std::mem::transmute::<&i8, *const i8>(self.base_unchecked::<i8>()), data.as_mut().unwrap().data as *mut std::ffi::c_void);
             }
         }
     }
@@ -66,7 +67,7 @@ impl Twzobj {
         Ok(Twzobj {
             slot: slot as u64,
             id: id,
-            libtwz_data: None
+            libtwz_data: std::sync::Arc::new(std::sync::Mutex::new(None))
         })
     }
 
@@ -110,6 +111,19 @@ impl Twzobj {
         }
     }
 
+    pub fn move_item<T: Copy, E>(&self, item: T, p: &mut Pptr<T>, _tx: Option<&mut Tx>) -> Result<(), crate::TxResultErr<E>> {
+        extern fn do_the_move<T: Copy>(tgt: &mut T, src: &T) {
+            println!("do_the_move: {:p}", tgt);
+            *tgt = *src;
+        }
+        let res = libtwz::twz_object_alloc_move(self, p, 0, do_the_move, item);
+        if res < 0 {
+            Err(crate::TxResultErr::OSError(-res))
+        } else {
+            Ok(())
+        }
+    }
+
     pub fn transaction<F, T, E>(&self, func: F) -> Result<T, crate::TxResultErr<E>>
         where F: FnOnce(&mut Tx) -> Result<T, crate::TxResultErr<E>> {
             let mut tx = Tx {};
@@ -142,14 +156,14 @@ impl Twzobj {
 
     pub unsafe fn offset_lea_mut<T>(&self, offset: u64) -> &mut T {
         if offset < OBJ_MAX_SIZE {
-            return std::mem::transmute::<u64, &mut T>(self.slot * OBJ_MAX_SIZE + OBJ_NULLPAGE_SIZE + offset);
+            return std::mem::transmute::<u64, &mut T>(self.slot * OBJ_MAX_SIZE + offset);
         }
         panic!("")
     }
 
     pub unsafe fn offset_lea<T>(&self, offset: u64) -> &T {
         if offset < OBJ_MAX_SIZE {
-            return std::mem::transmute::<u64, &T>(self.slot * OBJ_MAX_SIZE + OBJ_NULLPAGE_SIZE + offset);
+            return std::mem::transmute::<u64, &T>(self.slot * OBJ_MAX_SIZE + offset);
         }
         panic!("")
     }
