@@ -18,12 +18,23 @@ struct Bar {
     y: i32,
 }
 
-twz::twz_gate!(1, __foo, foo (x: i32) { println!("Hi {}", x); });
-twz::twz_gate!(2, __bar, bar (x: i32) { println!("Hi {}", x); });
+twz::twz_gate!(1, __foo, foo (x: i32) { println!("Hi {}", x); 0});
+twz::twz_gate!(2, __bar, bar (x: i32) { println!("Hi {}", x); 0});
 
 use twz::queue::*;
 fn queue_test()
 {
+    let args = std::env::args();
+    if args.len() == 1 {
+        println!("SETTING UP SAPI");
+        twz::sapi::sapi_create_name("rust-gate-test");
+    } else {
+        println!("CALLING SAPI");
+        let obj = twz::obj::Twzobj::init_name("rust-gate-test").unwrap();
+        let sapi = twz::gate::SecureApi::from_obj(obj);
+        sapi.call(1).unwrap();
+    }
+
     /* create a queue (creates an object under the hood). The submission queue will send items of
      * type Bar, as will the completion queue. Note that we'll actually be getting QueueEntry<Bar>
      * back when we receive things, because of how the queues work. */
@@ -107,5 +118,10 @@ fn main()
     handler.join().unwrap();
     println!("Thread joined");
     queue_test();
+    let ten_millis = std::time::Duration::from_millis(1000);
+    loop {
+        std::thread::sleep(ten_millis);
+    }
+    
  //   new_test();
 }

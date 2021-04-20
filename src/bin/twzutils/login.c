@@ -14,6 +14,8 @@
 #include <twz/user.h>
 #include <unistd.h>
 
+#include <twz/security.h>
+
 extern char **environ;
 void tmain(const char *username)
 {
@@ -42,9 +44,22 @@ void tmain(const char *username)
 
 	r = sys_detach(0, 0, TWZ_DETACH_ONENTRY | TWZ_DETACH_ONSYSCALL(SYS_BECOME), KSO_SECCTX);
 	if(r) {
-		fprintf(stderr, "failed to detach from login context\n");
+		r = sys_detach(0, 0, TWZ_DETACH_ONENTRY | TWZ_DETACH_ONSYSCALL(SYS_BECOME), KSO_SECCTX);
+		if(r) {
+			fprintf(stderr, "failed to detach from login context\n");
+		}
 		// exit(1);
 	}
+	/* TODO: dont do this */
+	twzobj context;
+	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+		abort();
+	}
+	twz_sctx_init(&context, "__generic");
+	if(sys_attach(0, twz_object_guid(&context), 0, 2)) {
+		abort();
+	}
+
 	if(uh->dfl_secctx) {
 		r = sys_attach(0, uh->dfl_secctx, 0, KSO_SECCTX);
 		if(r) {

@@ -195,8 +195,9 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 	if(_ba == NULL) {
 		return __syscall_become_return(a0);
 	}
-	if(!verify_user_pointer(_ba, sizeof(*_ba)))
+	if(!verify_user_pointer(_ba, sizeof(*_ba))) {
 		return -EINVAL;
+	}
 	struct arch_syscall_become_args ba;
 	memcpy(&ba, _ba, sizeof(ba));
 	// long _a = rdtsc();

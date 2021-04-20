@@ -161,6 +161,12 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	exec = twz_object_from_ptr((void *)0x4000C0069697);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
+	exec = twz_object_from_ptr((void *)0x700080001000);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
+	exec = twz_object_from_ptr((void *)0x700100001000);
+	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
+
 	// printf("\n\nAdding cap for lib  " IDFMT " to " IDFMT "\n",
 	// IDPR(twz_object_guid(&new_view)),
 	// IDPR(twz_object_guid(&context)));

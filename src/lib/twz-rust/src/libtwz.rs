@@ -6,6 +6,7 @@ pub(crate) mod twz_c {
 #[allow(dead_code)]
     extern "C" {
         pub(crate) fn twz_name_resolve(_obj: *mut std::ffi::c_void, name: *const i8, _fn: *const std::ffi::c_void, flags: i32, id: *mut LibtwzObjID) -> i32;
+        pub(crate) fn twz_name_assign(id: LibtwzObjID, name: *const i8) -> i32;
         pub(crate) fn twz_object_init_name(data: &mut [i8; 1024], name: *const i8, flags: i32) -> i32;
         pub(crate) fn twz_object_base(data: &mut [i8; 1024]) -> *mut i8;
         pub(crate) fn __twz_object_lea_foreign(data: &mut [i8; 1024], offset: u64, mask: u32) -> *mut i8;

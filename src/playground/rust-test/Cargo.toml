@@ -9,8 +9,5 @@ edition = "2018"
 debug = true
 
 [dependencies]
-twz = { path = "../../lib/twz-rust" }
-
-[build]
-rustflags = ["-C", "link-args=--no-gc-sections"]
+twz = { path = "../../lib/twz-rust", features = ["expose_sapi"] }
 

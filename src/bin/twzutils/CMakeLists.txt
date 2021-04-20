@@ -18,6 +18,9 @@ set_target_properties(init_bootstrap PROPERTIES LINK_FLAGS "-static")
 
 add_executable(login login.c)
 install(TARGETS login DESTINATION bin)
+target_link_libraries(login twzsec)
+target_link_libraries(login tommath)
+target_link_libraries(login tomcrypt)
 
 add_executable(lscpu lscpu.c)
 install(TARGETS lscpu DESTINATION bin)
