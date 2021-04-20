@@ -91,6 +91,7 @@ macro_rules! twz_gate {
                 #[inline(never)]
                 asm!(
                     concat!(".org ", stringify!($nr), "*64, 0x90"),
+                    "mov rcx, r10",
                     "mov rsp, 0",
                     "lock xchg rsp, __next_avail_stack",
                     "test rsp, rsp",
@@ -100,8 +101,6 @@ macro_rules! twz_gate {
                     "mov rdi, rax",
                     "push 0",
                     "jmp __gate_return",
-                    "nop",
-                    "nop",
                     "nop",
                     "nop",
                     "nop",

@@ -18,8 +18,8 @@ struct Bar {
     y: i32,
 }
 
-twz::twz_gate!(1, __foo, foo (x: i32) { println!("Hi {}", x); 0});
-twz::twz_gate!(2, __bar, bar (x: i32) { println!("Hi {}", x); 0});
+twz::twz_gate!(1, __foo, foo (a: i32, b: i32, c: i32, d: i32, e: i32, f: i32) { println!("Hi {} {} {} {} {} {}", a, b, c, d, e, f); 0});
+twz::twz_gate!(2, __bar, bar () { println!("Hi"); 0});
 
 use twz::queue::*;
 fn queue_test()
@@ -32,7 +32,7 @@ fn queue_test()
         println!("CALLING SAPI");
         let obj = twz::obj::Twzobj::init_name("rust-gate-test").unwrap();
         let sapi = twz::gate::SecureApi::from_obj(obj);
-        sapi.call(1).unwrap();
+        sapi.call(1, Some(&vec![11, 22, 33, 44, 55, 66])).unwrap();
     }
 
     /* create a queue (creates an object under the hood). The submission queue will send items of
@@ -121,6 +121,7 @@ fn main()
     let ten_millis = std::time::Duration::from_millis(1000);
     loop {
         std::thread::sleep(ten_millis);
+        println!(".");
     }
     
  //   new_test();

@@ -30,7 +30,7 @@ uintptr_t arch_thread_instruction_pointer(void)
 	}
 }
 
-void arch_thread_become_restore(struct thread_become_frame *frame)
+void arch_thread_become_restore(struct thread_become_frame *frame, long *args)
 {
 	current_thread->arch.syscall.rax = frame->frame.rax;
 	current_thread->arch.syscall.rbx = frame->frame.rbx;
@@ -50,6 +50,31 @@ void arch_thread_become_restore(struct thread_become_frame *frame)
 	current_thread->arch.syscall.r15 = frame->frame.r15;
 	current_thread->arch.fs = frame->frame.fs;
 	current_thread->arch.gs = frame->frame.gs;
+	if(args) {
+		long arg_count = args[0];
+		for(long i = 0; i < 6 && i < arg_count; i++) {
+			switch(i) {
+				case 0:
+					current_thread->arch.syscall.rdi = args[i + 1];
+					break;
+				case 1:
+					current_thread->arch.syscall.rsi = args[i + 1];
+					break;
+				case 2:
+					current_thread->arch.syscall.rdx = args[i + 1];
+					break;
+				case 3:
+					current_thread->arch.syscall.r8 = args[i + 1];
+					break;
+				case 4:
+					current_thread->arch.syscall.r9 = args[i + 1];
+					break;
+				case 5:
+					current_thread->arch.syscall.r10 = args[i + 1];
+					break;
+			}
+		}
+	}
 }
 
 void arch_thread_become(struct arch_syscall_become_args *ba,

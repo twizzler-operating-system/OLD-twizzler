@@ -31,6 +31,7 @@ pub enum TxResultErr<E> {
 pub enum TwzErr {
     NameResolve(i32),
     OSError(i32),
+    Invalid,
     OutOfSlots,
 }
 

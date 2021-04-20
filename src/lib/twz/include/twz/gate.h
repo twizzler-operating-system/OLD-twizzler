@@ -40,6 +40,7 @@ extern void *__twz_secapi_nextstack;
 	        ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
 	        ".org " #g "*64, 0x90\n"                                                               \
 	        "__twz_gate_" #fn ":\n"                                                                \
+	        "mov %r10, %rcx\n"                                                                     \
 	        "mov $0, %rsp\n"                                                                       \
 	        "lock xchgq __twz_secapi_nextstack, %rsp;"                                             \
 	        "test %rsp, %rsp;\n"                                                                   \
@@ -49,7 +50,7 @@ extern void *__twz_secapi_nextstack;
 	        "movq %rax, %rdi\n"                                                                    \
 	        "jmp libtwzsec_gate_return\n"                                                          \
 	        "retq\n"                                                                               \
-	        ".balign 32, 0x90\n"                                                                   \
+	        ".balign 64, 0x90\n"                                                                   \
 	        ".previous");
 
 #define __TWZ_GATE(fn, g)                                                                          \
@@ -243,7 +244,7 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 			.target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
 			.rax = 0,                                                                              \
 			.rbx = 0,                                                                              \
-			.rcx = (unsigned long)arg4,                                                            \
+			.r10 = (unsigned long)arg4,                                                            \
 			.rdx = (unsigned long)arg3,                                                            \
 			.rdi = (unsigned long)arg1,                                                            \
 			.rsi = (unsigned long)arg2,                                                            \
@@ -251,12 +252,12 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 			.rbp = 0,                                                                              \
 			.r8 = (unsigned long)arg5,                                                             \
 			.r9 = (unsigned long)arg6,                                                             \
-			.r10 = 0,                                                                              \
 			.r11 = 0,                                                                              \
 			.r12 = 0,                                                                              \
 			.r13 = 0,                                                                              \
 			.r14 = 0,                                                                              \
 			.r15 = 0,                                                                              \
+			.rcx = 0,                                                                              \
 			.sctx_hint = api->hdr->sctx,                                                           \
 		};                                                                                         \
 		__do_sapi_call(api, &args);                                                                \
