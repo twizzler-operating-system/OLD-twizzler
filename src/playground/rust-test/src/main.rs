@@ -1,3 +1,6 @@
+#![feature(asm)]
+#![feature(naked_functions)]
+
 use twz;
 
 #[allow(dead_code)]
@@ -15,15 +18,31 @@ struct Bar {
     y: i32,
 }
 
+twz::twz_gate!(1, __foo, foo (x: i32) { println!("Hi {}", x); });
+twz::twz_gate!(2, __bar, bar (x: i32) { println!("Hi {}", x); });
+
 use twz::queue::*;
 fn queue_test()
 {
-    let mut queue = twz::queue::Queue::<Bar, Bar>::new_private(8, 8).unwrap();
+    /* create a queue (creates an object under the hood). The submission queue will send items of
+     * type Bar, as will the completion queue. Note that we'll actually be getting QueueEntry<Bar>
+     * back when we receive things, because of how the queues work. */
+    let queue = twz::queue::Queue::<Bar, Bar>::new_private(8, 8).expect("failed to create queue");
+    /* let's make a queue entry and pass it the actual item we want to transfer */
     let bar = QueueEntry::new(Bar { x: 42, y: 69 }, 0);
-    queue.send_callback(bar, 0, |c| { println!("completed! {:?}", c); }).unwrap();
-    let res = queue.recv(0).unwrap();
-    queue.complete(res, 0);
-    queue.check_completions_callback(0);
+    /* aaand send! Run this call back when the completion event is processed */
+    queue.send_callback(bar, 0, |c| { 
+        println!("completed! {:?}", c); 
+    }).expect("failed to send");
+    /* (imagine these next two statements are a different program / thread) receive the sent item */
+    let res = queue.recv(0).expect("queue recv failed");
+    /* and do whatever with `res' and then complete it */
+    queue.complete(res, 0).unwrap();
+    /* meanwhile in the sender program, we'd at some point want to check for completions */
+    queue.check_completions_callback(0).unwrap();
+
+
+
     //queue.send(bar, 0);
     //let res = queue.recv(0).unwrap();
     //println!("{:?}", res);

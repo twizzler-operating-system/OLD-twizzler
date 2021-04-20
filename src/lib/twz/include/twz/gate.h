@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-#define TWZ_GATE_SIZE 32
+#define TWZ_GATE_SIZE 64
 /*
 #define __TWZ_GATE(fn, g)                                                                          \
     __asm__(".section .gates, \"ax\", @progbits\n"                                                 \
@@ -38,7 +38,7 @@ extern void *__twz_secapi_nextstack;
 	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
 	        ".global __twz_gate_" #fn "\n"                                                         \
 	        ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
-	        ".org " #g "*32, 0x90\n"                                                               \
+	        ".org " #g "*64, 0x90\n"                                                               \
 	        "__twz_gate_" #fn ":\n"                                                                \
 	        "mov $0, %rsp\n"                                                                       \
 	        "lock xchgq __twz_secapi_nextstack, %rsp;"                                             \
@@ -56,7 +56,7 @@ extern void *__twz_secapi_nextstack;
 	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
 	        ".global __twz_gate_" #fn "\n"                                                         \
 	        ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
-	        ".org " #g "*32, 0x90\n"                                                               \
+	        ".org " #g "*64, 0x90\n"                                                               \
 	        "__twz_gate_" #fn ":\n"                                                                \
 	        "movabs $" #fn ", %rax\n"                                                              \
 	        "leaq -__twz_gate_" #fn "+" #g "*32(%rip), %r10\n"                                     \
@@ -68,7 +68,7 @@ extern void *__twz_secapi_nextstack;
 
 #define TWZ_GATE(fn, g) __TWZ_GATE(fn, g)
 #define TWZ_GATE_SHARED(fn, g) __TWZ_GATE_SHARED(fn, g)
-#define TWZ_GATE_OFFSET (OBJ_NULLPAGE_SIZE + 0x200)
+#define TWZ_GATE_OFFSET (OBJ_NULLPAGE_SIZE + 0x400)
 
 #define TWZ_GATE_CALL(_obj, g)                                                                     \
 	({                                                                                             \

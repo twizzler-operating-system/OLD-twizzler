@@ -35,11 +35,15 @@ fn is_eagain<T>(r: crate::queue::Result<T>) -> bool {
 }
 */
 
-pub struct Queue<S, C> {
-    obj: crate::obj::Twzobj,
-    outstanding: std::collections::HashMap<u32, QueueCompleter<C>>,
+struct QueueHandler<T> {
+    outstanding: std::collections::HashMap<u32, QueueCompleter<T>>,
     ids: std::vec::Vec<u32>,
     idcounter: u32,
+}
+
+pub struct Queue<S, C> {
+    obj: crate::obj::Twzobj,
+    handler: std::sync::Arc<std::sync::Mutex<QueueHandler<C>>>,
     _pd: std::marker::PhantomData<(S, C)>,
 }
 
@@ -96,11 +100,29 @@ impl<S: Copy, C: Copy> Queue<S, C> {
     pub fn new_private(sqlen: usize, cqlen: usize) -> crate::queue::Result<Queue<S, C>> {
         Ok(Queue {
             obj: create::<QueueEntry<S>, QueueEntry<C>>(crate::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | crate::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, sqlen, cqlen, None)?,
-            outstanding: std::collections::HashMap::new(),
-            ids: vec![],
-            idcounter: 0,
+            handler: std::sync::Arc::new(std::sync::Mutex::new(QueueHandler {
+                outstanding: std::collections::HashMap::new(),
+                ids: vec![],
+                idcounter: 0,
+            })),
             _pd: std::marker::PhantomData,
         })
+    }
+
+    pub fn from_obj(obj: crate::obj::Twzobj) -> Queue<S, C> {
+        Queue {
+            obj: obj,
+            handler: std::sync::Arc::new(std::sync::Mutex::new(QueueHandler {
+                outstanding: std::collections::HashMap::new(),
+                ids: vec![],
+                idcounter: 0,
+            })),
+            _pd: std::marker::PhantomData,
+        }
+    }
+
+    pub fn obj(&self) -> &crate::obj::Twzobj {
+        &self.obj
     }
 
     pub fn send(&self, item: QueueEntry<S>, flags: i32) -> crate::queue::Result<()> {
@@ -119,29 +141,40 @@ impl<S: Copy, C: Copy> Queue<S, C> {
         get_completion::<QueueEntry<C>>(&self.obj, flags)
     }
 
-    pub fn send_callback(&mut self, mut item: QueueEntry<S>, flags: i32, callback: fn(item: &C)) -> crate::queue::Result<()> {
-        let id = if let Some(id) = self.ids.pop() {
-            id
-        } else {
-            let id = self.idcounter;
-            self.idcounter += 1;
+    pub fn send_callback(&self, mut item: QueueEntry<S>, flags: i32, callback: fn(item: &C)) -> crate::queue::Result<()> {
+        let id = {
+            let mut handler = self.handler.lock().unwrap();
+            let id = if let Some(id) = handler.ids.pop() {
+                id
+            } else {
+                let id = handler.idcounter;
+                handler.idcounter += 1;
+                id
+            };
+            handler.outstanding.insert(id, QueueCompleter { callback: callback });
             id
         };
-        self.outstanding.insert(id, QueueCompleter { callback: callback });
         item.info = id;
         let res = self.send(item, flags);
         if res.is_err() {
-            self.outstanding.remove(&id);
-            self.ids.push(id);
+            let mut handler = self.handler.lock().unwrap();
+            handler.outstanding.remove(&id);
+            handler.ids.push(id);
         }
         res
     }
 
-    pub fn check_completions_callback(&mut self, flags: i32) -> crate::queue::Result<Option<QueueEntry<C>>> {
+    pub fn check_completions_callback(&self, flags: i32) -> crate::queue::Result<Option<QueueEntry<C>>> {
         let res = self.get_completion(flags)?;
-        let completer = self.outstanding.remove(&res.info);
+        let completer = {
+            let mut handler = self.handler.lock().unwrap();
+            let completer = handler.outstanding.remove(&res.info);
+            if completer.is_some() {
+                handler.ids.push(res.info);
+            }
+            completer
+        };
         if let Some(completer) = completer {
-            self.ids.push(res.info);
             (completer.callback)(&res.item);
             Ok(None)
         } else {

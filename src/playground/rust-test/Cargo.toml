@@ -11,3 +11,6 @@ debug = true
 [dependencies]
 twz = { path = "../../lib/twz-rust" }
 
+[build]
+rustflags = ["-C", "link-args=--no-gc-sections"]
+

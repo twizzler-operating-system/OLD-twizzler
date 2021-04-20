@@ -12,7 +12,7 @@ SECTIONS
 {
   /* Read-only sections, merged into text segment: */
   PROVIDE (__executable_start = SEGMENT_START("text-segment", 0x1000)); . = SEGMENT_START("text-segment", 0x1000) + SIZEOF_HEADERS;
-  . = ALIGN(0x200); .gates : {KEEP(*(.gates*))}
+  . = 0x1400; .gates : {KEEP(*(.gates*))}
   .note.gnu.build-id  : { *(.note.gnu.build-id) }
   .hash           : { *(.hash) }
   .gnu.hash       : { *(.gnu.hash) }

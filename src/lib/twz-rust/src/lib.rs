@@ -8,6 +8,7 @@ pub mod ptr;
 pub mod obj;
 mod persist;
 pub mod queue;
+pub mod gate;
 
 #[no_mangle]
 pub extern fn __twz_libtwz_runtime_init()
