@@ -64,13 +64,14 @@ void arch_thread_become_restore(struct thread_become_frame *frame, long *args)
 					current_thread->arch.syscall.rdx = args[i + 1];
 					break;
 				case 3:
-					current_thread->arch.syscall.r8 = args[i + 1];
+					/* not rcx -- that register gets clobbered by sysret sequence */
+					current_thread->arch.syscall.r10 = args[i + 1];
 					break;
 				case 4:
-					current_thread->arch.syscall.r9 = args[i + 1];
+					current_thread->arch.syscall.r8 = args[i + 1];
 					break;
 				case 5:
-					current_thread->arch.syscall.r10 = args[i + 1];
+					current_thread->arch.syscall.r9 = args[i + 1];
 					break;
 			}
 		}

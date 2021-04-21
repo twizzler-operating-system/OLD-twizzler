@@ -146,6 +146,9 @@ ssize_t bstream_write(twzobj *obj, const void *ptr, size_t len, unsigned flags)
 
 int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits)
 {
+	if(hdr == NULL) {
+		hdr = twz_object_base(obj);
+	}
 	int r;
 	if((r = twz_object_addext(obj, TWZIO_METAEXT_TAG, &hdr->io)))
 		goto cleanup;

@@ -1,6 +1,6 @@
 
-const SYS_ATTACH: i32 = 4;
-const SYS_BECOME: i32 = 6;
+const SYS_ATTACH: i64 = 4;
+const SYS_BECOME: i64 = 6;
 
 pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
     let mut num = SYS_ATTACH;
@@ -22,33 +22,53 @@ pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
 pub struct BecomeArgs {
 	pub target_view: u128,
 	pub target_rip: u64,
-	pub rax: u64,
-	pub rbx: u64,
-	pub rcx: u64,
-	pub rdx: u64,
-	pub rdi: u64,
-	pub rsi: u64,
-	pub rsp: u64,
-	pub rbp: u64,
-	pub r8: u64,
-	pub r9: u64,
-	pub r10: u64,
-	pub r11: u64,
-	pub r12: u64,
-	pub r13: u64,
-	pub r14: u64,
-	pub r15: u64,
+	pub rax: i64,
+	pub rbx: i64,
+	pub rcx: i64,
+	pub rdx: i64,
+	pub rdi: i64,
+	pub rsi: i64,
+	pub rsp: i64,
+	pub rbp: i64,
+	pub r8: i64,
+	pub r9: i64,
+	pub r10: i64,
+	pub r11: i64,
+	pub r12: i64,
+	pub r13: i64,
+	pub r14: i64,
+	pub r15: i64,
 	pub sctx_hint: u128,
 }
 
-pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> i64 {
-    let mut num = SYS_BECOME;
+pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<BecomeArgs, i64> {
+    let mut num: i64 = SYS_BECOME;
+    let mut rdi = std::mem::transmute::<*const BecomeArgs, i64>(args);
+    let mut rsi = arg0;
+    let mut rdx = arg1;
+    let mut r8: i64;
+    let mut r9: i64;
+    let mut r10: i64;
     asm!("syscall",
          inout("rax") num,
-         in("rdi") args,
-         in("rsi") arg0,
-         in("rdx") arg1,
+         inout("rdi") rdi,
+         inout("rsi") rsi,
+         inout("rdx") rdx,
+         out("r10") r10,
+         out("r8") r8,
+         out("r9") r9,
          out("r11") _,
          out("rcx") _);
-    num as i64
+    if num < 0 {
+        return Err(num);
+    }
+    Ok(BecomeArgs {
+        rdi: rdi,
+        rsi: rsi,
+        rdx: rdx,
+        r10: r10,
+        r8: r8,
+        r9: r9,
+        ..Default::default()
+    })
 }

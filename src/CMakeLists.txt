@@ -67,7 +67,7 @@ add_subdirectory(lib/security)
 link_libraries(twz)
 
 add_subdirectory(bin/init)
-add_subdirectory(bin/logboi)
+#add_subdirectory(bin/logboi)
 add_subdirectory(bin/network)
 add_subdirectory(bin/pager)
 add_subdirectory(bin/term)
@@ -86,6 +86,8 @@ add_subdirectory(playground)
 #"CARGO_TERM_VERBOSE=true"
 
 add_rust_target(rust-test playground/rust-test)
+
+add_rust_target(logboi-rs bin/logboi-rs)
 
 add_custom_command(
 	OUTPUT

@@ -4,35 +4,46 @@
 use twz;
 
 #[allow(dead_code)]
-#[derive(Copy, Clone)]
-struct Foo {
-    /* some data */
-    x: u32,
-    /* persistent pointer to another struct Foo */
-    p: twz::ptr::Pptr<Foo>,
-}
-
 #[derive(Copy, Clone, Debug)]
 struct Bar {
     x: i32,
     y: i32,
 }
 
-twz::twz_gate!(1, __foo, foo (a: i32, b: i32, c: i32, d: i32, e: i32, f: i32) { println!("Hi {} {} {} {} {} {}", a, b, c, d, e, f); 0});
+twz::twz_gate!(1, __foo, foo (a: i32, b: i32, c: i32, d: i32, e: i32, f: i32) {
+    println!("Hi {} {} {} {} {} {}", a, b, c, d, e, f);
+    twz::sapi_return!(0, 91, 92, 93, 94);
+});
+
 twz::twz_gate!(2, __bar, bar () { println!("Hi"); 0});
 
 use twz::queue::*;
+
+fn logboi_test()
+{
+    let obj = twz::obj::Twzobj::init_name("logboi").unwrap();
+    let sapi = twz::gate::SecureApi::from_obj(obj);
+    let rets = sapi.call(0, Some(&vec![0])).unwrap();
+    let id = twz::obj::objid_join(rets[0], rets[1]);
+    println!("GOT: {:x}", id);
+    let obj = twz::obj::Twzobj::init_guid(id).expect("failed to open object");
+    let stream = twz::bstream::BStream::from_obj(obj);
+    stream.write(b"hello from bstream", 0).expect("Failed to log");
+}
+
+#[allow(dead_code)]
 fn queue_test()
 {
     let args = std::env::args();
     if args.len() == 1 {
         println!("SETTING UP SAPI");
-        twz::sapi::sapi_create_name("rust-gate-test");
+        twz::sapi::sapi_create_name("rust-gate-test").expect("failed to init sapi");
     } else {
         println!("CALLING SAPI");
         let obj = twz::obj::Twzobj::init_name("rust-gate-test").unwrap();
         let sapi = twz::gate::SecureApi::from_obj(obj);
-        sapi.call(1, Some(&vec![11, 22, 33, 44, 55, 66])).unwrap();
+        let rets = sapi.call(1, Some(&vec![11, 22, 33, 44, 55, 66])).unwrap();
+        println!("GOT: {:?}", rets);
     }
 
     /* create a queue (creates an object under the hood). The submission queue will send items of
@@ -83,9 +94,19 @@ fn new_test()
 }
 
 #[allow(dead_code)]
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct Foo {
+    /* some data */
+    x: u32,
+    /* persistent pointer to another struct Foo */
+    p: twz::ptr::Pptr<Foo>,
+}
+
+#[allow(dead_code)]
 fn access_test() {
     /* get a handle to the object (by name) */
-    let obj = twz::obj::Twzobj::init_name("some_object").unwrap();
+    let obj = twz::obj::Twzobj::init_name("some_object").expect("failed to open object");
 
     /* update some fields! */
     obj.transaction::<_, _, ()>(|tx| {
@@ -93,11 +114,9 @@ fn access_test() {
         let foo = obj.lea_mut(&base.p, tx);
 
         foo.x = 42;
-        //base.x += 1;
-        println!("{}", base.x);
-        println!("{}", foo.x);
+
         Ok(())
-    }).unwrap();
+    }).expect("transaction failed");
 
     /* we can also get some read-only references */
     let base = obj.base::<Foo>();
@@ -117,12 +136,13 @@ fn main()
     println!("Hello from parent!");
     handler.join().unwrap();
     println!("Thread joined");
-    queue_test();
-    let ten_millis = std::time::Duration::from_millis(1000);
-    loop {
-        std::thread::sleep(ten_millis);
-        println!(".");
-    }
+    logboi_test();
+ //   queue_test();
+  //  let ten_millis = std::time::Duration::from_millis(1000);
+    //loop {
+      //  std::thread::sleep(ten_millis);
+        //println!(".");
+    //}
     
  //   new_test();
 }

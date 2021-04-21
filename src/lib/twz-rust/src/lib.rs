@@ -13,6 +13,9 @@ pub mod gate;
 #[cfg(feature = "expose_sapi")]
 pub mod sapi;
 
+pub mod log;
+pub mod bstream;
+
 
 #[no_mangle]
 pub extern fn __twz_libtwz_runtime_init()

@@ -30,9 +30,40 @@ pub(crate) mod twz_c {
         pub(crate) fn queue_complete(obj: *mut std::ffi::c_void, item: *const std::ffi::c_void, flags: i32) -> i32;
         pub(crate) fn queue_get_finished(obj: *mut std::ffi::c_void, item: *mut std::ffi::c_void, flags: i32) -> i32;
         pub(crate) fn queue_init_hdr(obj: *mut std::ffi::c_void, sqlen: usize, sqstride: usize, cqlen: usize, cqstride: usize) -> i32;
+        pub(crate) fn bstream_write(obj: *mut std::ffi::c_void,
+            ptr: *const u8, len: usize, flags: u32) -> i64;
+        pub(crate) fn bstream_read(obj: *mut std::ffi::c_void,
+            ptr: *mut u8, len: usize, flags: u32) -> i64;
+        pub(crate) fn bstream_obj_init(obj: *mut std::ffi::c_void, hdr: *mut std::ffi::c_void, nbits: u32) -> i32;
     }
 }
 
+pub(crate) fn bstream_write(obj: &Twzobj, data: &[u8], flags: u32) -> i64 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::bstream_write(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            data.as_ptr(), data.len(), flags)
+    }
+}
+
+pub(crate) fn bstream_read(obj: &Twzobj, data: &mut [u8], flags: u32) -> i64 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::bstream_read(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            data.as_mut_ptr(), data.len(), flags)
+    }
+}
+
+pub(crate) fn bstream_init(obj: &Twzobj, nbits: u32) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::bstream_obj_init(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::ptr::null_mut(), nbits)
+    }
+}
 pub(crate) fn queue_init_hdr<S, C>(obj: &Twzobj, sqlen: usize, cqlen: usize) -> i32 {
     unsafe {
         obj.alloc_libtwz_data();

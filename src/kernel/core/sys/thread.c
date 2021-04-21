@@ -169,7 +169,7 @@ void thread_free_become_frame(struct thread_become_frame *frame)
 	slabcache_free(&_sc_frame, frame);
 }
 
-static long __syscall_become_return(long a0, long a1)
+static long __syscall_become_return(long a0, long *arg_stack)
 {
 	struct list *entry = list_pop(&current_thread->become_stack);
 	if(!entry) {
@@ -177,17 +177,6 @@ static long __syscall_become_return(long a0, long a1)
 	}
 
 	struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
-
-	long *arg_stack = (void *)a1;
-	if(a1) {
-		if(!verify_user_pointer(arg_stack, sizeof(long))) {
-			return -EINVAL;
-		}
-		long arg_count = arg_stack[0];
-		if(!verify_user_pointer(arg_stack, sizeof(long) * arg_count)) {
-			return -EINVAL;
-		}
-	}
 
 	arch_thread_become_restore(frame, arg_stack);
 	if(frame->view) {
@@ -201,10 +190,16 @@ static long __syscall_become_return(long a0, long a1)
 	return a0;
 }
 
-long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
+long syscall_become(struct arch_syscall_become_args *_ba,
+  long a0,
+  long a1,
+  long a2,
+  long a3,
+  long a4)
 {
+	long extra_args[] = { 4, a1, a2, a3, a4 };
 	if(_ba == NULL) {
-		return __syscall_become_return(a0, a1);
+		return __syscall_become_return(a0, extra_args);
 	}
 	if(!verify_user_pointer(_ba, sizeof(*_ba))) {
 		return -EINVAL;
@@ -278,7 +273,7 @@ long syscall_become(struct arch_syscall_become_args *_ba, long a0, long a1)
 
 	if((r = secctx_check_permissions_hint(
 	      (void *)ba.target_rip, target_view, SCP_USE, ba.sctx_hint))) {
-		__syscall_become_return(0, 0);
+		__syscall_become_return(0, NULL);
 		return r;
 	}
 

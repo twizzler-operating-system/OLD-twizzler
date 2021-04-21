@@ -9,6 +9,20 @@ pub(crate) struct LibtwzData {
     pub(crate) data: *mut u8,
 }
 
+unsafe impl Send for LibtwzData{}
+
+pub(crate) fn id_from_lohi(lo: u64, hi: u64) -> ObjID {
+    lo as u128 | (hi as u128) << 64
+}
+
+pub fn objid_split(id: ObjID) -> (u64, u64) {
+    ((id >> 64) as u64, (id & 0xffffffffffffffff) as u64)
+}
+
+pub fn objid_join(hi: i64, lo: i64) -> ObjID {
+    u128::from(lo as u64) | (u128::from(hi as u64)) << 64
+}
+
 impl LibtwzData {
     fn new() -> LibtwzData {
         LibtwzData {
@@ -37,6 +51,13 @@ pub struct Twzobj {
     slot: u64,
     id: ObjID,
     pub(crate) libtwz_data: std::sync::Arc<std::sync::Mutex<Option<LibtwzData>>>,
+}
+
+impl std::ops::Drop for Twzobj {
+    /* TODO: release the slot */
+    fn drop(&mut self) {
+
+    }
 }
 
 pub struct Tx {
