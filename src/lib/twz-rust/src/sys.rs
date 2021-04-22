@@ -1,6 +1,7 @@
 
 const SYS_ATTACH: i64 = 4;
 const SYS_BECOME: i64 = 6;
+const SYS_THREAD_SYNC: i64 = 7;
 
 pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
     let mut num = SYS_ATTACH;
@@ -12,6 +13,62 @@ pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
          in("rdx") (cid & 0xffffffffffffffff) as u64,
          in("r8") ((cid >> 64) & 0xffffffffffffffff) as u64,
          in("r9") sf,
+         out("r11") _,
+         out("rcx") _);
+    num as i64
+}
+
+pub struct ThreadSyncArgs {
+	addr: *const std::sync::atomic::AtomicU64,
+	arg: u64,
+	res: u64,
+	__resv: u64,
+	op: u32,
+	flags: u32,
+}
+
+impl ThreadSyncArgs {
+    pub fn new_sleep(addr: &std::sync::atomic::AtomicU64, val: u64) -> ThreadSyncArgs {
+        ThreadSyncArgs {
+            addr: addr as *const std::sync::atomic::AtomicU64,
+            arg: val,
+            op: 0,
+            flags: 0,
+            __resv: 0,
+            res: 0,
+        }
+    }
+
+    pub fn new_wake(addr: &std::sync::atomic::AtomicU64, count: u64) -> ThreadSyncArgs {
+        ThreadSyncArgs {
+            addr: addr as *const std::sync::atomic::AtomicU64,
+            arg: count,
+            op: 1,
+            flags: 0,
+            __resv: 0,
+            res: 0,
+        }
+    }
+}
+
+#[repr(C)]
+struct KernelTimeSpec {
+    sec: u64,
+    nsec: u64,
+}
+
+pub unsafe fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
+    let timespec = timeout.map(|t| KernelTimeSpec {
+        sec: t.as_secs(),
+        nsec: t.subsec_nanos() as u64,
+    });
+
+    let mut num = SYS_THREAD_SYNC;
+    asm!("syscall",
+         inout("rax") num,
+         in("rdi") specs.len(),
+         in("rsi") specs.as_ptr(),
+         in("rdx") if let Some(timespec) = timespec { (&timespec) as *const KernelTimeSpec } else { std::ptr::null() },
          out("r11") _,
          out("rcx") _);
     num as i64

@@ -376,8 +376,12 @@ static inline int queue_sub_dequeue(
 
 #ifndef __KERNEL__
 struct queue_dequeue_multiple_spec {
-	twzobj *obj;
+	union {
+		twzobj *obj;
+		atomic_uint_least64_t *word;
+	};
 	struct queue_entry *result;
+	uint64_t cmp;
 	int sq;
 	int ret;
 };
@@ -397,13 +401,20 @@ top:
 		size_t ready = 0;
 		for(size_t i = 0; i < count; i++) {
 			specs[i].ret = 0;
-			struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
-			if(tries == 0) {
-				D_CLRWAITING(hdr, specs[i].sq);
-			}
-			if(queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true) == 0) {
-				ready++;
-				specs[i].ret = 1;
+			if(specs[i].result) {
+				struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
+				if(tries == 0) {
+					D_CLRWAITING(hdr, specs[i].sq);
+				}
+				if(queue_sub_dequeue(specs[i].obj, hdr, specs[i].sq, specs[i].result, true) == 0) {
+					ready++;
+					specs[i].ret = 1;
+				}
+			} else {
+				if(*specs[i].word != specs[i].cmp) {
+					ready++;
+					specs[i].ret = 1;
+				}
 			}
 		}
 
@@ -418,6 +429,11 @@ top:
 	sleep_count = 0;
 	for(size_t i = 0; i < count; i++) {
 		specs[i].ret = 0;
+		if(!specs[i].result) {
+			twz_thread_sync_init(
+			  &tsa[sleep_count++], THREAD_SYNC_SLEEP, specs[i].word, specs[i].cmp);
+			continue;
+		}
 		struct queue_hdr *hdr = (struct queue_hdr *)twz_object_base(specs[i].obj);
 		D_SETWAITING(hdr, specs[i].sq);
 

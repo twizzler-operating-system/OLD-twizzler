@@ -18,6 +18,27 @@ impl<T> QueueEntry<T> {
             item: item,
         }
     }
+
+    pub(crate) fn new_uninit() -> QueueEntry<T> {
+        let mut item: T = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
+        QueueEntry {
+            cmd_id: 0,
+            info: 0,
+            item: item,
+        }
+    }
+
+    pub fn item(&self) -> &T {
+        &self.item
+    }
+
+    pub fn item_mut(&mut self) -> &mut T {
+        &mut self.item
+    }
+
+    pub fn consume(self) -> T {
+        self.item
+    }
 }
 
 struct QueueCompleter<T> {
@@ -182,3 +203,73 @@ impl<S: Copy, C: Copy> Queue<S, C> {
         }
     }
 }
+
+use crate::TwzErr;
+
+#[derive(Debug)]
+pub enum MultiResultState<S, C> {
+    ReadyS(S),
+    ReadyC(C),
+    SleepReady,
+    Error(i32),
+}
+
+#[derive(Debug)]
+pub struct MultiResult<S, C> {
+    pub queue_results: std::vec::Vec<(usize, MultiResultState<S, C>)>,
+    pub sleep_results: std::vec::Vec<(usize, MultiResultState<S, C>)>,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum Direction {
+    Submission = 0,
+    Completion = 1,
+}
+
+use crate::libtwz::{QueueMultiSpec};
+
+pub fn wait_multiple<S: Copy, C: Copy>(queues: std::vec::Vec<(Direction, &Queue<S, C>)>, sleeps: std::vec::Vec<(&std::sync::atomic::AtomicU64, u64)>) -> std::result::Result<MultiResult<QueueEntry<S>, QueueEntry<C>>, TwzErr> {
+    let mut results: std::vec::Vec<(Option<QueueEntry<S>>, Option<QueueEntry<C>>)> = vec![(None, None); queues.len()];
+    let mut queue_specs: std::vec::Vec<QueueMultiSpec> = queues.iter().enumerate().map(|(i, (d, q))| {
+        if *d == Direction::Submission {
+            results[i] = (Some(QueueEntry::<S>::new_uninit()), None);
+            QueueMultiSpec::new_subm(q, &mut results[i].0.as_mut().unwrap())
+        } else {
+            results[i] = (None, Some(QueueEntry::<C>::new_uninit()));
+            QueueMultiSpec::new_cmpl(q, &mut results[i].1.as_mut().unwrap())
+        }
+    }).collect();
+    for sleep in &sleeps {
+        queue_specs.push(QueueMultiSpec::new_sleep(sleep.0, sleep.1));
+    }
+    if queue_specs.len() == 0 {
+        return Ok(MultiResult { queue_results: vec![], sleep_results: vec![] });
+    }
+    let res = crate::libtwz::queue_multi_wait(queue_specs.len(), &mut queue_specs);
+    if res < 0 {
+        return Err(TwzErr::OSError(-res as i32));
+    }
+
+    let mut result = MultiResult {
+        queue_results: vec![],
+        sleep_results: vec![],
+    };
+
+    for (i, spec) in queue_specs.iter().enumerate() {
+        if spec.ret > 0 {
+            if spec.is_queue() {
+                if spec.sq == 0 {
+                    result.queue_results.push( (i, MultiResultState::ReadyS(results[i].0.unwrap())) );
+                } else {
+                    result.queue_results.push( (i, MultiResultState::ReadyC(results[i].1.unwrap())) );
+                }
+            } else {
+                result.sleep_results.push( (i - queues.len(), MultiResultState::SleepReady) );
+            }
+        } else if spec.ret < 0 {
+            result.queue_results.push( (i, MultiResultState::Error(-spec.ret)) );
+        }
+    }
+    Ok(result)
+}
+

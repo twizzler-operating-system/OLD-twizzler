@@ -19,6 +19,22 @@ twz::twz_gate!(2, __bar, bar () { println!("Hi"); 0});
 
 use twz::queue::*;
 
+#[derive(Copy, Clone)]
+#[repr(C)]
+enum LogEventCmd {
+    LogMsg = 0,
+    Disconnect = 1,
+    SetName = 2,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+struct LogEvent {
+    cmd: LogEventCmd,
+    ptr: twz::ptr::Pptr<[u8; 4096]>,
+    len: usize,
+}
+
 fn logboi_test()
 {
     let obj = twz::obj::Twzobj::init_name("logboi").unwrap();
@@ -27,8 +43,33 @@ fn logboi_test()
     let id = twz::obj::objid_join(rets[0], rets[1]);
     println!("GOT: {:x}", id);
     let obj = twz::obj::Twzobj::init_guid(id).expect("failed to open object");
-    let stream = twz::bstream::BStream::from_obj(obj);
-    stream.write(b"hello from bstream", 0).expect("Failed to log");
+    let queue: twz::queue::Queue<LogEvent, LogEvent> = twz::queue::Queue::from_obj(obj);
+
+
+    let buffer = twz::obj::Twzobj::create::<()>(
+        twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, 
+        None, None, None).expect("failed to create object");
+    let buf_base = unsafe { buffer.base_unchecked_mut::<[u8; 4096]>() };
+    buf_base[0] = 'h' as u8;
+    buf_base[1] = 'e' as u8;
+    buf_base[2] = 'l' as u8;
+    buf_base[3] = 'l' as u8;
+    buf_base[4] = 'o' as u8;
+    buf_base[5] = '\0' as u8;
+    let buf_base = unsafe { buffer.base_unchecked_mut::<[u8; 4096]>() };
+
+    let mut qe = QueueEntry::new(LogEvent { cmd: LogEventCmd::LogMsg, ptr: twz::ptr::Pptr::new_null(), len: 6 }, 0);
+
+    unsafe {
+        queue.obj().store_ptr_unchecked(&mut qe.item_mut().ptr, buf_base, &buffer).unwrap();
+        println!(":::: {:p}", qe.item().ptr);
+    }
+
+    queue.send_callback(qe, 0, |c| {
+        println!("req done");
+    }).unwrap();
+    queue.check_completions_callback(0).unwrap();
+    //stream.write(b"hello from bstream", 0).expect("Failed to log");
 }
 
 #[allow(dead_code)]

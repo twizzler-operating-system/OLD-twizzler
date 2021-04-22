@@ -8,13 +8,15 @@ pub mod ptr;
 pub mod obj;
 mod persist;
 pub mod queue;
-mod sys;
+pub mod sys;
 pub mod gate;
 #[cfg(feature = "expose_sapi")]
 pub mod sapi;
 
 pub mod log;
 pub mod bstream;
+pub mod kso;
+pub mod thread;
 
 
 #[no_mangle]

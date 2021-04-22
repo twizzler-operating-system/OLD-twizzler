@@ -1,8 +1,8 @@
 use crate::ptr::*;
 use crate::libtwz::*;
 use crate::*;
-const OBJ_MAX_SIZE: u64 = 1 << 30;
-const OBJ_NULLPAGE_SIZE: u64 = 0x1000;
+pub const OBJ_MAX_SIZE: u64 = 1 << 30;
+pub const OBJ_NULLPAGE_SIZE: u64 = 0x1000;
 pub type ObjID = u128;
 
 pub(crate) struct LibtwzData {
@@ -152,11 +152,25 @@ impl Twzobj {
         }
 
     pub fn lea<T>(&self, p: &Pptr<T>) -> &T {
-        unsafe { self.offset_lea::<T>(p.p) }
+        if p.is_internal() {
+            unsafe { self.offset_lea::<T>(p.p) }
+        } else {
+            let r = libtwz::ptr_load_foreign(self, p.p);
+            unsafe {
+                std::mem::transmute::<u64, &T>(r)
+            }
+        }
     }
 
     pub fn lea_mut<T>(&self, p: &Pptr<T>, _tx: &mut Tx) -> &mut T {
-        unsafe { self.offset_lea_mut::<T>(p.p) }
+        if p.is_internal() {
+            unsafe { self.offset_lea_mut::<T>(p.p) }
+        } else {
+            let r = libtwz::ptr_load_foreign(self, p.p);
+            unsafe {
+                std::mem::transmute::<u64, &mut T>(r)
+            }
+        }
     }
 
     pub unsafe fn base_unchecked_mut<T>(&self) -> &mut T {
@@ -188,6 +202,19 @@ impl Twzobj {
         }
         panic!("")
     }
+
+    pub unsafe fn store_ptr_unchecked<T>(&self, pptr: &mut Pptr<T>, dest: &T, dest_obj: &Twzobj) -> Result<(), TwzErr> {
+        let mut p = unsafe { std::mem::transmute::<*const T, u64>(dest as *const T) };
+        p = p & (OBJ_MAX_SIZE-1);
+        let res = libtwz::ptr_store_guid(self, &mut pptr.p, p, dest_obj);
+        if res < 0 {
+            Err(TwzErr::OSError(-res))
+        } else {
+            Ok(())
+        }
+    }
+
+
 }
 
 

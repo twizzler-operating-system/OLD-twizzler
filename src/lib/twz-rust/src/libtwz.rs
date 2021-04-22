@@ -1,5 +1,68 @@
 use crate::obj::*;
 
+#[repr(C)]
+pub(crate) union ObjOrWord {
+		obj: *mut std::ffi::c_void,
+		word: *const std::sync::atomic::AtomicU64,
+}
+
+#[repr(C)]
+pub(crate) struct QueueMultiSpec {
+	pub(crate) obj_or_word: ObjOrWord,
+	pub(crate) result: *mut std::ffi::c_void,
+	pub(crate) cmp: u64,
+	pub(crate) sq: i32,
+	pub(crate) ret: i32,
+}
+
+impl QueueMultiSpec {
+    pub(crate) fn new_subm<S: Copy, C: Copy>(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<S>) -> QueueMultiSpec {
+        queue.obj().alloc_libtwz_data();
+        QueueMultiSpec {
+            obj_or_word: ObjOrWord { obj: queue.obj().libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void },
+            result: unsafe { std::mem::transmute::<*mut crate::queue::QueueEntry<S>, *mut std::ffi::c_void>(result as *mut crate::queue::QueueEntry<S>) },
+            cmp: 0,
+            sq: 0,
+            ret: 0,
+        }
+    }
+
+    pub(crate) fn new_sleep(word: &std::sync::atomic::AtomicU64, cmp: u64) -> QueueMultiSpec {
+        QueueMultiSpec {
+            obj_or_word: ObjOrWord { word: word as *const std::sync::atomic::AtomicU64 },
+            result: std::ptr::null_mut(),
+            cmp: cmp,
+            sq: 0,
+            ret: 0,
+        }
+    }
+
+    pub(crate) fn is_queue(&self) -> bool {
+        self.result != std::ptr::null_mut()
+    }
+
+    pub(crate) fn new_cmpl<S: Copy, C: Copy>(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<C>) -> QueueMultiSpec {
+        queue.obj().alloc_libtwz_data();
+        QueueMultiSpec {
+            obj_or_word: ObjOrWord { obj: queue.obj().libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void },
+            result: unsafe { std::mem::transmute::<*mut crate::queue::QueueEntry<C>, *mut std::ffi::c_void>(result as *mut crate::queue::QueueEntry<C>)} ,
+            cmp: 0,
+            sq: 1,
+            ret: 0,
+        }
+    }
+
+    pub(crate) fn new_empty() -> QueueMultiSpec {
+        QueueMultiSpec {
+            obj_or_word: ObjOrWord { obj: std::ptr::null_mut() },
+            result: std::ptr::null_mut(),
+            cmp: 0,
+            sq: 0,
+            ret: 0,
+        }
+    }
+}
+
 pub(crate) mod twz_c {
     pub(crate) type LibtwzObjID = u128;
 #[allow(improper_ctypes)]
@@ -9,7 +72,6 @@ pub(crate) mod twz_c {
         pub(crate) fn twz_name_assign(id: LibtwzObjID, name: *const i8) -> i32;
         pub(crate) fn twz_object_init_name(data: &mut [i8; 1024], name: *const i8, flags: i32) -> i32;
         pub(crate) fn twz_object_base(data: &mut [i8; 1024]) -> *mut i8;
-        pub(crate) fn __twz_object_lea_foreign(data: &mut [i8; 1024], offset: u64, mask: u32) -> *mut i8;
         pub(crate) fn twz_object_from_ptr_cpp(p: *const i8, data: *mut std::ffi::c_void);
         pub(crate) fn twz_view_allocate_slot(_obj: *mut std::ffi::c_void, id: LibtwzObjID, flags: u32) -> i64;
         pub(crate) fn twz_alloc(obj: *mut std::ffi::c_void,
@@ -30,11 +92,36 @@ pub(crate) mod twz_c {
         pub(crate) fn queue_complete(obj: *mut std::ffi::c_void, item: *const std::ffi::c_void, flags: i32) -> i32;
         pub(crate) fn queue_get_finished(obj: *mut std::ffi::c_void, item: *mut std::ffi::c_void, flags: i32) -> i32;
         pub(crate) fn queue_init_hdr(obj: *mut std::ffi::c_void, sqlen: usize, sqstride: usize, cqlen: usize, cqstride: usize) -> i32;
+        pub(crate) fn queue_dequeue_multiple(count: usize, specs: *mut std::ffi::c_void) -> i64;
         pub(crate) fn bstream_write(obj: *mut std::ffi::c_void,
             ptr: *const u8, len: usize, flags: u32) -> i64;
         pub(crate) fn bstream_read(obj: *mut std::ffi::c_void,
             ptr: *mut u8, len: usize, flags: u32) -> i64;
         pub(crate) fn bstream_obj_init(obj: *mut std::ffi::c_void, hdr: *mut std::ffi::c_void, nbits: u32) -> i32;
+        pub(crate) fn __twz_ptr_store_guid(obj: *mut std::ffi::c_void, ptr: *mut u64, dest_obj: *mut std::ffi::c_void, p: u64, f: u64) -> i32;
+        pub(crate) fn __twz_object_lea_foreign(obj: *mut std::ffi::c_void, ptr: u64, mask: i32) -> u64;
+    }
+}
+
+pub(crate) fn ptr_load_foreign(obj: &Twzobj, ptr: u64) -> u64 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::__twz_object_lea_foreign(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            ptr, !0)
+    }
+}
+
+pub(crate) fn ptr_store_guid(obj: &Twzobj, pptr: &mut u64, dst: u64, dest_obj: &Twzobj) -> i32 {
+    unsafe {
+        obj.alloc_libtwz_data();
+        dest_obj.alloc_libtwz_data();
+        twz_c::__twz_ptr_store_guid(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            pptr as *mut u64,
+            dest_obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            dst,
+            0xc/*TODO*/)
     }
 }
 
@@ -89,6 +176,12 @@ pub(crate) fn queue_receive<T>(obj: &Twzobj, item: &mut T, flags: i32) -> i32 {
         twz_c::queue_receive(
             obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
             std::mem::transmute::<&mut T, *mut std::ffi::c_void>(item), flags)
+    }
+}
+
+pub(crate) fn queue_multi_wait(count: usize, specs: &mut [QueueMultiSpec]) -> i64 {
+    unsafe {
+        twz_c::queue_dequeue_multiple(count, std::mem::transmute::<*mut QueueMultiSpec, *mut std::ffi::c_void>(specs.as_mut_ptr()))
     }
 }
 

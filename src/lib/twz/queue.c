@@ -26,6 +26,11 @@ int queue_get_finished(twzobj *obj, struct queue_entry *qe, int flags)
 	  obj, twz_object_base(obj), SUBQUEUE_CMPL, qe, !!(flags & QUEUE_NONBLOCK));
 }
 
+ssize_t queue_dequeue_multiple(size_t count, struct queue_dequeue_multiple_spec *specs)
+{
+	return queue_sub_dequeue_multiple(count, specs);
+}
+
 int queue_init_hdr(twzobj *obj, size_t sqlen, size_t sqstride, size_t cqlen, size_t cqstride)
 {
 	struct queue_hdr *hdr = twz_object_base(obj);
