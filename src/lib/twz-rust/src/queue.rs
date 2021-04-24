@@ -1,16 +1,17 @@
 use crate::libtwz;
+use crate::obj::Twzobj;
 
 type Result<T> = std::result::Result<T, crate::TwzErr>;
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
-pub struct QueueEntry<T> {
+pub struct QueueEntry<T: Copy> {
     cmd_id: u32,
     info: u32,
     item: T,
 }
 
-impl<T> QueueEntry<T> {
+impl<T: Copy> QueueEntry<T> {
     pub fn new(item: T, info: u32) -> QueueEntry<T> {
         QueueEntry {
             cmd_id: 0,
@@ -41,30 +42,8 @@ impl<T> QueueEntry<T> {
     }
 }
 
-struct QueueCompleter<T> {
-    callback: fn(item: &T),
-}
-
-/*
-fn is_eagain<T>(r: crate::queue::Result<T>) -> bool {
-    if let Err(e) = r {
-        if let crate::TwzErr::OSError(e) = e {
-            return e == 11; //TODO
-        }
-    }
-    return false;
-}
-*/
-
-struct QueueHandler<T> {
-    outstanding: std::collections::HashMap<u32, QueueCompleter<T>>,
-    ids: std::vec::Vec<u32>,
-    idcounter: u32,
-}
-
-pub struct Queue<S, C> {
+pub struct Queue<S: Copy, C: Copy> {
     obj: crate::obj::Twzobj,
-    handler: std::sync::Arc<std::sync::Mutex<QueueHandler<C>>>,
     _pd: std::marker::PhantomData<(S, C)>,
 }
 
@@ -87,7 +66,7 @@ pub fn recv<T: Copy>(obj: &crate::obj::Twzobj, flags: i32) -> crate::queue::Resu
     }
 }
 
-pub fn complete<T: Copy>(obj: &crate::obj::Twzobj, item: T, flags: i32) -> crate::queue::Result<()> {
+pub fn complete<T: Copy >(obj: &crate::obj::Twzobj, item: T, flags: i32) -> crate::queue::Result<()> {
     let res = libtwz::queue_complete(obj, &item, flags);
     if res < 0 {
         Err(crate::TwzErr::OSError(res))
@@ -96,7 +75,7 @@ pub fn complete<T: Copy>(obj: &crate::obj::Twzobj, item: T, flags: i32) -> crate
     }
 }
 
-pub fn get_completion<T: Copy>(obj: &crate::obj::Twzobj, flags: i32) -> crate::queue::Result<T> {
+pub fn get_completion<T: Copy >(obj: &crate::obj::Twzobj, flags: i32) -> crate::queue::Result<T> {
     let mut item: T = unsafe { std::mem::MaybeUninit::zeroed().assume_init() };
     let res = libtwz::queue_get_completion(obj, &mut item, flags);
     if res < 0 {
@@ -106,7 +85,7 @@ pub fn get_completion<T: Copy>(obj: &crate::obj::Twzobj, flags: i32) -> crate::q
     }
 }
 
-pub fn create<S, C>(flags: i32, sqlen: usize, cqlen: usize, kuid: Option<crate::obj::Twzobj>) -> crate::queue::Result<crate::obj::Twzobj> {
+pub fn create<S: Copy , C: Copy >(flags: i32, sqlen: usize, cqlen: usize, kuid: Option<crate::obj::Twzobj>) -> crate::queue::Result<crate::obj::Twzobj> {
     let id = libtwz::twz_object_create(flags, kuid.map_or(0, |o| o.id()), 0).map_err(|e| crate::TwzErr::OSError(e))?;
     let obj = crate::obj::Twzobj::init_guid(id)?;
     let res = libtwz::queue_init_hdr::<S, C>(&obj, sqlen, cqlen);
@@ -117,15 +96,10 @@ pub fn create<S, C>(flags: i32, sqlen: usize, cqlen: usize, kuid: Option<crate::
     }
 }
 
-impl<S: Copy, C: Copy> Queue<S, C> {
+impl<S: Copy , C: Copy > Queue<S, C> {
     pub fn new_private(sqlen: usize, cqlen: usize) -> crate::queue::Result<Queue<S, C>> {
         Ok(Queue {
             obj: create::<QueueEntry<S>, QueueEntry<C>>(crate::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | crate::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, sqlen, cqlen, None)?,
-            handler: std::sync::Arc::new(std::sync::Mutex::new(QueueHandler {
-                outstanding: std::collections::HashMap::new(),
-                ids: vec![],
-                idcounter: 0,
-            })),
             _pd: std::marker::PhantomData,
         })
     }
@@ -133,11 +107,6 @@ impl<S: Copy, C: Copy> Queue<S, C> {
     pub fn from_obj(obj: crate::obj::Twzobj) -> Queue<S, C> {
         Queue {
             obj: obj,
-            handler: std::sync::Arc::new(std::sync::Mutex::new(QueueHandler {
-                outstanding: std::collections::HashMap::new(),
-                ids: vec![],
-                idcounter: 0,
-            })),
             _pd: std::marker::PhantomData,
         }
     }
@@ -162,46 +131,74 @@ impl<S: Copy, C: Copy> Queue<S, C> {
         get_completion::<QueueEntry<C>>(&self.obj, flags)
     }
 
-    pub fn send_callback(&self, mut item: QueueEntry<S>, flags: i32, callback: fn(item: &C)) -> crate::queue::Result<()> {
+}
+
+struct QueueCompleter<T: Copy, F> {
+    callback: Box<fn(T, F)>,
+    args: F,
+}
+
+pub struct QueueHandler<S: Copy, C: Copy, T> {
+    outstanding: std::collections::HashMap<u32, QueueCompleter<C, T>>,
+    ids: std::vec::Vec<u32>,
+    idcounter: u32,
+    queue: std::rc::Rc<Queue<S, C>>
+}
+
+
+impl<S: Copy, C: Copy, F> QueueHandler<S, C, F> {
+    pub fn new(queue: Queue<S, C>) -> QueueHandler<S, C, F> {
+        QueueHandler::<S, C, F> {
+            outstanding: std::collections::HashMap::new(),
+            ids: vec![],
+            idcounter: 0,
+            queue: std::rc::Rc::new(queue),
+        }
+    }
+
+    pub fn queue(&self) -> std::rc::Rc<Queue<S, C>> {
+        self.queue.clone()
+    }
+
+    pub fn send_callback(&mut self, mut item: QueueEntry<S>, flags: i32, callback: fn(C, F), args: F) -> crate::queue::Result<()> {
         let id = {
-            let mut handler = self.handler.lock().unwrap();
-            let id = if let Some(id) = handler.ids.pop() {
+            let id = if let Some(id) = self.ids.pop() {
                 id
             } else {
-                let id = handler.idcounter;
-                handler.idcounter += 1;
+                let id = self.idcounter;
+                self.idcounter += 1;
                 id
             };
-            handler.outstanding.insert(id, QueueCompleter { callback: callback });
+            self.outstanding.insert(id, QueueCompleter { callback: Box::new(callback), args: args });
             id
         };
         item.info = id;
-        let res = self.send(item, flags);
+        let res = self.queue.send(item, flags);
         if res.is_err() {
-            let mut handler = self.handler.lock().unwrap();
-            handler.outstanding.remove(&id);
-            handler.ids.push(id);
+            self.outstanding.remove(&id);
+            self.ids.push(id);
         }
         res
     }
 
-    pub fn check_completions_callback(&self, flags: i32) -> crate::queue::Result<Option<QueueEntry<C>>> {
-        let res = self.get_completion(flags)?;
+    pub fn check_completions_callback(&mut self, flags: i32) -> crate::queue::Result<Option<QueueEntry<C>>> {
+        let res = self.queue.get_completion(flags)?;
         let completer = {
-            let mut handler = self.handler.lock().unwrap();
-            let completer = handler.outstanding.remove(&res.info);
+            let completer = self.outstanding.remove(&res.info);
             if completer.is_some() {
-                handler.ids.push(res.info);
+                self.ids.push(res.info);
             }
             completer
         };
         if let Some(completer) = completer {
-            (completer.callback)(&res.item);
+            let cb = completer.callback;
+            (cb)(res.item, completer.args);
             Ok(None)
         } else {
             Ok(Some(res))
         }
     }
+
 }
 
 use crate::TwzErr;
@@ -228,7 +225,7 @@ pub enum Direction {
 
 use crate::libtwz::{QueueMultiSpec};
 
-pub fn wait_multiple<S: Copy, C: Copy>(queues: std::vec::Vec<(Direction, &Queue<S, C>)>, sleeps: std::vec::Vec<(&std::sync::atomic::AtomicU64, u64)>) -> std::result::Result<MultiResult<QueueEntry<S>, QueueEntry<C>>, TwzErr> {
+pub fn wait_multiple<S: Copy , C: Copy >(queues: std::vec::Vec<(Direction, &Queue<S, C>)>, sleeps: std::vec::Vec<(&std::sync::atomic::AtomicU64, u64)>) -> std::result::Result<MultiResult<QueueEntry<S>, QueueEntry<C>>, TwzErr> {
     let mut results: std::vec::Vec<(Option<QueueEntry<S>>, Option<QueueEntry<C>>)> = vec![(None, None); queues.len()];
     let mut queue_specs: std::vec::Vec<QueueMultiSpec> = queues.iter().enumerate().map(|(i, (d, q))| {
         if *d == Direction::Submission {
@@ -273,3 +270,31 @@ pub fn wait_multiple<S: Copy, C: Copy>(queues: std::vec::Vec<(Direction, &Queue<
     Ok(result)
 }
 
+pub trait QueueItemBuf<T: Copy> {
+    fn get_buf_ptr(&mut self) -> &mut crate::ptr::Pptr<T>;
+}
+
+pub fn buffer_item<T: QueueItemBuf<B> + Copy, B: Copy, S: Copy, C: Copy>(queue: &Queue<S, C>, buffer: &Twzobj, item: T, bufitem: B) -> std::result::Result<QueueEntry<T>, TwzErr> {
+    let bufitem_ptr = buffer.move_item_vol(bufitem)?;
+    let mut qe = QueueEntry::new(item, 0);
+    unsafe {
+        queue.obj().store_ptr_unchecked(qe.item_mut().get_buf_ptr(), bufitem_ptr, &buffer)?;
+    }
+    Ok(qe)
+}
+
+pub fn buffer_slice<T: QueueItemBuf<crate::pslice::Pslice<B>> + Copy, B: Copy , S: Copy , C: Copy >(queue: &Queue<S, C>, buffer: &Twzobj, item: T, bufitem: &[B])
+-> std::result::Result<QueueEntry<T>, TwzErr> {
+    let slice = crate::pslice::Pslice::from_slice(&buffer, bufitem)?;
+    let bufitem_ptr = buffer.move_item_vol(slice)?;
+    let mut qe = QueueEntry::new(item, 0);
+    unsafe {
+        queue.obj().store_ptr_unchecked(qe.item_mut().get_buf_ptr(), bufitem_ptr, &buffer)?;
+    }
+    Ok(qe)
+}
+
+pub fn free_buffer_slice<B: Copy, S: Copy, C: Copy>(queue: &Queue<S, C>, buffer: &Twzobj, slice: &crate::pslice::Pslice<B>) {
+    slice.free_slice(buffer);
+    buffer.free_item(slice);
+}

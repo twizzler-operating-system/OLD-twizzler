@@ -17,6 +17,8 @@ pub mod log;
 pub mod bstream;
 pub mod kso;
 pub mod thread;
+pub mod vec;
+pub mod pslice;
 
 
 #[no_mangle]

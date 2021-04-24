@@ -47,6 +47,7 @@ impl std::ops::Drop for LibtwzData {
     }
 }
 
+#[derive(Clone)]
 pub struct Twzobj {
     slot: u64,
     id: ObjID,
@@ -75,6 +76,22 @@ impl Twzobj {
             unsafe {
                 libtwz::twz_c::twz_object_from_ptr_cpp(std::mem::transmute::<&i8, *const i8>(self.base_unchecked::<i8>()), data.as_mut().unwrap().data as *mut std::ffi::c_void);
             }
+        }
+    }
+
+    pub fn ptr_get_obj<T>(&self, p: &crate::ptr::Pptr<T>) -> Result<Twzobj, crate::TwzErr> {
+        if p.is_internal() {
+            Self::init_guid(self.id)
+        } else {
+            let r = libtwz::ptr_load_foreign(self, p.p);
+            let mut obj = Twzobj {
+                id: 0,
+                slot: r / OBJ_MAX_SIZE,
+                libtwz_data: std::sync::Arc::new(std::sync::Mutex::new(None))
+            };
+            obj.alloc_libtwz_data();
+
+            Ok(obj)
         }
     }
 
@@ -134,7 +151,6 @@ impl Twzobj {
 
     pub fn move_item<T: Copy, E>(&self, item: T, p: &mut Pptr<T>, _tx: Option<&mut Tx>) -> Result<(), crate::TxResultErr<E>> {
         extern fn do_the_move<T: Copy>(tgt: &mut T, src: &T) {
-            println!("do_the_move: {:p}", tgt);
             *tgt = *src;
         }
         let res = libtwz::twz_object_alloc_move(self, p, 0, do_the_move, item);
@@ -143,6 +159,37 @@ impl Twzobj {
         } else {
             Ok(())
         }
+    }
+
+    pub fn move_item_vol<T: Copy>(&self, item: T) -> Result<&mut T, crate::TwzErr> {
+        extern fn do_the_move<T: Copy>(tgt: &mut T, src: &T) {
+            *tgt = *src;
+        }
+        let mut p = crate::ptr::Pptr::new_null();
+        let res = libtwz::twz_object_alloc_move(self, &mut p, 0, do_the_move, item);
+        if res < 0 {
+            Err(crate::TwzErr::OSError(-res))
+        } else {
+            Ok(unsafe{self.offset_lea_mut(p.p)})
+        }
+    }
+
+    pub(crate) fn move_slice<T: Copy>(&self, slice: &[T], p: &mut u64) -> Result<(), crate::TwzErr> {
+        let res = libtwz::twz_object_alloc_slice_move(self, p, 0, slice);
+        if res < 0 {
+            Err(crate::TwzErr::OSError(-res))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub(crate) fn free_slice<T>(&self, slice: &mut crate::pslice::Pslice<T>) {
+        let res = libtwz::twz_object_free::<T>(self, &mut slice.p, 0);
+    }
+
+    pub(crate) fn free_item<T>(&self, item: &T) {
+        let mut p = unsafe { std::mem::transmute::<&T, u64>(item) };
+        let res = libtwz::twz_object_free::<T>(self, &mut p, 0);
     }
 
     pub fn transaction<F, T, E>(&self, func: F) -> Result<T, crate::TxResultErr<E>>

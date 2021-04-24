@@ -31,8 +31,17 @@ enum LogEventCmd {
 #[repr(C)]
 struct LogEvent {
     cmd: LogEventCmd,
-    ptr: twz::ptr::Pptr<[u8; 4096]>,
-    len: usize,
+    ptr: twz::ptr::Pptr<twz::pslice::Pslice<u8>>,
+}
+
+impl twz::queue::QueueItemBuf<twz::pslice::Pslice<u8>> for LogEvent {
+    fn get_buf_ptr(&mut self) -> &mut twz::ptr::Pptr<twz::pslice::Pslice<u8>> {
+        &mut self.ptr
+    }
+}
+
+struct Baz {
+    x: u32,
 }
 
 fn logboi_test()
@@ -49,26 +58,23 @@ fn logboi_test()
     let buffer = twz::obj::Twzobj::create::<()>(
         twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_READ | twz::obj::Twzobj::TWZ_OBJ_CREATE_DFL_WRITE, 
         None, None, None).expect("failed to create object");
-    let buf_base = unsafe { buffer.base_unchecked_mut::<[u8; 4096]>() };
-    buf_base[0] = 'h' as u8;
-    buf_base[1] = 'e' as u8;
-    buf_base[2] = 'l' as u8;
-    buf_base[3] = 'l' as u8;
-    buf_base[4] = 'o' as u8;
-    buf_base[5] = '\0' as u8;
-    let buf_base = unsafe { buffer.base_unchecked_mut::<[u8; 4096]>() };
 
-    let mut qe = QueueEntry::new(LogEvent { cmd: LogEventCmd::LogMsg, ptr: twz::ptr::Pptr::new_null(), len: 6 }, 0);
-
-    unsafe {
-        queue.obj().store_ptr_unchecked(&mut qe.item_mut().ptr, buf_base, &buffer).unwrap();
-        println!(":::: {:p}", qe.item().ptr);
+    let qe = twz::queue::buffer_slice(&queue, &buffer, LogEvent { cmd: LogEventCmd::LogMsg, ptr: twz::ptr::Pptr::new_null() }, b"hello world from slice2").unwrap();
+    let mut handler = twz::queue::QueueHandler::new(queue);
+    //let queue = Box::new(queue);
+    fn callback(c: LogEvent, args: (std::rc::Rc<Queue<LogEvent, LogEvent>>, &twz::obj::Twzobj)) {
+        println!(":::: {:p}", c.ptr);
+        let ptr = args.0.obj().lea(&c.ptr);
+        println!("req done {:p}", ptr);
+        twz::queue::free_buffer_slice(&args.0, &args.1, &ptr);
     }
-
-    queue.send_callback(qe, 0, |c| {
-        println!("req done");
-    }).unwrap();
-    queue.check_completions_callback(0).unwrap();
+    let x = foo;
+    //queue.lock().unwrap().send_callback(qe, 0, callback).unwrap();
+    handler.send_callback(qe, 0, callback, (handler.queue(), &buffer)).unwrap();
+    handler.check_completions_callback(0).unwrap();
+    handler.send_callback(qe, 0, callback, (handler.queue(), &buffer)).unwrap();
+    handler.check_completions_callback(0).unwrap();
+    //queue.lock().unwrap().check_completions_callback(0).unwrap();
     //stream.write(b"hello from bstream", 0).expect("Failed to log");
 }
 
@@ -87,6 +93,7 @@ fn queue_test()
         println!("GOT: {:?}", rets);
     }
 
+    /*
     /* create a queue (creates an object under the hood). The submission queue will send items of
      * type Bar, as will the completion queue. Note that we'll actually be getting QueueEntry<Bar>
      * back when we receive things, because of how the queues work. */
@@ -103,6 +110,7 @@ fn queue_test()
     queue.complete(res, 0).unwrap();
     /* meanwhile in the sender program, we'd at some point want to check for completions */
     queue.check_completions_callback(0).unwrap();
+    */
 
 
 

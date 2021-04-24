@@ -16,7 +16,7 @@ pub(crate) struct QueueMultiSpec {
 }
 
 impl QueueMultiSpec {
-    pub(crate) fn new_subm<S: Copy, C: Copy>(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<S>) -> QueueMultiSpec {
+    pub(crate) fn new_subm<S: Copy , C: Copy >(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<S>) -> QueueMultiSpec {
         queue.obj().alloc_libtwz_data();
         QueueMultiSpec {
             obj_or_word: ObjOrWord { obj: queue.obj().libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void },
@@ -41,7 +41,7 @@ impl QueueMultiSpec {
         self.result != std::ptr::null_mut()
     }
 
-    pub(crate) fn new_cmpl<S: Copy, C: Copy>(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<C>) -> QueueMultiSpec {
+    pub(crate) fn new_cmpl<S: Copy , C: Copy >(queue: &crate::queue::Queue<S, C>, result: &mut crate::queue::QueueEntry<C>) -> QueueMultiSpec {
         queue.obj().alloc_libtwz_data();
         QueueMultiSpec {
             obj_or_word: ObjOrWord { obj: queue.obj().libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void },
@@ -81,6 +81,10 @@ pub(crate) mod twz_c {
                                 ctor: extern fn(*mut std::ffi::c_void, *mut std::ffi::c_void),
                                 data: *mut std::ffi::c_void) -> i32;
 
+        pub(crate) fn twz_free(obj: *mut std::ffi::c_void,
+                                p: *const std::ffi::c_void,
+                                owner: *mut *const std::ffi::c_void,
+                                flags: u64);
         pub(crate) fn twz_object_create(flags: i32, kuid: LibtwzObjID, src: LibtwzObjID, id: *mut LibtwzObjID) -> i32;
         pub(crate) fn twz_object_init_alloc(obj: *mut std::ffi::c_void, offset: usize) -> i32;
         pub(crate) fn twz_fault_set(fault: i32, cb: Option<extern fn(i32, *mut std::ffi::c_void, *mut std::ffi::c_void)>, data: *mut std::ffi::c_void) -> i32;
@@ -100,6 +104,15 @@ pub(crate) mod twz_c {
         pub(crate) fn bstream_obj_init(obj: *mut std::ffi::c_void, hdr: *mut std::ffi::c_void, nbits: u32) -> i32;
         pub(crate) fn __twz_ptr_store_guid(obj: *mut std::ffi::c_void, ptr: *mut u64, dest_obj: *mut std::ffi::c_void, p: u64, f: u64) -> i32;
         pub(crate) fn __twz_object_lea_foreign(obj: *mut std::ffi::c_void, ptr: u64, mask: i32) -> u64;
+        pub(crate) fn twz_object_guid(obj: *mut std::ffi::c_void) -> u128;
+    }
+}
+
+pub(crate) fn twz_object_guid(obj: &Twzobj) -> ObjID {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::twz_object_guid(
+            obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void)
     }
 }
 
@@ -222,6 +235,45 @@ pub(crate) fn twz_object_alloc_move<T>(obj: &Twzobj, owner: &mut crate::ptr::Ppt
             std::mem::transmute::<&T, *mut std::ffi::c_void>(&item))
     }
 }
+
+pub(crate) fn twz_object_free<T>(obj: &Twzobj, owner: &mut u64, flags: u64) {
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::twz_free(obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+        std::mem::transmute::<u64, *const std::ffi::c_void>(*owner),
+        std::mem::transmute::<&mut u64, *mut *const std::ffi::c_void>(owner),
+        flags)
+    }
+}
+
+pub(crate) fn twz_object_alloc_slice_move<T: Copy>(obj: &Twzobj, owner: &mut u64, flags: u64, slice: &[T]) -> i32
+{
+    struct CopyData<F> {
+        len: isize,
+        ptr: *const F,
+    }
+    let copy = CopyData {
+        len: slice.len() as isize,
+        ptr: slice.as_ptr(),
+    };
+    extern fn ctor<F: Copy>(ptr: *mut F, copy: &CopyData<F>) {
+        for i in 0..copy.len {
+            unsafe {
+                *(ptr.offset(i)) = *copy.ptr.offset(i);
+            }
+        }
+    }
+    unsafe {
+        obj.alloc_libtwz_data();
+        twz_c::twz_alloc(obj.libtwz_data.lock().unwrap().as_mut().unwrap().data as *mut std::ffi::c_void,
+            std::mem::size_of::<T>() * slice.len(),
+            std::mem::transmute::<&mut u64, *mut *const std::ffi::c_void>(owner),
+            flags,
+            std::mem::transmute::<extern fn(*mut T, &CopyData<T>), extern fn(*mut std::ffi::c_void, *mut std::ffi::c_void)>(ctor::<T>),
+            std::mem::transmute::<&CopyData<T>, *mut std::ffi::c_void>(&copy))
+    }
+}
+
 
 pub(crate) fn twz_object_create(flags: i32, kuid: ObjID, src: ObjID) -> Result<ObjID, i32> {
     let mut oid: twz_c::LibtwzObjID = 0;

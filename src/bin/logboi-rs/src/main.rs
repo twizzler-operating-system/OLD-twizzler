@@ -6,8 +6,6 @@ use twz;
 use twz::queue::Queue;
 use std::{lazy::SyncLazy, sync::Mutex};
 
-const MAX_MSG_SIZE: usize = 4096;
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 enum LogEventCmd {
@@ -20,8 +18,7 @@ enum LogEventCmd {
 #[repr(C)]
 struct LogEvent {
     cmd: LogEventCmd,
-    ptr: twz::ptr::Pptr<[u8; MAX_MSG_SIZE]>,
-    len: usize,
+    ptr: twz::ptr::Pptr<twz::pslice::Pslice<u8>>,
 }
 
 struct Client {
@@ -29,17 +26,17 @@ struct Client {
     reprobj: twz::obj::Twzobj,
 }
 
-static CLIENTS: SyncLazy<Mutex<Vec<Client>>> = SyncLazy::new(|| Mutex::new(vec![]));
+static CLIENTS: SyncLazy<std::sync::Arc<Mutex<Vec<Box<Client>>>>> = SyncLazy::new(|| std::sync::Arc::new(Mutex::new(vec![])));
 static BELL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 twz::twz_gate!(1, __logboi_open, logboi_open (flags: i32) {
     let queue = twz::queue::Queue::new_private(8, 8).expect("Failed to create queue");
-    println!("creating object {:x}", queue.obj().id());
+    //println!("creating object {:x}", queue.obj().id());
     let (hi, lo) = twz::obj::objid_split(queue.obj().id());
-    CLIENTS.lock().unwrap().push(Client {
+    CLIENTS.lock().unwrap().push(Box::new(Client {
         queue: queue,
         reprobj: twz::thread::TwzThread::myself().repr_obj().unwrap()
-    });
+    }));
     BELL.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     unsafe {
         twz::sys::thread_sync(&mut [twz::sys::ThreadSyncArgs::new_wake(&BELL, u64::MAX)], None);
@@ -81,7 +78,8 @@ fn main() {
             match queue_event {
                 twz::queue::MultiResultState::ReadyS(s) => {
                     let buf = clients[i].queue.obj().lea(&s.item().ptr);
-                    println!("{}", String::from_utf8(buf.split_at(s.item().len).0.to_vec()).unwrap());
+                    let buf_obj = clients[i].queue.obj().ptr_get_obj(&s.item().ptr).unwrap();
+                    println!("{}", String::from_utf8(buf.lea_slice(&buf_obj).to_vec()).unwrap());
                     clients[i].queue.complete(s, 0);
                 },
                 twz::queue::MultiResultState::Error(s) => println!("::: {}", s),

@@ -14,8 +14,8 @@ impl<T> Clone for Pptr<T> {
 
 impl<T> Copy for Pptr<T>{}
 
-impl<T: ?Copy + Sized> Pptr<T> {
-    pub fn new_null() -> Pptr<T> {
+impl<T> Pptr<T> {
+    pub const fn new_null() -> Pptr<T> {
         Pptr {
             p: 0,
             _pd: std::marker::PhantomData,
