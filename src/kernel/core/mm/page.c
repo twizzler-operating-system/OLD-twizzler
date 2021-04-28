@@ -117,7 +117,7 @@ size_t mm_page_bootstrap_count = 0;
 
 static struct arena page_arena;
 
-#include <twz/driver/memory.h>
+#include <twz/sys/dev/memory.h>
 
 static void __do_page_build_stats(struct page_stats *stats, struct page_group *pg)
 {

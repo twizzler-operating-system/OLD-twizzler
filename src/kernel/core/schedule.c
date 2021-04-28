@@ -356,7 +356,7 @@ struct thread *thread_create(void)
 }
 
 #include <debug.h>
-#include <twz/_thrd.h>
+#include <twz/sys/thread.h>
 static void __print_fault_info(struct thread *t, int fault, void *info)
 {
 	printk("unhandled fault: %ld: %d\n", t ? (long)t->id : -1, fault);

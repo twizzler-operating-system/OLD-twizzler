@@ -143,7 +143,7 @@ extern size_t mm_page_bootstrap_count;
 extern size_t mm_page_alloced;
 bool mm_ready = false;
 
-#include <twz/driver/memory.h>
+#include <twz/sys/dev/memory.h>
 
 struct memory_stats mm_stats = { 0 };
 struct page_stats mm_page_stats[MAX_PGLEVEL + 1];
@@ -166,7 +166,7 @@ void mm_print_stats(void)
 #include <device.h>
 #include <init.h>
 #include <object.h>
-#include <twz/driver/system.h>
+#include <twz/sys/dev/system.h>
 static struct object *mem_object = NULL;
 static struct memory_stats_header *msh = NULL;
 static void __init_mem_object(void *_a __unused)

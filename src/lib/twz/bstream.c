@@ -1,11 +1,13 @@
 #include <errno.h>
 #include <string.h>
+#include <twz/alloc.h>
 #include <twz/bstream.h>
 #include <twz/event.h>
 #include <twz/gate.h>
 #include <twz/io.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 
 #include <twz/debug.h>
 
@@ -149,6 +151,7 @@ int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits)
 	if(hdr == NULL) {
 		hdr = twz_object_base(obj);
 	}
+	twz_object_init_alloc(obj, bstream_hdr_size(nbits));
 	int r;
 	if((r = twz_object_addext(obj, TWZIO_METAEXT_TAG, &hdr->io)))
 		goto cleanup;
@@ -159,31 +162,30 @@ int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits)
 	hdr->nbits = nbits;
 	event_obj_init(obj, &hdr->ev);
 
-	struct fotentry fe;
-	strcpy(hdr->coname1, "/usr/lib/libtwz.so::bstream_ioread");
-	twz_fote_init_name(&fe,
-	  twz_ptr_local((void *)hdr->coname1),
-	  TWZ_NAME_RESOLVER_SOFN,
-	  FE_NAME | FE_READ | FE_EXEC);
-	if((r = twz_ptr_store_fote(obj, &hdr->io.read, &fe, 0))) {
+	if((r = twz_ptr_store_name(obj,
+	      &hdr->io.read,
+	      "/usr/lib/libtwz.so::bstream_ioread",
+	      NULL,
+	      TWZ_NAME_RESOLVER_SOFN,
+	      FE_READ | FE_EXEC))) {
 		goto cleanup;
 	}
 
-	strcpy(hdr->coname2, "/usr/lib/libtwz.so::bstream_iowrite");
-	twz_fote_init_name(&fe,
-	  twz_ptr_local((void *)hdr->coname2),
-	  TWZ_NAME_RESOLVER_SOFN,
-	  FE_NAME | FE_READ | FE_EXEC);
-	if((r = twz_ptr_store_fote(obj, &hdr->io.write, &fe, 0))) {
+	if((r = twz_ptr_store_name(obj,
+	      &hdr->io.write,
+	      "/usr/lib/libtwz.so::bstream_iowrite",
+	      NULL,
+	      TWZ_NAME_RESOLVER_SOFN,
+	      FE_READ | FE_EXEC))) {
 		goto cleanup;
 	}
 
-	strcpy(hdr->coname4, "/usr/lib/libtwz.so::bstream_poll");
-	twz_fote_init_name(&fe,
-	  twz_ptr_local((void *)hdr->coname4),
-	  TWZ_NAME_RESOLVER_SOFN,
-	  FE_NAME | FE_READ | FE_EXEC);
-	if((r = twz_ptr_store_fote(obj, &hdr->io.poll, &fe, 0))) {
+	if((r = twz_ptr_store_name(obj,
+	      &hdr->io.poll,
+	      "/usr/lib/libtwz.so::bstream_poll",
+	      NULL,
+	      TWZ_NAME_RESOLVER_SOFN,
+	      FE_READ | FE_EXEC))) {
 		goto cleanup;
 	}
 

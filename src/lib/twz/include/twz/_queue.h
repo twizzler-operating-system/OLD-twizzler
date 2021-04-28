@@ -8,6 +8,7 @@ using std::atomic_uint_least64_t;
 #include <stdatomic.h>
 #endif /* __cplusplus */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -162,9 +163,10 @@ static inline struct queue_entry *__get_entry(struct object *obj,
 #else
 #include <errno.h>
 #include <stdio.h>
-#include <twz/_sys.h>
 #include <twz/debug.h>
-#include <twz/thread.h>
+#include <twz/ptr.h>
+#include <twz/sys/sync.h>
+#include <twz/sys/syscall.h>
 static inline int __wait_on(void *o, atomic_uint_least64_t *p, uint64_t v, int dq)
 {
 	(void)o;
@@ -198,7 +200,7 @@ static inline struct queue_entry *__get_entry(
 
 #endif
 
-static inline _Bool is_turn(struct queue_hdr *hdr, int sq, uint32_t tail, struct queue_entry *entry)
+static inline bool is_turn(struct queue_hdr *hdr, int sq, uint32_t tail, struct queue_entry *entry)
 {
 	uint32_t turn = (tail / (1ul << hdr->subqueue[sq].l2length)) % 2;
 	return (entry->cmd_id >> 31) != turn;
@@ -213,7 +215,7 @@ static inline int queue_sub_enqueue(
   struct queue_hdr *hdr,
   int sq,
   struct queue_entry *submit,
-  _Bool nonblock)
+  bool nonblock)
 {
 	int r;
 	uint32_t h, t;
@@ -308,7 +310,7 @@ static inline int queue_sub_dequeue(
   struct queue_hdr *hdr,
   int sq,
   struct queue_entry *result,
-  _Bool nonblock)
+  bool nonblock)
 {
 	int r;
 	uint32_t t, b;

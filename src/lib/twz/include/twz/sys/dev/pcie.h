@@ -1,12 +1,10 @@
 #pragma once
-#ifndef __packed
-#define __packed __attribute__((packed))
-#endif
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include <twz/_kso.h>
+#include <twz/sys/kso.h>
 
 #define PCIE_BUS_HEADER_MAGIC 0x88582323
 
@@ -53,7 +51,7 @@ struct pcie_bus_header {
  * 3.0.
  */
 
-struct __packed pcie_config_space_header {
+struct __attribute__((packed)) pcie_config_space_header {
 	/* 0x00 */
 	uint16_t vendor_id;
 	uint16_t device_id;
@@ -72,10 +70,10 @@ struct __packed pcie_config_space_header {
 	uint8_t bist;
 };
 
-struct __packed pcie_config_space {
+struct __attribute__((packed)) pcie_config_space {
 	struct pcie_config_space_header header;
 	union {
-		struct __packed {
+		struct __attribute__((packed)) {
 			/* 0x10 */
 			uint32_t bar[6];
 			/* 0x28 */
@@ -96,7 +94,7 @@ struct __packed pcie_config_space {
 			uint8_t min_grant;
 			uint8_t max_latency;
 		} device;
-		struct __packed {
+		struct __attribute__((packed)) {
 			uint32_t bar[2];
 			uint8_t primary_bus_nr;
 			uint8_t secondary_bus_nr;
@@ -129,7 +127,7 @@ struct __packed pcie_config_space {
  * it and a next pointer (also an offset into the config space) indicating the next capability.
  * next=0 indicates the last link. */
 
-struct __packed pcie_capability_header {
+struct __attribute__((packed)) pcie_capability_header {
 	uint8_t capid;
 	uint8_t next;
 };
@@ -138,7 +136,7 @@ struct __packed pcie_capability_header {
 
 #define PCIE_POWER_CAPABILITY_ID 1
 
-struct __packed pcie_power_capability {
+struct __attribute__((packed)) pcie_power_capability {
 	struct pcie_capability_header header;
 	/* PMC register */
 	uint16_t version : 3;
@@ -171,7 +169,7 @@ struct __packed pcie_power_capability {
 
 #define PCIE_MSI_CAPABILITY_ID 5
 
-struct __packed pcie_msi_capability {
+struct __attribute__((packed)) pcie_msi_capability {
 	struct pcie_capability_header header;
 	/* message control */
 	uint16_t msi_enable : 1;
@@ -192,7 +190,7 @@ struct __packed pcie_msi_capability {
 /* Message Signaled Interrupt-X support. Detailed in the PCI 3.0 base specification */
 #define PCIE_MSIX_CAPABILITY_ID 0x11
 
-struct __packed pcie_msix_capability {
+struct __attribute__((packed)) pcie_msix_capability {
 	struct pcie_capability_header header;
 	/* message control */
 	uint16_t table_size : 11;
@@ -210,7 +208,7 @@ union pcie_capability_ptr {
 	struct pcie_msix_capability *msix;
 };
 
-struct __packed pcie_msix_table_entry {
+struct __attribute__((packed)) pcie_msix_table_entry {
 	uint64_t addr;
 	uint32_t data;
 	uint32_t ctl;

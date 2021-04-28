@@ -81,6 +81,7 @@
 #define LINUX_SYS_readlinkat 267
 #define LINUX_SYS_faccessat 269
 #define LINUX_SYS_pselect6 270
+#define LINUX_SYS_ppoll 271
 
 #define LINUX_SYS_dup3 292
 #define LINUX_SYS_preadv 295
@@ -93,3 +94,7 @@
 #define LINUX_SYS_pwritev2 328
 
 #define LINUX_SYS_fcntl 72
+
+#define ENV_CHECKED 1
+#define ENV_SHOW_UNIMP 2
+#define ENV_SHOW_ALL 4

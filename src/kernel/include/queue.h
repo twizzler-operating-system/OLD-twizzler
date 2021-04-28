@@ -2,7 +2,7 @@
 
 #define __QUEUE_TYPES_ONLY
 #include <twz/_queue.h>
-#include <twz/_sys.h>
+#include <twz/sys/syscall.h>
 
 struct object;
 int kernel_queue_submit(struct object *, struct queue_hdr *hdr, struct queue_entry *qe);

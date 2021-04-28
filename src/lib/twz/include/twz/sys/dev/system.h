@@ -1,6 +1,6 @@
 #pragma once
 
-#include <twz/driver/bus.h>
+#include <twz/sys/dev/bus.h>
 
 struct system_header {
 	size_t nrcpus;

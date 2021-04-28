@@ -6,10 +6,11 @@
 #include <syscall.h>
 #include <thread.h>
 
-#include <twz/_sctx.h>
-#include <twz/_slots.h>
-#include <twz/_thrd.h>
-#include <twz/_view.h>
+#include <twz/meta.h>
+#include <twz/sys/sctx.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 long syscall_thread_spawn(uint64_t tidlo,
   uint64_t tidhi,

@@ -220,7 +220,7 @@ void processor_percpu_regions_init(void)
 
 #include <device.h>
 #include <object.h>
-#include <twz/driver/system.h>
+#include <twz/sys/dev/system.h>
 static void __init_processor_objects(void *_a __unused)
 {
 	struct object *so = get_system_object();

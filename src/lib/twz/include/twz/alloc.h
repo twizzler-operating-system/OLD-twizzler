@@ -39,9 +39,8 @@
 #define ALLOC_METAINFO_TAG 0xaaaaaaaa11223344
 #include <stddef.h>
 #include <stdint.h>
-struct _twz_object;
-typedef struct _twz_object twzobj;
-struct alloc_hdr;
+struct __twzobj;
+typedef struct __twzobj twzobj;
 /// \endcond
 /** Initialize an object for memory allocation, starting at offset bytes into the object, until
  * reaching the end of the object's data region.
@@ -84,6 +83,7 @@ int twz_object_init_alloc(twzobj *obj, size_t offset);
  * @param data Opaque pointer to be passed to the constructor.
  * @return 0 on success, -ERROR on failure.
  *   - ENOMEM: no memory available
+ *   - EINVAL: object was not setup for allocation
  */
 int twz_alloc(twzobj *obj,
   size_t len,

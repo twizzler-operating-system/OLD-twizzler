@@ -1,6 +1,6 @@
 #pragma once
 
-#include <twz/_objid.h>
+#include <twz/objid.h>
 
 #define THRD_CTL_SET_FS 1
 #define THRD_CTL_SET_GS 2

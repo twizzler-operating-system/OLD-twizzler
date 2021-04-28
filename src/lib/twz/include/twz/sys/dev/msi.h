@@ -12,8 +12,9 @@
 
 #ifndef __KERNEL__
 
-#include <twz/driver/pcie.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
+#include <twz/sys/dev/pcie.h>
 
 static void msix_configure(twzobj *co, struct pcie_msix_capability *m, int nrvecs)
 {

@@ -5,6 +5,7 @@
 
 #define RWF_NOWAIT 0x8
 
+#include "async.h"
 #include "state.h"
 
 #include <twz/name.h>
@@ -95,11 +96,10 @@ std::pair<long, bool> twix_cmd_open(std::shared_ptr<queue_client> client, twix_q
 ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int flags, bool use_pos)
 {
 	/* TODO: atomicity */
-	bool nonblock = (flags & RWF_NOWAIT) || (fcntl_flags & O_NONBLOCK);
 	if(use_pos) {
 		offset = pos;
 	}
-	ssize_t r = twzio_write(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 600);
+	ssize_t r = twzio_write(&obj, buffer, buflen, offset, TWZIO_NONBLOCK);
 	if(r == -ENOTSUP) {
 		/* TODO: bounds check */
 		memcpy((char *)twz_object_base(&obj) + offset, buffer, buflen);
@@ -122,14 +122,18 @@ ssize_t filedesc::write(const void *buffer, size_t buflen, off_t offset, int fla
 	return r;
 }
 
+bool filedesc::is_nonblock(int flags)
+{
+	return !!(fcntl_flags & O_NONBLOCK) || !!(flags & RWF_NOWAIT);
+}
+
 ssize_t filedesc::read(void *buffer, size_t buflen, off_t offset, int flags, bool use_pos)
 {
 	/* TODO: atomicity */
-	bool nonblock = (flags & RWF_NOWAIT) || (fcntl_flags & O_NONBLOCK);
 	if(use_pos) {
 		offset = pos;
 	}
-	ssize_t r = twzio_read(&obj, buffer, buflen, offset, nonblock ? TWZIO_NONBLOCK : 0);
+	ssize_t r = twzio_read(&obj, buffer, buflen, offset, TWZIO_NONBLOCK);
 	if(r == -ENOTSUP) {
 		struct metainfo *mi = twz_object_meta(&obj);
 		if(mi->flags & MIF_SZ) {
@@ -153,16 +157,49 @@ ssize_t filedesc::read(void *buffer, size_t buflen, off_t offset, int flags, boo
 	return r;
 }
 
+static int async_pio_poll(async_job &job, struct event *ev)
+{
+	int fd = job.tqe.arg0;
+
+	auto filedesc = job.client->proc->get_file(fd);
+	if(filedesc == nullptr) {
+		return -EBADF;
+	}
+
+	int r = filedesc->poll(job.type, ev);
+	return r;
+}
+
+static void async_pio_callback(async_job &job, int _ret)
+{
+	if(!_ret) {
+		auto [ret, respond] = twix_cmd_pio(job.client, &job.tqe);
+		if(respond) {
+			job.tqe.ret = ret;
+			job.client->complete(&job.tqe);
+		}
+	} else {
+		job.tqe.ret = _ret;
+		job.client->complete(&job.tqe);
+	}
+}
+
+#include <twz/sys/view.h>
+int filedesc::poll(uint64_t type, struct event *ev)
+{
+	return twzio_poll(&obj, type, ev);
+}
+
 /* buf: data buffer, buflen: data buffer length *
  * a0: fd, a1: offset, a2: flags, a3: flags2 */
 std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	int fd = tqe->arg0;
 	off_t off = tqe->arg1;
-	int preadv_flags = tqe->arg2;
+	int pv_flags = tqe->arg2;
 	int flags = tqe->arg3;
 
-	// fprintf(stderr, "PIO %d %ld %d %d\n", fd, off, preadv_flags, flags);
+	// debug_printf("PIO %d %ld %d %d\n", fd, off, pv_flags, flags);
 
 	bool writing = flags & TWIX_FLAGS_PIO_WRITE;
 
@@ -174,16 +211,90 @@ std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_qu
 		return R_S(-EACCES);
 	}
 
+	bool non_block = filedesc->is_nonblock(pv_flags);
+
 	ssize_t ret;
 	if(writing) {
 		ret = filedesc->write(
-		  client->buffer_base(), tqe->buflen, off, preadv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
+		  client->buffer_base(), tqe->buflen, off, pv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
 	} else {
 		ret = filedesc->read(
-		  client->buffer_base(), tqe->buflen, off, preadv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
+		  client->buffer_base(), tqe->buflen, off, pv_flags, !!(flags & TWIX_FLAGS_PIO_POS));
 	}
 
-	return R_S(ret);
+	if(ret == -EAGAIN) {
+		if(non_block) {
+			return R_S(ret);
+		}
+		auto job = async_job(client,
+		  *tqe,
+		  async_pio_poll,
+		  async_pio_callback,
+		  NULL,
+		  writing ? TWZIO_EVENT_WRITE : TWZIO_EVENT_READ);
+		async_add_job(job);
+		return R_A(0);
+	} else {
+		return R_S(ret);
+	}
+}
+
+std::pair<long, bool> twix_cmd_poll(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
+{
+	struct twix_poll_info *info = (struct twix_poll_info *)client->buffer_base();
+	long flags = tqe->arg0;
+
+	long ready = 0;
+	struct event *events = (struct event *)calloc(info->nr_polls * 2, sizeof(struct event));
+	long event_count = 0;
+	for(size_t i = 0; i < info->nr_polls; i++) {
+		struct pollfd *p = &info->polls[i];
+		auto filedesc = client->proc->get_file(p->fd);
+		if(filedesc == nullptr) {
+			p->revents |= POLLNVAL;
+			ready++;
+			continue;
+		}
+		int r = !!(p->events & POLLIN);
+		int w = !!(p->events & POLLOUT);
+		if(r) {
+			int ret = filedesc->poll(TWZIO_EVENT_READ, &events[event_count++]);
+			if(ret < 0) {
+				p->revents |= POLLERR;
+				ready++;
+			} else if(ret > 0) {
+				p->revents |= POLLIN;
+				ready++;
+			}
+		}
+		if(w) {
+			int ret = filedesc->poll(TWZIO_EVENT_WRITE, &events[event_count++]);
+			if(ret < 0) {
+				p->revents |= POLLERR;
+				ready++;
+			} else if(ret > 0) {
+				p->revents |= POLLOUT;
+				ready++;
+			}
+		}
+	}
+
+	if(ready == 0) {
+		std::thread t1([tqe, client, events, info, flags, event_count] {
+			twix_queue_entry _tqe = *tqe;
+			event_wait(event_count, events, (flags & TWIX_POLL_TIMEOUT) ? &info->timeout : NULL);
+			auto [ret, respond] = twix_cmd_poll(client, &_tqe);
+			if(respond) {
+				_tqe.ret = ret;
+				client->complete(&_tqe);
+			}
+			free(events);
+		});
+		t1.detach();
+		return R_A(0);
+	} else {
+		return R_S(0);
+	}
 }
 
 std::pair<long, bool> twix_cmd_faccessat(std::shared_ptr<queue_client> client,

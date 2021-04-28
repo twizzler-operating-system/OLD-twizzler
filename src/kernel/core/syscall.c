@@ -18,8 +18,6 @@ bool verify_user_pointer(void *p, size_t run)
 	run = (run + 7) & ~7;
 	if(run < 8)
 		run = 8;
-	if(run > OBJ_TOPDATA)
-		return false;
 	for(size_t i = 0; i < run; i += 8) {
 		uintptr_t addr = (uintptr_t)p + i;
 		if(!VADDR_IS_USER(addr))

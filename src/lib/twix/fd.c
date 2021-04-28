@@ -1,8 +1,8 @@
 #include <errno.h>
-#include <twz/_slots.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/view.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/view.h>
 
 #include "syscalls.h"
 static struct file fds[MAX_FD];
@@ -41,7 +41,7 @@ static int __check_fd_valid(int fd)
 			return -EBADF;
 		}
 		fds[fd].valid = true;
-		fds[fd].obj = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_FILES_BASE + fd));
+		twz_object_init_ptr(&fds[fd].obj, SLOT_TO_VADDR(TWZSLOT_FILES_BASE + fd));
 		fds[fd].taken = true;
 	} else if(!fds[fd].taken) {
 		return -EBADF;

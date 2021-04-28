@@ -6,14 +6,17 @@
 #include <termios.h>
 #include <twz/bstream.h>
 #include <twz/debug.h>
-#include <twz/driver/device.h>
-#include <twz/driver/misc.h>
-#include <twz/driver/pcie.h>
 #include <twz/io.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 #include <twz/pty.h>
-#include <twz/thread.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/misc.h>
+#include <twz/sys/dev/pcie.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 #include <unistd.h>
 
 #include "ssfn.h"
@@ -86,11 +89,13 @@ void *kbmain(void *a)
 		fprintf(stderr, "failed to set IOPL to 3\n");
 		abort();
 	}
+#if 0
 	int r;
 	if((r = twz_thread_ready(NULL, THRD_SYNC_READY, 0))) {
 		fprintf(stderr, "failed to mark ready");
 		abort();
 	}
+#endif
 
 	for(;;) {
 		char buf[128];
@@ -103,7 +108,7 @@ void *kbmain(void *a)
 	}
 }
 
-struct __packed bga_regs {
+struct __attribute__((packed)) bga_regs {
 	uint16_t index;
 	uint16_t xres;
 	uint16_t yres;
@@ -833,11 +838,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "failed to wait for thread\n");
 		abort();
 	}
-#endif
 	if((r = twz_thread_ready(NULL, THRD_SYNC_READY, 0))) {
 		fprintf(stderr, "failed to mark ready");
 		abort();
 	}
+#endif
 
 	for(;;) {
 		char buf[128];

@@ -1,9 +1,10 @@
 #include "syscalls.h"
 #include <errno.h>
 #include <string.h>
-#include <twz/_slots.h>
-#include <twz/thread.h>
-#include <twz/view.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 static twzobj unix_obj;
 static bool unix_obj_init = false;
@@ -22,15 +23,17 @@ void __linux_init(void)
 				twix_panic("failed to create unix object");
 			}
 			twz_view_set(NULL, TWZSLOT_UNIX, id, VE_READ | VE_WRITE);
-			unix_obj = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_UNIX));
+			twz_object_init_ptr(&unix_obj, SLOT_TO_VADDR(TWZSLOT_UNIX));
 
 			uh = twz_object_base(&unix_obj);
 			uh->pid = 1;
 			uh->tid = 1;
+		} else {
+			twz_object_init_ptr(&unix_obj, SLOT_TO_VADDR(TWZSLOT_UNIX));
 		}
 
 		uh = twz_object_base(&unix_obj);
-		//linux_sys_write(2, "", 0);
+		// linux_sys_write(2, "", 0);
 	}
 }
 

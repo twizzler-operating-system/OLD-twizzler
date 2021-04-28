@@ -5,16 +5,18 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <twz/_kso.h>
 #include <twz/keyring.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
+#include <twz/ptr.h>
+#include <twz/sys/kso.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 #include <twz/user.h>
 #include <unistd.h>
 
-#include <twz/security.h>
+#include <twz/sec/security.h>
 
 extern char **environ;
 void tmain(const char *username)
@@ -52,7 +54,8 @@ void tmain(const char *username)
 	}
 	/* TODO: dont do this */
 	twzobj context;
-	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+	if(twz_object_new(
+	     &context, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
 		abort();
 	}
 	twz_sctx_init(&context, "__generic");
@@ -75,15 +78,18 @@ void tmain(const char *username)
 		struct keyring_hdr *krh = twz_object_lea(&user, uh->kr);
 
 		if(krh->dfl_pubkey) {
-			twzobj keyring = twz_object_from_ptr(krh);
+			twzobj keyring;
+			twz_object_init_ptr(&keyring, krh);
 			struct key_hdr *key = twz_object_lea(&keyring, krh->dfl_pubkey);
-			twzobj keyobj = twz_object_from_ptr(key);
+			twzobj keyobj;
+			twz_object_init_ptr(&keyobj, key);
 			char keystr[128];
 			sprintf(keystr, IDFMT, IDPR(twz_object_guid(&keyobj)));
 			setenv("TWZUSERKU", keystr, 1);
 
 			struct key_hdr *pkey = twz_object_lea(&keyring, krh->dfl_prikey);
-			twzobj pkeyobj = twz_object_from_ptr(pkey);
+			twzobj pkeyobj;
+			twz_object_init_ptr(&pkeyobj, pkey);
 			char pkeystr[128];
 			sprintf(pkeystr, IDFMT, IDPR(twz_object_guid(&pkeyobj)));
 			setenv("TWZUSERKEY", pkeystr, 1);
@@ -106,6 +112,7 @@ void tmain(const char *username)
 	exit(1);
 }
 
+#include <twz/debug.h>
 int main(int argc, char **argv)
 {
 	(void)argc;
@@ -123,6 +130,9 @@ int main(int argc, char **argv)
 		fgets(buffer, 1024, stdin);
 		// strcpy(buffer, "bob");
 
+		// debug_printf("LOGIN HIIIII %s\n", buffer);
+		// fprintf(stderr, "ADAWDAWDAWDAWEAWDAWDAWD\n");
+		// continue;
 		char *n = strchr(buffer, '\n');
 		if(n)
 			*n = 0;

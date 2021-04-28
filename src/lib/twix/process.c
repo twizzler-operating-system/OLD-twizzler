@@ -2,14 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <twz/name.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
-#include <twz/view.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 #include "syscalls.h"
 
 struct process {
-	struct thread thrd;
+	twzobj thrd;
 	int pid;
 };
 
@@ -211,11 +212,12 @@ static int __internal_load_elf_object(twzobj *view,
 	if((r = twz_object_new(&new_text,
 	      NULL,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_VOLATILE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC))) {
 		return r;
 	}
 	if((r = twz_object_new(
-	      &new_data, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))) {
+	      &new_data, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
 		return r;
 	}
 
@@ -591,7 +593,7 @@ long linux_sys_clone(struct twix_register_frame *frame,
 	}
 
 	/* TODO: track these, and when these exit or whatever, release these as well */
-	struct thread thr;
+	twzobj thr;
 	mutex_acquire(&thrd_lock);
 	int r;
 	if((r = twz_thread_spawn(&thr,
@@ -599,7 +601,8 @@ long linux_sys_clone(struct twix_register_frame *frame,
 	        .arg = arg,
 	        .stack_base = child_stack,
 	        .stack_size = 8,
-	        .tls_base = (char *)newtls }))) {
+	        .tls_base = (char *)newtls },
+	      NULL))) {
 		mutex_release(&thrd_lock);
 		return r;
 	}
@@ -608,10 +611,9 @@ long linux_sys_clone(struct twix_register_frame *frame,
 	new_info->prev = NULL;
 	new_info->next = thrd_list;
 	thrd_list = new_info;
-	new_info->id = thr.tid;
+	new_info->id = twz_object_guid(&thr);
 	new_info->ctid = (flags & CLONE_CHILD_CLEARTID) ? ctid : NULL;
 	mutex_release(&thrd_lock);
-
 	if(flags & CLONE_PARENT_SETTID) {
 		*ptid = new_tid;
 	}
@@ -685,7 +687,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 
 	twzobj __fobj;
 	if(addr) {
-		__fobj = twz_object_from_ptr(addr);
+		twz_object_init_ptr(&__fobj, addr);
 	}
 
 #if 0
@@ -753,7 +755,8 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 		if((r = twz_object_new(&newobj,
 		      NULL,
 		      NULL,
-		      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC /* TODO */ | TWZ_OC_VOLATILE
+		      OBJ_VOLATILE,
+		      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC /* TODO */
 		        | TWZ_OC_TIED_VIEW))) {
 			return r;
 		}
@@ -863,7 +866,7 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 #define FUTEX_CLOCK_REALTIME 256
 #define FUTEX_CMD_MASK ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
 
-#include <twz/thread.h>
+#include <twz/sys/thread.h>
 long linux_sys_exit(int code)
 {
 	struct twzthread_repr *repr = twz_thread_repr_base();
@@ -928,8 +931,11 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	twz_view_object_init(&cur_view);
 
 	// debug_printf("== creating view\n");
-	if((r = twz_object_new(
-	      &view, &cur_view, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE))) {
+	if((r = twz_object_new(&view,
+	      &cur_view,
+	      NULL,
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE))) {
 		return r;
 	}
 
@@ -953,8 +959,15 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	}
 	pds[pid].pid = pid;
 	// debug_printf("== creating thread\n");
-	if(twz_thread_create(&pds[pid].thrd) < 0)
+	if((r = twz_object_new(&pds[pid].thrd,
+	      NULL,
+	      NULL,
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
 		abort();
+	}
+	struct twzthread_repr *newrepr = twz_object_base(&pds[pid].thrd);
+	newrepr->reprid = twz_object_guid(&pds[pid].thrd);
 
 	if(twz_view_clone(NULL, &view, 0, __fork_view_clone) < 0)
 		abort();
@@ -962,19 +975,24 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	objid_t sid;
 	twzobj stack;
 	twz_view_fixedset(
-	  &pds[pid].thrd.obj, TWZSLOT_THRD, pds[pid].thrd.tid, VE_READ | VE_WRITE | VE_FIXED);
+	  &pds[pid].thrd, TWZSLOT_THRD, twz_object_guid(&pds[pid].thrd), VE_READ | VE_WRITE | VE_FIXED);
 	/* TODO: handle these */
-	if(twz_object_wire_guid(&view, pds[pid].thrd.tid) < 0)
+	if(twz_object_wire_guid(&view, twz_object_guid(&pds[pid].thrd)) < 0)
 		abort();
 
 	twz_view_set(&view, TWZSLOT_CVIEW, vid, VE_READ | VE_WRITE);
+	void *rsp;
+	asm volatile("mov %%rsp, %0" : "=r"(rsp)::"memory");
+	twzobj curstack;
+	twz_object_init_ptr(&curstack, rsp);
 
 	//	debug_printf("== creating stack\n");
-	if((r = twz_object_new(&stack, twz_stdstack, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
+	if((r = twz_object_new(
+	      &stack, &curstack, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
 		twix_log(":: fork create stack returned %d\n", r);
 		abort();
 	}
-	if(twz_object_tie(&pds[pid].thrd.obj, &stack, 0) < 0)
+	if(twz_object_tie(&pds[pid].thrd, &stack, 0) < 0)
 		abort();
 	sid = twz_object_guid(&stack);
 	twz_view_set(&view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
@@ -1089,7 +1107,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	};
 
 	//	debug_printf("== spawning\n");
-	if((r = sys_thrd_spawn(pds[pid].thrd.tid, &sa, 0, NULL))) {
+	if((r = sys_thrd_spawn(twz_object_guid(&pds[pid].thrd), &sa, 0, NULL))) {
 		return r;
 	}
 
@@ -1107,6 +1125,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 struct rusage;
 long linux_sys_wait4(long pid, int *wstatus, int options, struct rusage *rusage)
 {
+#if 0
 	(void)pid;
 	(void)options;
 	(void)rusage;
@@ -1129,7 +1148,8 @@ long linux_sys_wait4(long pid, int *wstatus, int options, struct rusage *rusage)
 			return -ECHILD;
 		}
 		if(!(options & WNOHANG)) {
-			int r = twz_thread_wait(c, thrd, sps, event, info);
+			int r = 0;
+			// int r = twz_thread_wait(c, thrd, sps, event, info);
 			if(r < 0) {
 				return r;
 			}
@@ -1141,7 +1161,7 @@ long linux_sys_wait4(long pid, int *wstatus, int options, struct rusage *rusage)
 					*wstatus = 0; // TODO
 				}
 				pds[pids[i]].pid = 0;
-				twz_thread_release(&pds[pids[i]].thrd);
+				twz_object_release(&pds[pids[i]].thrd);
 				return pids[i];
 			}
 		}
@@ -1149,6 +1169,8 @@ long linux_sys_wait4(long pid, int *wstatus, int options, struct rusage *rusage)
 			return 0;
 		}
 	}
+#endif
+	return -ENOSYS;
 }
 
 #include <twz/debug.h>

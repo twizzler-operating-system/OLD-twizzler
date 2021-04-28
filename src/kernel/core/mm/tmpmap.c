@@ -5,7 +5,7 @@
 #include <slots.h>
 #include <spinlock.h>
 #include <tmpmap.h>
-#include <twz/driver/memory.h>
+#include <twz/sys/dev/memory.h>
 
 /* TODO: put this in header */
 extern struct vm_context kernel_ctx;

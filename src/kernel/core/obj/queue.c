@@ -2,10 +2,10 @@
 #include <object.h>
 #include <processor.h>
 #include <twz/_queue.h>
-#include <twz/_sys.h>
+#include <twz/sys/syscall.h>
 
 #include <queue.h>
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/queue.h>
 
 int kernel_queue_wait_on(struct object *obj __unused, void *p __unused, uint64_t v __unused)
 {

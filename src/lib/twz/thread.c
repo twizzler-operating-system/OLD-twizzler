@@ -1,17 +1,19 @@
 #include <errno.h>
+#include <limits.h>
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
 #include <twz/_err.h>
-#include <twz/_slots.h>
 #include <twz/_types.h>
-#include <twz/_view.h>
 #include <twz/debug.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
-
-void *__copy_tls(char *);
+#include <twz/ptr.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 void twz_thread_set_name(const char *name)
 {
@@ -34,6 +36,81 @@ struct twzthread_repr *twz_thread_repr_base(void)
 	return (struct twzthread_repr *)(a + OBJ_NULLPAGE_SIZE);
 }
 
+#define TWZ_THREAD_STACK_SIZE 0x20000
+int twz_thread_spawn(twzobj *repr_obj, struct thrd_spawn_args *args, objid_t *ctrlid)
+{
+	int r;
+	if((r = twz_object_new(repr_obj,
+	      NULL,
+	      NULL,
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+		return r;
+		/* TODO CLEANUP */
+	}
+
+	struct twzthread_repr *newrepr = twz_object_base(repr_obj);
+
+	newrepr->reprid = twz_object_guid(repr_obj);
+
+	struct twzthread_repr *currepr = twz_thread_repr_base();
+	// struct twzthread_repr *newrepr = twz_object_base(&thrd->obj);
+
+	struct sys_thrd_spawn_args sa = {
+		.target_view = args->target_view,
+		.start_func = args->start_func,
+		.arg = args->arg,
+		.stack_base = args->stack_base,
+		.stack_size = args->stack_size,
+		.tls_base = args->tls_base,
+		.thrd_ctrl = TWZSLOT_THRD,
+	};
+	if(!args->stack_base) {
+		/* TODO */
+		debug_printf("HEY DO WE EVER DO THIS?\n");
+		twzobj stack;
+		/* if we weren't provided a stack, make a new one tied to the thread object */
+		if((r = twz_object_new(&stack,
+		      NULL,
+		      NULL,
+		      OBJ_VOLATILE,
+		      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
+			return r;
+		}
+
+		if((r = twz_object_tie(repr_obj, &stack, 0))) {
+			if(twz_object_delete(&stack, 0)) {
+				libtwz_panic("failed to delete object during cleanup");
+			}
+			return r;
+		}
+
+		if(twz_object_delete(&stack, 0)) {
+			libtwz_panic("failed to delete stack object during thread spawn");
+		}
+
+		sa.stack_base = (char *)SLOT_TO_VADDR(TWZSLOT_STACK) + OBJ_NULLPAGE_SIZE;
+		sa.stack_size = TWZ_THREAD_STACK_SIZE;
+		sa.tls_base =
+		  (char *)SLOT_TO_VADDR(TWZSLOT_STACK) + OBJ_NULLPAGE_SIZE + TWZ_THREAD_STACK_SIZE;
+
+		/* TODO: can we reduce these permissions? */
+		r = twz_ptr_store_guid(&stack, &sa.arg, NULL, args->arg, FE_READ | FE_WRITE);
+		if(r) {
+			/* stack is already deleted, and tied to thread */
+			return r;
+		}
+	}
+
+	objid_t _ctrlid;
+	r = sys_thrd_spawn(twz_object_guid(repr_obj), &sa, 0, &_ctrlid);
+	if(ctrlid)
+		*ctrlid = _ctrlid;
+
+	return r;
+}
+
+#if 0
 int twz_thread_release(struct thread *thrd)
 {
 	if(thrd->tid == 0) {
@@ -153,6 +230,7 @@ int twz_thread_spawn(struct thread *thrd, struct thrd_spawn_args *args)
 
 	return r;
 }
+#endif
 
 void twz_thread_exit(uint64_t ecode)
 {
@@ -164,6 +242,7 @@ void twz_thread_exit(uint64_t ecode)
 	__builtin_unreachable();
 }
 
+#if 0
 #include <alloca.h>
 ssize_t twz_thread_wait(size_t count,
   struct thread **threads,
@@ -241,6 +320,7 @@ int twz_thread_ready(struct thread *thread, int sp, uint64_t info)
 	};
 	return sys_thread_sync(1, &args, NULL);
 }
+#endif
 
 void twz_thread_sync_init(struct sys_thread_sync_args *args,
   int op,
@@ -280,6 +360,7 @@ int twz_thread_sync_multiple(size_t c, struct sys_thread_sync_args *args, struct
 	return sys_thread_sync(c, args, timeout);
 }
 
+#if 0
 uint64_t twz_thread_cword_consume(_Atomic uint64_t *w, uint64_t reset)
 {
 	while(true) {
@@ -300,3 +381,4 @@ void twz_thread_cword_wake(_Atomic uint64_t *w, uint64_t val)
 		libtwz_panic("thread_sync failed");
 	}
 }
+#endif

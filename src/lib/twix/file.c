@@ -2,7 +2,8 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <twz/name.h>
-#include <twz/view.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/view.h>
 #include <unistd.h>
 
 #include <twz/debug.h>
@@ -12,7 +13,7 @@ long linux_sys_open(const char *path, int flags, int mode)
 	objid_t id;
 	int r;
 
-	/* HACK to make libbacktrace work */
+	/* XXX: HACK to make libbacktrace work */
 	if(!strcmp(path, "/proc/self/exe")) {
 		twzobj view;
 		twz_view_object_init(&view);
@@ -20,7 +21,8 @@ long linux_sys_open(const char *path, int flags, int mode)
 		if(vr->exec_id) {
 			id = vr->exec_id;
 		} else {
-			twzobj o0 = twz_object_from_ptr(NULL);
+			twzobj o0;
+			twz_object_init_ptr(&o0, NULL);
 			id = twz_object_guid(&o0);
 		}
 	} else {
@@ -58,7 +60,7 @@ long linux_sys_open(const char *path, int flags, int mode)
 
 	file->taken = true;
 	twz_view_set(NULL, TWZSLOT_FILES_BASE + file->fd, id, file->fl);
-	file->obj = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_FILES_BASE + file->fd));
+	twz_object_init_ptr(&file->obj, SLOT_TO_VADDR(TWZSLOT_FILES_BASE + file->fd));
 
 	return file->fd;
 }
@@ -97,7 +99,7 @@ static int internal_dup(int oldfd, int newfd, int flags, int vers)
 	nf->fd = newfd;
 	nf->pos = 0;
 	twz_view_set(NULL, TWZSLOT_FILES_BASE + nf->fd, twz_object_guid(&of->obj), nf->fl);
-	nf->obj = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_FILES_BASE + nf->fd));
+	twz_object_init_ptr(&nf->obj, SLOT_TO_VADDR(TWZSLOT_FILES_BASE + nf->fd));
 	nf->taken = nf->valid = true;
 	// debug_printf("  -> %d\n", newfd);
 	return newfd;

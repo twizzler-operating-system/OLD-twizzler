@@ -7,7 +7,8 @@
 #include <slots.h>
 #include <syscall.h>
 #include <thread.h>
-#include <twz/driver/bus.h>
+#include <twz/meta.h>
+#include <twz/sys/dev/bus.h>
 
 static void __kso_device_ctor(struct object *obj)
 {

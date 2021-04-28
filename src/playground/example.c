@@ -6,8 +6,10 @@
 
 /* access to the twizzler object API */
 #include <twz/alloc.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 
 struct example_hdr {
 	int x;
@@ -22,7 +24,7 @@ void example_create_object(void)
 	int r;
 	/* create an object into handle obj, not copied from an existing object, without a public key,
 	 * with default permissions READ and WRITE */
-	if((r = twz_object_new(&obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
+	if((r = twz_object_new(&obj, NULL, NULL, OBJ_PERSISTENT, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
 		/* handle error */
 	}
 
@@ -108,7 +110,7 @@ void example_create_temporary_object(void)
 {
 	twzobj obj;
 	/* lets create a volatile object */
-	if(twz_object_new(&obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE) < 0)
+	if(twz_object_new(&obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
 		return;
 
 	/* by default, this object is tied to our thread, that is, the kernel will not delete it until
@@ -140,7 +142,7 @@ void example_allocate_from_object(void)
 	 *    because it's probably the easiest to do. */
 
 	twzobj obj;
-	if(twz_object_new(&obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
+	if(twz_object_new(&obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
 		return;
 
 	/* init the object to respond to the default allocation API */

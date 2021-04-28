@@ -9,8 +9,8 @@
 #include <slab.h>
 #include <syscall.h>
 #include <system.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
 
 /* The PCI subsystem. We make some simplifying assumptions:
  *   - Our system bus is PCIe. Thus everything is memory-mapped. We do not support IO-based access.

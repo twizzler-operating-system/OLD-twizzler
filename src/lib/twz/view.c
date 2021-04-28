@@ -1,12 +1,12 @@
 #include <stdatomic.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <twz/_objid.h>
-#include <twz/_slots.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
-#include <twz/view.h>
+#include <twz/objid.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 #include <twz/_err.h>
 #include <twz/_types.h>
@@ -17,7 +17,7 @@
 
 void twz_view_object_init(twzobj *obj)
 {
-	*obj = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_CVIEW));
+	twz_object_init_ptr(obj, SLOT_TO_VADDR(TWZSLOT_CVIEW));
 }
 
 void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)

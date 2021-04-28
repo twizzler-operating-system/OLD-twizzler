@@ -1,9 +1,9 @@
 #include <stdarg.h>
 #include <stdio.h>
-#include <twz/_kso.h>
 #include <twz/obj.h>
 #include <twz/persist.h>
-#include <twz/thread.h>
+#include <twz/sys/kso.h>
+#include <twz/sys/thread.h>
 
 int kso_set_name(twzobj *obj, const char *name, ...)
 {

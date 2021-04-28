@@ -3,6 +3,7 @@
 #include <string.h>
 #include <twz/debug.h>
 #include <twz/hier.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 
@@ -61,7 +62,7 @@ ssize_t twz_hier_get_entry(twzobj *ns, size_t pos, struct twz_name_ent **ent)
 int twz_hier_namespace_new(twzobj *ns, twzobj *parent, const char *name, uint64_t flags)
 {
 	int r;
-	if((r = twz_object_new(ns, NULL, NULL, flags | TWZ_OC_TIED_NONE))) {
+	if((r = twz_object_new(ns, NULL, NULL, OBJ_PERSISTENT, flags | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 	struct twz_namespace_hdr *hdr = twz_object_base(ns);

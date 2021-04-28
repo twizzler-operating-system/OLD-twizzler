@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 #include <atomic>
 using std::atomic_uint_least64_t;

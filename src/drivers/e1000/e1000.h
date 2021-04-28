@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <twz/obj.h>
 
-#include <twz/__cpp_compat.h>
-
 #ifdef __cplusplus
 #include <atomic>
 using std::atomic_uint_least32_t;
@@ -152,7 +150,7 @@ struct e1000_tx_desc {
 #include <mutex>
 #include <vector>
 
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/queue.h>
 
 class tx_request
 {

@@ -7,7 +7,7 @@
 #include <slots.h>
 #include <spinlock.h>
 
-#include <twz/_obj.h>
+#include <twz/obj.h>
 
 struct slot_entry {
 	struct object_space *space;

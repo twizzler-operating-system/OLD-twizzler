@@ -5,8 +5,9 @@
 #include <secctx.h>
 #include <slab.h>
 #include <thread.h>
-#include <twz/_sctx.h>
-#include <twz/_sys.h>
+#include <twz/meta.h>
+#include <twz/sys/sctx.h>
+#include <twz/sys/syscall.h>
 
 //#define EPRINTK(...) printk(__VA_ARGS__)
 #define EPRINTK(...)
@@ -123,7 +124,7 @@ static void sctx_cache_insert(struct sctx *sc,
 
 #include <tomcrypt.h>
 #include <tommath.h>
-#include <twz/_key.h>
+#include <twz/sys/key.h>
 
 static ssize_t __verify_get_hash(uint32_t htype,
   void *item,

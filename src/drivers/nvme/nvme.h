@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include <twz/obj.h>
 
-#include <twz/__cpp_compat.h>
-
 #ifdef __cplusplus
 #include <atomic>
 using std::atomic_uint_least32_t;
@@ -180,7 +178,7 @@ struct nvme_namespace {
 	struct nvme_controller *nc;
 };
 
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/queue.h>
 
 struct nvme_request {
 	struct queue_entry_bio bio;
@@ -205,6 +203,7 @@ class nvme_queue
 		bool phase;
 	} cmpq;
 	atomic_uint_least64_t *sps;
+	std::condition_variable *cvs;
 	std::unordered_map<uint16_t, struct nvme_request *> reqs;
 	std::mutex reqs_lock;
 	uint32_t count;

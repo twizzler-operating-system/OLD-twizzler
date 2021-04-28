@@ -45,6 +45,9 @@ class filedesc
 		}
 	}
 
+	int poll(uint64_t type, struct event *ev);
+
+	bool is_nonblock(int flags);
 	int init_path(std::shared_ptr<filedesc> at,
 	  const char *path,
 	  int _fcntl_flags,
@@ -154,28 +157,34 @@ class unixprocess
 
 	bool wait(int *status)
 	{
-		std::lock_guard<std::mutex> _lg(lock);
-		if(state == PROC_FORKED) {
-			return false;
+		bool ret;
+		std::shared_ptr<unixprocess> _p = nullptr;
+		{
+			std::lock_guard<std::mutex> _lg(lock);
+			if(state == PROC_FORKED) {
+				ret = false;
+			} else if(status_changed) {
+				status_changed = false;
+				*status = exit_status;
+				if(state == PROC_EXITED) {
+					_p = parent;
+				}
+				ret = true;
+			}
 		}
-		if(status_changed) {
-			status_changed = false;
-			*status = exit_status;
-			return true;
-		}
-		return false;
+		if(_p)
+			_p->child_died(pid);
+		return ret;
 	}
 
 	void child_died(int pid)
 	{
-		std::lock_guard<std::mutex> _lg(lock);
 		for(size_t i = 0; i < children.size(); i++) {
 			auto c = children[i];
 			if(c->pid == pid) {
 				children.erase(children.begin() + i);
 			}
 		}
-		fprintf(stderr, "TODO: send sigchild\n");
 	}
 
 	size_t add_thread(std::shared_ptr<unixthread> thr)
@@ -189,8 +198,10 @@ class unixprocess
 
 	void remove_thread(size_t perproc_tid)
 	{
-		std::lock_guard<std::mutex> _lg(lock);
-		threads.erase(threads.begin() + perproc_tid);
+		{
+			std::lock_guard<std::mutex> _lg(lock);
+			threads.erase(threads.begin() + perproc_tid);
+		}
 		if(threads.size() == 0 || perproc_tid == 0) {
 			exit();
 		}
@@ -213,6 +224,15 @@ class unixprocess
 		}
 		fds[fd].flags = flags;
 		return 0;
+	}
+
+	void close_fd(int fd)
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		if(fds.size() <= (size_t)fd) {
+			return;
+		}
+		fds[fd].desc = nullptr;
 	}
 
 	void steal_fd(int fd, std::shared_ptr<filedesc> desc, int flags)
@@ -255,7 +275,7 @@ class unixprocess
 
 	~unixprocess()
 	{
-		fprintf(stderr, "process destructed %d\n", pid);
+		//	fprintf(stderr, "process destructed %d\n", pid);
 	}
 
   private:
@@ -273,6 +293,7 @@ class unixthread
 
 	std::shared_ptr<queue_client> client;
 
+	unixthread(std::shared_ptr<unixprocess> parent);
 	unixthread(int tid, std::shared_ptr<unixprocess> proc, std::shared_ptr<queue_client> client)
 	  : tid(tid)
 	  , parent_process(proc)
@@ -297,7 +318,7 @@ class unixthread
 
 	~unixthread()
 	{
-		fprintf(stderr, "thread destructed %d\n", tid);
+		// fprintf(stderr, "thread destructed %d\n", tid);
 	}
 
 	void suspend(twix_queue_entry *tqe)
@@ -365,6 +386,7 @@ std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at
 std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id);
 void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc);
 std::shared_ptr<unixprocess> process_lookup(int pid);
+void thrds_insert_forked(objid_t id, std::shared_ptr<unixthread> thrd);
 
 std::pair<long, bool> twix_cmd_open(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 std::pair<long, bool> twix_cmd_pio(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
@@ -381,6 +403,7 @@ std::pair<long, bool> twix_cmd_send_signal(std::shared_ptr<queue_client> client,
 std::pair<long, bool> twix_cmd_faccessat(std::shared_ptr<queue_client> client,
   twix_queue_entry *tqe);
 std::pair<long, bool> twix_cmd_dup(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_poll(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 
 #define R_S(r) std::make_pair(r, true)
 #define R_A(r) std::make_pair(r, false)

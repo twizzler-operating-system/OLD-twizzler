@@ -5,7 +5,7 @@
 #include <twz/io.h>
 #include <twz/obj.h>
 #include <twz/persist.h>
-#include <twz/view.h>
+#include <twz/sys/view.h>
 
 #include <twz/debug.h>
 

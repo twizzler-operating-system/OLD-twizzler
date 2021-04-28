@@ -6,6 +6,7 @@
 #include <sys/types.h>
 
 #include <twz/_types.h>
+#include <twz/obj.h>
 
 #define MAX_FD 1024
 

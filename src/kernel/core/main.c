@@ -10,13 +10,14 @@
 #include <secctx.h>
 #include <thread.h>
 #include <time.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/driver/system.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/system.h>
 
-#include <twz/_objid.h>
-#include <twz/_slots.h>
-#include <twz/_thrd.h>
+#include <twz/meta.h>
+#include <twz/objid.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/thread.h>
 
 struct object *get_system_object(void)
 {

@@ -8,7 +8,7 @@
 
 #include <limits.h>
 
-#include <twz/driver/device.h>
+#include <twz/sys/dev/device.h>
 
 #include <arch/x86_64-io.h>
 

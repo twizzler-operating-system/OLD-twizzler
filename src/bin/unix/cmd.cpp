@@ -70,6 +70,7 @@ std::pair<long, bool> twix_cmd_wait_ready(std::shared_ptr<queue_client> client,
 
 std::pair<long, bool> twix_cmd_close(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
+	client->proc->close_fd(tqe->arg0);
 	return R_S(0);
 }
 
@@ -161,6 +162,12 @@ static std::pair<long, bool> twix_cmd_uname(std::shared_ptr<queue_client> client
 	return R_S(0);
 }
 
+static std::pair<long, bool> twix_cmd_exec(std::shared_ptr<queue_client> client,
+  twix_queue_entry *tqe)
+{
+	return R_S(0);
+}
+
 static std::pair<long, bool> twix_cmd_prlimit(std::shared_ptr<queue_client> client,
   twix_queue_entry *tqe)
 {
@@ -200,6 +207,8 @@ static std::pair<long, bool> (
 	[TWIX_CMD_FACCESSAT] = twix_cmd_faccessat,
 	[TWIX_CMD_DUP] = twix_cmd_dup,
 	[TWIX_CMD_PRLIMIT] = twix_cmd_prlimit,
+	[TWIX_CMD_EXEC] = twix_cmd_exec,
+	[TWIX_CMD_POLL] = twix_cmd_poll,
 };
 
 static const char *cmd_strs[] = {
@@ -224,14 +233,15 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_FACCESSAT] = "faccessat",
 	[TWIX_CMD_DUP] = "dup",
 	[TWIX_CMD_PRLIMIT] = "prlimit",
+	[TWIX_CMD_EXEC] = "exec",
+	[TWIX_CMD_POLL] = "poll",
 };
 
 std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	if(tqe->cmd >= 0 && tqe->cmd < NUM_TWIX_COMMANDS && call_table[tqe->cmd]) {
-#if 1
-		fprintf(stderr,
-		  "[twix-server] got command %d from proc %d, thr %d: %d (%s)\n",
+#if 0
+		debug_printf("[twix-server] got command %d from proc %d, thr %d: %d (%s)\n",
 		  tqe->qe.info,
 		  client->proc->pid,
 		  client->thr->tid,
@@ -242,7 +252,9 @@ std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_
 		// if(tqe->cmd == TWIX_CMD_WAIT_READY && ret == -EAGAIN) {
 		//	return std::make_pair(ret, false);
 		//}
-		fprintf(stderr, "[twix-server]     return %ld , %d\n", ret.first, ret.second);
+#if 0
+		debug_printf("[twix-server]     return %ld , %d\n", ret.first, ret.second);
+#endif
 		// return std::make_pair(ret, true);
 		return ret;
 	}

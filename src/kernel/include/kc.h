@@ -1,6 +1,6 @@
 #pragma once
 
-#include <twz/_objid.h>
+#include <twz/objid.h>
 
 extern objid_t kc_init_id, kc_bsv_id, kc_inithr_id, kc_name_id;
 

@@ -1,8 +1,8 @@
 #pragma once
 
-#include <twz/_key.h>
-#include <twz/_sctx.h>
 #include <twz/_types.h>
+#include <twz/sys/key.h>
+#include <twz/sys/sctx.h>
 
 #ifdef __cplusplus
 extern "C" {

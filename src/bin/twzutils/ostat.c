@@ -1,8 +1,12 @@
 #include <err.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/objctl.h>
+#include <twz/ptr.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/syscall.h>
 #include <twz/twztry.h>
 #include <unistd.h>
 static bool opt_meta = false, opt_data = false, opt_kernel = false, opt_kpage = false;

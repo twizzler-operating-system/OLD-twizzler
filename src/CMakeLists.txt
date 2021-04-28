@@ -68,7 +68,7 @@ link_libraries(twz)
 
 add_subdirectory(bin/init)
 #add_subdirectory(bin/logboi)
-add_subdirectory(bin/network)
+#add_subdirectory(bin/network)
 add_subdirectory(bin/pager)
 add_subdirectory(bin/term)
 add_subdirectory(bin/twzdev)

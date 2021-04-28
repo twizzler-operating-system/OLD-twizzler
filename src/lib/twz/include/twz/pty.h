@@ -1,7 +1,5 @@
 #pragma once
 
-#include <twz/__twz.h>
-
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -19,23 +17,13 @@ struct pty_hdr {
 	struct winsize wsz;
 	struct mutex buffer_lock;
 	size_t bufpos;
-	char coname1[64];
-	char coname2[64];
-	char coname3[64];
-	char coname4[64];
 	char buffer[PTY_BUFFER_SZ];
 };
 
 struct pty_client_hdr {
 	struct pty_hdr *server;
 	struct twzio_hdr io;
-	char coname1[64];
-	char coname2[64];
-	char coname3[64];
-	char coname4[64];
 };
-
-#define PTY_CTRL_OBJ "/usr/bin/pty"
 
 #define PTY_GATE_READ_SERVER 1
 #define PTY_GATE_WRITE_SERVER 2
@@ -55,6 +43,6 @@ int pty_poll_client(twzobj *obj, uint64_t type, struct event *event);
 int pty_ioctl_server(twzobj *obj, int request, long arg);
 int pty_ioctl_client(twzobj *obj, int request, long arg);
 
-__must_check int pty_obj_init_server(twzobj *obj, struct pty_hdr *hdr);
+int pty_obj_init_server(twzobj *obj, struct pty_hdr *hdr);
 
-__must_check int pty_obj_init_client(twzobj *obj, struct pty_client_hdr *hdr, struct pty_hdr *);
+int pty_obj_init_client(twzobj *obj, struct pty_client_hdr *hdr, struct pty_hdr *);

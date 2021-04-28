@@ -4,7 +4,7 @@
 #include <object.h>
 #include <thread.h>
 
-#include <twz/_sys.h>
+#include <twz/sys/syscall.h>
 
 long syscall_thread_spawn(uint64_t tidlo,
   uint64_t tidhi,

@@ -1,13 +1,14 @@
 #include <cstdio>
 #include <twz/debug.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/objctl.h>
 #include <twz/queue.h>
-#include <twz/sys.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
 #include <unistd.h>
 
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/queue.h>
 
 #include <condition_variable>
 #include <mutex>
@@ -61,7 +62,7 @@ class device
 		req_queue = queue;
 		int r;
 		if((r = twz_object_new(
-		      &tmpdata, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))
+		      &tmpdata, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		   < 0) {
 			throw "failed to create tmpdata object";
 		}
@@ -273,7 +274,7 @@ twzobj nvme_queue;
 int main()
 {
 	int r;
-	if((r = twz_object_new(&kq, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE))
+	if((r = twz_object_new(&kq, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 	   < 0) {
 		fprintf(stderr, "failed to create kq object\n");
 		return 1;

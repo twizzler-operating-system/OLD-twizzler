@@ -6,7 +6,8 @@
 #include <rand.h>
 #include <slots.h>
 #include <syscall.h>
-#include <twz/_sctx.h>
+#include <twz/meta.h>
+#include <twz/sys/sctx.h>
 
 static bool __do_invalidate(struct object *obj, struct kso_invl_args *invl)
 {

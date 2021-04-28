@@ -1,14 +1,28 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
-#include <twz/_objid.h>
-
-#include <twz/__cpp_compat.h>
+#include <twz/obj.h>
 
 #ifdef __cplusplus
+#include <atomic>
 extern "C" {
 #endif
+
+typedef unsigned __int128 nonce_t;
+
+struct metaext {
+#ifdef __cplusplus
+	std::
+#endif
+	  atomic_uint_least64_t tag;
+#ifdef __cplusplus
+	std::atomic<void *> ptr;
+#else
+	void *_Atomic ptr;
+#endif
+};
 
 #define MI_MAGIC 0x54575A4F
 
@@ -21,23 +35,15 @@ extern "C" {
 #define MIP_DFL_USE 0x20
 #define MIP_DFL_DEL 0x40
 
-#define OBJ_NULLPAGE_SIZE 0x1000
-#define OBJ_METAPAGE_SIZE 0x800
-
-#define OBJ_MAXSIZE (1ul << 30)
-
-typedef unsigned __int128 nonce_t;
-
-struct metaext {
-	_Atomic uint64_t tag;
-	void *_Atomic ptr;
-};
-
 struct metainfo {
 	uint32_t magic;
 	uint16_t flags;
 	uint16_t p_flags;
+#ifdef __cplusplus
+	std::atomic_uint_least32_t fotentries;
+#else
 	_Atomic uint32_t fotentries;
+#endif
 	uint32_t milen;
 	nonce_t nonce;
 	objid_t kuid;
@@ -46,12 +52,10 @@ struct metainfo {
 	_Alignas(16) struct metaext exts[];
 } __attribute__((packed));
 
-static_assert(sizeof(struct metainfo) == 64, "");
-
-#define FE_READ MIP_DFL_READ
-#define FE_WRITE MIP_DFL_WRITE
-#define FE_EXEC MIP_DFL_EXEC
-#define FE_USE MIP_DFL_USE
+#define FE_READ 0x4
+#define FE_WRITE 0x8
+#define FE_EXEC 0x10
+#define FE_USE 0x20
 #define FE_NAME 0x1000
 #define FE_DERIVE 0x2000
 
@@ -67,15 +71,36 @@ struct fotentry {
 		} name;
 	};
 
+#ifdef __cplusplus
+	std::atomic_uint_least64_t flags;
+#else
 	_Atomic uint64_t flags;
+#endif
 	uint64_t info;
 };
 
-static_assert(sizeof(struct fotentry) == 32, "");
+#ifndef __cplusplus
+_Static_assert(sizeof(struct fotentry) == 32, "");
+#endif
+
 #define OBJ_MAXFOTE ((1ul << 20) - 0x1000 / sizeof(struct fotentry))
 #define OBJ_TOPDATA (OBJ_MAXSIZE - (0x1000 + OBJ_MAXFOTE * sizeof(struct fotentry)))
 
-static_assert(OBJ_TOPDATA == 0x3E000000, "");
+#ifndef __cplusplus
+_Static_assert(OBJ_TOPDATA == 0x3E000000, "");
+#endif
+
+#ifndef __KERNEL__
+struct __twzobj;
+typedef struct __twzobj twzobj;
+struct metainfo *twz_object_meta(twzobj *);
+
+void *twz_object_getext(twzobj *obj, uint64_t tag);
+
+int twz_object_addext(twzobj *obj, uint64_t tag, void *ptr);
+
+int twz_object_delext(twzobj *obj, uint64_t tag, void *ptr);
+#endif
 
 #ifdef __cplusplus
 }

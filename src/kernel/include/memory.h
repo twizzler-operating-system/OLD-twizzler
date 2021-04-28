@@ -103,7 +103,7 @@ static inline void *mm_virtual_early_alloc(void)
 #include <krc.h>
 #include <lib/list.h>
 #include <lib/rb.h>
-#include <twz/_view.h>
+#include <twz/sys/view.h>
 
 struct vm_context {
 	struct arch_vm_context arch;

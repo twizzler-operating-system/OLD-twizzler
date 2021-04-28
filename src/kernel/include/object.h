@@ -5,8 +5,8 @@
 #include <lib/inthash.h>
 #include <lib/rb.h>
 #include <spinlock.h>
-#include <twz/_kso.h>
-#include <twz/_obj.h>
+#include <twz/obj.h>
+#include <twz/sys/kso.h>
 #include <workqueue.h>
 
 void obj_print_stats(void);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <interrupt.h>
-#include <twz/driver/device.h>
+#include <twz/sys/dev/device.h>
 
 struct object;
 struct device {

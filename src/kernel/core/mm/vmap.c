@@ -163,7 +163,7 @@ static struct viewentry kso_view_lookup(struct vm_context *ctx, size_t slot)
 	return v;
 }
 
-#include <twz/_thrd.h>
+#include <twz/sys/thread.h>
 static bool lookup_by_slot(size_t slot, objid_t *id, uint64_t *flags)
 {
 	switch(slot) {

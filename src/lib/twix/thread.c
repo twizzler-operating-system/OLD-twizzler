@@ -1,5 +1,5 @@
 #include <errno.h>
-#include <twz/sys.h>
+#include <twz/sys/sys.h>
 
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002

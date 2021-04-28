@@ -4,18 +4,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/objctl.h>
 #include <twz/persist.h>
+#include <twz/ptr.h>
 #include <twz/queue.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 
 #include <twz/debug.h>
-#include <twz/driver/device.h>
-#include <twz/driver/nic.h>
-#include <twz/driver/pcie.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/nic.h>
+#include <twz/sys/dev/pcie.h>
 
 #include "e1000.h"
 
@@ -79,7 +81,7 @@ int e1000c_reset(e1000_controller *nc)
 	return 0;
 }
 
-#include <twz/driver/msi.h>
+#include <twz/sys/dev/msi.h>
 int e1000c_pcie_init(e1000_controller *nc)
 {
 	struct pcie_function_header *hdr =
@@ -157,7 +159,7 @@ int e1000c_init(e1000_controller *nc)
 
 	e1000_reg_write32(nc, REG_CTRL, BAR_MEMORY, CTRL_FD | CTRL_ASDE);
 
-	if(twz_object_new(&nc->buf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
+	if(twz_object_new(&nc->buf_obj, NULL, NULL, OBJ_DMA, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		return -1;
 
 	int r;
@@ -430,7 +432,7 @@ void e1000_tx_queue(e1000_controller *nc)
 		void *packet_data = twz_object_lea(&nc->txqueue_obj, req->packet.ptr);
 
 		twzobj data_obj;
-		twz_object_from_ptr_cpp(packet_data, &data_obj);
+		twz_object_init_ptr(&data_obj, packet_data);
 		objid_t data_id = twz_object_guid(&data_obj);
 
 		uint64_t data_pin;
@@ -501,7 +503,8 @@ int main(int argc, char **argv)
 	}
 
 	printf("[e1000] starting e1000 controller %s\n", argv[1]);
-	r = twz_object_new(&nc.packet_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	r =
+	  twz_object_new(&nc.packet_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {
 		abort();
 	}

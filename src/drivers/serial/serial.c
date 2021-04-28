@@ -4,9 +4,12 @@
 #include <termios.h>
 #include <twz/bstream.h>
 #include <twz/debug.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/thread.h>
+#include <twz/ptr.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 
 static inline uint8_t inb(uint16_t port)
 {
@@ -138,7 +141,7 @@ char serial_ready()
 	return (uart_read(&com1, UART_REG_LSR) & UART_LSR_RX_READY) != 0;
 }
 
-#include <twz/driver/device.h>
+#include <twz/sys/dev/device.h>
 
 struct termios def_term = {
 	.c_iflag = BRKINT | ICRNL,
@@ -211,11 +214,13 @@ void *somain(void *a)
 		fprintf(stderr, "failed to set IOPL to 3\n");
 		abort();
 	}
+#if 0
 	int r;
 	if((r = twz_thread_ready(NULL, THRD_SYNC_READY, 0))) {
 		fprintf(stderr, "failed to mark ready");
 		abort();
 	}
+#endif
 
 	for(;;) {
 		char buf[128];
@@ -261,10 +266,12 @@ int main(int argc, char **argv)
 	pthread_t thrd;
 	pthread_create(&thrd, NULL, somain, NULL);
 
+#if 0
 	if((r = twz_thread_ready(NULL, THRD_SYNC_READY, 0))) {
 		fprintf(stderr, "failed to mark ready");
 		abort();
 	}
+#endif
 
 	for(;;) {
 		char buf[128];

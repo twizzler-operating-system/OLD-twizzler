@@ -11,9 +11,9 @@
 #include <string.h>
 #include <tmpmap.h>
 
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/driver/memory.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/memory.h>
 
 RB_DECLARE_STANDARD_COMPARISONS(nv_device, uint64_t, id);
 

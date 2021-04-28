@@ -1,19 +1,22 @@
 #include <stdio.h>
 #include <twz/_err.h>
-#include <twz/_objid.h>
 #include <twz/debug.h>
-#include <twz/fault.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/thread.h>
-#include <twz/view.h>
+#include <twz/objid.h>
+#include <twz/ptr.h>
+#include <twz/sys/fault.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 #include <twz.h>
 
 #define EXIT_CODE_FAULT(f) ({ 256 + (f); })
 
-//#define PRINT(...) fprintf(stderr, ##__VA_ARGS__)
-#define PRINT(...)
+#define PRINT(...) fprintf(stderr, ##__VA_ARGS__)
+//#define PRINT(...)
 
 struct {
 	void (*_Atomic fn)(int, void *, void *);
@@ -104,7 +107,8 @@ static int twz_handle_fault(void *addr, int cause, void *source, objid_t id)
 		return -EINVAL;
 	}
 
-	twzobj o0 = twz_object_from_ptr(NULL);
+	twzobj o0;
+	twz_object_init_ptr(NULL, &o0);
 	struct metainfo *mi = twz_object_meta(&o0);
 	if(mi->magic != MI_MAGIC) {
 		FPR("Invalid object");
@@ -170,7 +174,7 @@ struct stackframe {
 	uint64_t eip;
 };
 
-#include <twz/_sctx.h>
+#include <twz/sys/sctx.h>
 static void __twz_fault_unhandled_print(int fault_nr, void *data)
 {
 	struct twzthread_repr *repr = twz_thread_repr_base();

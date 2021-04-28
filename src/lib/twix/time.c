@@ -1,5 +1,5 @@
 #include <twz/obj.h>
-#include <twz/sys.h>
+#include <twz/sys/sys.h>
 
 #include <errno.h>
 #include <sys/time.h>

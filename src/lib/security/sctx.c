@@ -6,11 +6,14 @@
 #include <twz/alloc.h>
 #include <twz/debug.h>
 #include <twz/gate.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/security.h>
-#include <twz/view.h>
+#include <twz/ptr.h>
+#include <twz/sec/security.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/view.h>
 
-#include <twz/sys.h>
+#include <twz/sys/sys.h>
 
 void *__twz_secapi_nextstack = NULL;
 void *__twz_secapi_nextstack_backup = NULL;
@@ -52,6 +55,8 @@ int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms
 	return r;
 }
 
+/* XXX */
+_Bool objid_parse(const char *name, size_t len, objid_t *id);
 int twz_object_set_user_perms(twzobj *obj, uint64_t perms)
 {
 	const char *k = getenv("TWZUSERKEY");
@@ -111,16 +116,19 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	twzobj orig_view, new_view;
 
 	/* TODO: perms */
-	if(twz_object_new(&context, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+	if(twz_object_new(
+	     &context, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
 		errx(1, "failed to make new object");
 	}
 
 	twz_sctx_init(&context, name);
-	if(twz_object_new(&pri, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+	if(twz_object_new(
+	     &pri, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
 		errx(1, "failed to make new object");
 	}
 
-	if(twz_object_new(&pub, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+	if(twz_object_new(
+	     &pub, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
 		errx(1, "failed to make new object");
 	}
 
@@ -128,7 +136,7 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 
 	twz_view_object_init(&orig_view);
 
-	if(twz_object_new(&new_view, &orig_view, &pub, TWZ_OC_VOLATILE)) {
+	if(twz_object_new(&new_view, &orig_view, &pub, OBJ_VOLATILE, 0)) {
 		abort(); // TODO
 	}
 
@@ -149,22 +157,23 @@ void twz_secure_api_create(twzobj *obj, const char *name)
 	twz_sctx_set_gmask(&context, SCP_EXEC);
 
 	/* TODO: get these in a better way */
-	twzobj exec = twz_object_from_ptr(main);
+	twzobj exec;
+	twz_object_init_ptr(&exec, main);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr(libtwzsec_gate_return);
+	twz_object_init_ptr(&exec, libtwzsec_gate_return);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr(libtwz_panic);
+	twz_object_init_ptr(&exec, libtwz_panic);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr((void *)0x4000C0069697);
+	twz_object_init_ptr(&exec, (void *)0x4000C0069697);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr((void *)0x700080001000);
+	twz_object_init_ptr(&exec, (void *)0x700080001000);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
-	exec = twz_object_from_ptr((void *)0x700100001000);
+	twz_object_init_ptr(&exec, (void *)0x700100001000);
 	twz_sctx_add_dfl(&context, twz_object_guid(&exec), SCP_EXEC, NULL, SCF_TYPE_REGRANT_MASK);
 
 	// printf("\n\nAdding cap for lib  " IDFMT " to " IDFMT "\n",

@@ -7,8 +7,10 @@
 #include <string.h>
 
 #include <twz/alloc.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
 #include <twz/persist.h>
+#include <twz/ptr.h>
 
 #define CANARY 0x55aa66bb
 #define MAGIC 0x5a8ab49b
@@ -1114,6 +1116,8 @@ int twz_alloc(twzobj *obj,
   void *data)
 {
 	struct alloc_hdr *hdr = twz_object_getext(obj, ALLOC_METAINFO_TAG);
+	if(!hdr)
+		return -EINVAL;
 	mutex_acquire(&hdr->lock);
 	int r = __twz_alloc(obj, hdr, len, owner, flags, ctor, data);
 	mutex_release(&hdr->lock);
@@ -1222,6 +1226,8 @@ static void __twz_free(twzobj *obj, struct alloc_hdr *hdr, void *p, void **owner
 void twz_free(twzobj *obj, void *p, void **owner, uint64_t flags)
 {
 	struct alloc_hdr *hdr = twz_object_getext(obj, ALLOC_METAINFO_TAG);
+	if(!hdr)
+		return;
 	mutex_acquire(&hdr->lock);
 	__twz_free(obj, hdr, p, owner, flags);
 	mutex_release(&hdr->lock);
@@ -1230,6 +1236,8 @@ void twz_free(twzobj *obj, void *p, void **owner, uint64_t flags)
 int twz_realloc(twzobj *obj, void *p, void **owner, size_t newlen, uint64_t flags)
 {
 	struct alloc_hdr *hdr = twz_object_getext(obj, ALLOC_METAINFO_TAG);
+	if(!hdr)
+		return -EINVAL;
 	mutex_acquire(&hdr->lock);
 	external_call_preamble(obj, hdr, flags);
 

@@ -6,6 +6,7 @@
 #include <nstack/net.h>
 #include <nstack/nstack.h>
 
+#include <assert.h>
 #include <time.h>
 #include <unistd.h>
 

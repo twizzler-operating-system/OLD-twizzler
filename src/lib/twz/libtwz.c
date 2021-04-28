@@ -5,7 +5,7 @@
 #include <string.h>
 
 #include <twz/debug.h>
-#include <twz/sys.h>
+#include <twz/sys/syscall.h>
 static bool disable_backtrace = false;
 
 __attribute__((weak)) extern void __twz_libtwz_runtime_init(void);

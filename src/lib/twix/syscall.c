@@ -23,8 +23,10 @@ long linux_sys_fsync()
 	return 0;
 }
 
-#include <twz/sys.h>
-#include <twz/thread.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sync.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 long linux_sys_nanosleep(struct timespec *spec)
 {
 	int x = 0;
@@ -508,10 +510,7 @@ int try_twix_version2(struct twix_register_frame *frame,
   long a5,
   long *ret);
 
-static int env_state = 0;
-#define ENV_CHECKED 1
-#define ENV_SHOW_UNIMP 2
-#define ENV_SHOW_ALL 4
+int env_state = 0;
 static void check_env_state()
 {
 	if(env_state & ENV_CHECKED)
@@ -570,7 +569,6 @@ long twix_syscall(long num, long a0, long a1, long a2, long a3, long a4, long a5
 
 #include <stdarg.h>
 #include <stdio.h>
-#include <twz/sys.h>
 void twix_log(char *str, ...)
 {
 	// static int twix_log_fd = 0;

@@ -4,10 +4,11 @@
 #include <unistd.h>
 
 #include <twz/debug.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/objctl.h>
-#include <twz/sys.h>
+#include <twz/meta.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
 
 #include "pcie.h"
 

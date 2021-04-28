@@ -2,6 +2,7 @@
 #include <twz/io.h>
 #include <twz/obj.h>
 #include <twz/persist.h>
+#include <twz/sys/obj.h>
 
 #include "state.h"
 
@@ -53,11 +54,8 @@ std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_q
 		}
 
 		if(!shared) {
-			int r = twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC
-			                            | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE,
-			  0,
-			  0,
-			  &id);
+			int r = twz_object_create(
+			  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_TIED_NONE, 0, 0, &id);
 			if(r)
 				return R_S(r);
 		} else {
@@ -86,10 +84,7 @@ std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_q
 			return R_S(-EINVAL);
 		// fprintf(stderr, "    anon\n");
 		r = twz_object_create(
-		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE,
-		  0,
-		  0,
-		  &id);
+		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_TIED_NONE, 0, 0, &id);
 		if(r)
 			return R_S(r);
 	}

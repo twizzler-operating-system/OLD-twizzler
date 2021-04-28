@@ -4,11 +4,11 @@
 #include <krc.h>
 #include <object.h>
 
-#include <twz/_objid.h>
+#include <twz/objid.h>
 
 #include <lib/rb.h>
 
-#include <twz/_sctx.h>
+#include <twz/sys/sctx.h>
 struct sctx_cache_entry {
 	objid_t id;
 	struct scgates *gates;

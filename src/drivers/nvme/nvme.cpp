@@ -3,16 +3,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/objctl.h>
 #include <twz/queue.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 
 #include <twz/debug.h>
-#include <twz/driver/device.h>
-#include <twz/driver/pcie.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/pcie.h>
 
 #include "nvme.h"
 
@@ -135,6 +136,7 @@ void nvmeq_init(nvme_queue *q,
 	q->subq.entries = sentries;
 	q->cmpq.entries = centries;
 	q->sps = (atomic_uint_least64_t *)calloc(count, sizeof(uint64_t) * count);
+	q->cvs = new std::condition_variable[count];
 	q->count = count;
 	q->cmpq.head_doorbell = head_db;
 	q->subq.tail_doorbell = tail_db;
@@ -191,7 +193,7 @@ void nvme_reg_write64(nvme_controller *nc, int r, uint64_t v)
 	asm volatile("sfence;" ::: "memory");
 }
 
-#include <twz/driver/msi.h>
+#include <twz/sys/dev/msi.h>
 int nvmec_pcie_init(nvme_controller *nc)
 {
 	struct pcie_function_header *hdr = (struct pcie_function_header *)twz_device_getds(&nc->co);
@@ -257,7 +259,7 @@ uint32_t *nvmec_get_doorbell(nvme_controller *nc, uint32_t dnr, bool tail)
 	                            : NVME_REG_CQnHDBL(dnr, nc->dstride)));
 }
 
-#include <twz/driver/device.h>
+#include <twz/sys/dev/device.h>
 int nvmec_init(nvme_controller *nc)
 {
 	uint64_t caps = nvme_reg_read64(nc, NVME_REG_CAP);
@@ -380,7 +382,15 @@ int nvmec_execute_cmd(struct nvme_cmd *cmd, nvme_queue *q, uint16_t *sr, uint32_
 {
 	uint16_t cid = nvmeq_submit_cmd(q, cmd);
 
-	uint64_t res = twz_thread_cword_consume(&q->sps[cid], 0);
+	uint64_t res = 0;
+	{
+		std::unique_lock<std::mutex> _lg(q->reqs_lock);
+		while(q->sps[cid] == 0) {
+			q->cvs[cid].wait(_lg);
+		}
+		res = q->sps[cid];
+		q->sps[cid] = 0;
+	}
 	uint32_t cr, _sr;
 	nvme_cmp_decode(res, &cr, &_sr);
 	uint16_t status = NVME_CMP_DW3_STATUS(_sr);
@@ -631,8 +641,9 @@ void nvmeq_interrupt(nvme_controller *nc, nvme_queue *q)
 			queue_complete(&nc->ext_qobj, (struct queue_entry *)&req->bio, 0);
 			delete req;
 		} else {
+			std::unique_lock<std::mutex> lck(q->reqs_lock);
 			q->sps[cid] = result;
-			twz_thread_sync_init(&sas[tsc++], THREAD_SYNC_WAKE, &q->sps[cid], INT_MAX);
+			q->cvs[cid].notify_all();
 		}
 	}
 	int r;
@@ -653,7 +664,7 @@ void nvme_wait_for_event(nvme_controller *nc)
 	for(int i = 1; i <= nc->nrvec; i++) {
 		twz_thread_sync_init(&sa[i], THREAD_SYNC_SLEEP, &repr->interrupts[i - 1].sp, 0);
 	}
-int x=0;
+	int x = 0;
 	for(;;) {
 		uint64_t iovf = atomic_exchange(&repr->syncs[DEVICE_SYNC_IOV_FAULT], 0);
 		if(iovf & 1) {
@@ -697,7 +708,7 @@ int x=0;
 
 #include <twz/queue.h>
 
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/queue.h>
 
 #include <set>
 #include <thread>

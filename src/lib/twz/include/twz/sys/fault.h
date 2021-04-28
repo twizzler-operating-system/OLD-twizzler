@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <twz/_objid.h>
+#include <twz/objid.h>
 enum {
 	FAULT_OBJECT,
 	FAULT_NULL,
@@ -218,3 +218,16 @@ static inline struct fault_pptr_info twz_fault_build_pptr_info(objid_t id,
 	fi.ptr = ptr;
 	return fi;
 }
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifndef __KERNEL__
+void twz_fault_raise(int fault, void *data);
+int twz_fault_set(int fault, void (*fn)(int, void *, void *), void *userdata);
+#endif
+
+#ifdef __cplusplus
+}
+#endif

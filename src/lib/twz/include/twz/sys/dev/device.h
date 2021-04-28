@@ -1,14 +1,12 @@
 #pragma once
 
-#include <twz/_kso.h>
+#include <twz/sys/kso.h>
 
 #ifdef __cplusplus
 #include <atomic>
-using std::atomic_uint_least32_t;
-using std::atomic_uint_least64_t;
-#else /* not __cplusplus */
+#else
 #include <stdatomic.h>
-#endif /* __cplusplus */
+#endif
 
 enum device_sync { DEVICE_SYNC_READY, DEVICE_SYNC_ERROR, DEVICE_SYNC_IOV_FAULT, MAX_DEVICE_SYNCS };
 
@@ -21,7 +19,11 @@ enum device_sync { DEVICE_SYNC_READY, DEVICE_SYNC_ERROR, DEVICE_SYNC_IOV_FAULT, 
 #define DEVICE_ID_FRAMEBUFFER 3
 
 struct device_interrupt {
+#ifdef __cplusplus
+	std::atomic_uint_least64_t sp;
+#else
 	atomic_uint_least64_t sp;
+#endif
 	uint32_t flags;
 	uint16_t resv;
 	uint16_t vec;
@@ -34,7 +36,11 @@ struct device_repr {
 	uint64_t device_type;
 	uint32_t device_bustype;
 	uint32_t device_id;
+#ifdef __cplusplus
+	std::atomic_uint_least64_t syncs[MAX_DEVICE_SYNCS];
+#else
 	atomic_uint_least64_t syncs[MAX_DEVICE_SYNCS];
+#endif
 	struct device_interrupt interrupts[MAX_DEVICE_INTERRUPTS];
 };
 
@@ -50,7 +56,8 @@ struct device_repr {
 #ifndef __KERNEL__
 
 #include <twz/obj.h>
-#include <twz/objctl.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/syscall.h>
 
 static inline struct device_repr *twz_device_getrepr(twzobj *obj)
 {
@@ -61,7 +68,7 @@ static inline void *twz_device_getds(twzobj *obj)
 {
 	return (void *)(twz_device_getrepr(obj) + 1);
 }
-#include <twz/_sys.h>
+
 static inline int twz_device_map_object(twzobj *dev, twzobj *obj, size_t off, size_t len)
 {
 	objid_t cid = twz_object_guid(dev);

@@ -10,7 +10,7 @@
 #include <slab.h>
 #include <tmpmap.h>
 
-#include <twz/_sys.h>
+#include <twz/sys/syscall.h>
 
 static struct slabcache sc_objpage;
 

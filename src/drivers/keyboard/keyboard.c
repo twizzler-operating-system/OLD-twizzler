@@ -1,10 +1,12 @@
 #include <stdlib.h>
 #include <twz/bstream.h>
 #include <twz/debug.h>
-#include <twz/driver/device.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/thread.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
 
 static twzobj ks_obj;
 static twzobj us_obj;

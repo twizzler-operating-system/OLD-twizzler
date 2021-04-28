@@ -10,8 +10,9 @@
 #include <tmpmap.h>
 
 #include <device.h>
-#include <twz/_fault.h>
-#include <twz/driver/queue.h>
+#include <twz/meta.h>
+#include <twz/sys/dev/queue.h>
+#include <twz/sys/fault.h>
 
 #include <queue.h>
 

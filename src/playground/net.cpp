@@ -1,12 +1,14 @@
 #include <cstdio>
+#include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/objctl.h>
+#include <twz/ptr.h>
 #include <twz/queue.h>
+#include <twz/sys/obj.h>
 #include <unistd.h>
 
 #include <thread>
-#include <twz/driver/nic.h>
-#include <twz/driver/queue.h>
+#include <twz/sys/dev/nic.h>
+#include <twz/sys/dev/queue.h>
 
 twzobj txqueue_obj, rxqueue_obj, info_obj;
 
@@ -96,7 +98,7 @@ int main(int argc, char **argv)
 	  nh->mac[5]);
 
 	twzobj buf_obj;
-	if(twz_object_new(&buf_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
+	if(twz_object_new(&buf_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		return 1;
 
 	std::thread thr(consumer);

@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
 #include <twz/queue.h>
 

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <twz/driver/pcie.h>
+#include <twz/obj.h>
+#include <twz/sys/dev/pcie.h>
 
 #define PCIE_FUNCTION_INIT 1
 #define PCIE_FUNCTION_DRIVEN 2

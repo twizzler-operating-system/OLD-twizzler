@@ -14,8 +14,8 @@
 #include <string.h>
 #include <tmpmap.h>
 
-#include <twz/driver/device.h>
-#include <twz/driver/misc.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/misc.h>
 
 /* TODO (major): clean up this file */
 

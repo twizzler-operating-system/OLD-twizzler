@@ -5,7 +5,9 @@
 #include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/queue.h>
-#include <twz/security.h>
+#include <twz/sec/security.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/thread.h>
 
 #include <condition_variable>
 #include <mutex>
@@ -30,7 +32,8 @@ class handler
   public:
 	handler()
 	{
-		int r = twz_object_new(&client_add_queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+		int r = twz_object_new(
+		  &client_add_queue, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 		if(r)
 			throw(r);
 		r = queue_init_hdr(&client_add_queue,
@@ -53,6 +56,8 @@ class handler
 		std::lock_guard<std::mutex> _lg(lock);
 		add_clients.push_back(client);
 		queue_submit(&client_add_queue, (struct queue_entry *)&subhqe, 0);
+		waker = 1;
+		twz_thread_sync(THREAD_SYNC_WAKE, &waker, 1, NULL);
 	}
 
   private:
@@ -65,6 +70,7 @@ class handler
 	size_t qspec_len = 0;
 	struct handler_queue_entry hqe;
 	struct twix_queue_entry *tqe = nullptr;
+	std::atomic<unsigned long> waker = 0;
 
 	void handler_cleanup_thread()
 	{
@@ -82,7 +88,7 @@ class handler
 					if(tsa) {
 						delete[] tsa;
 					}
-					tsa = new sys_thread_sync_args[len];
+					tsa = new sys_thread_sync_args[len + 1];
 					tsa_len = len;
 				}
 				for(size_t i = 0; i < len; i++) {
@@ -96,14 +102,18 @@ class handler
 					  &tsa[i], THREAD_SYNC_SLEEP, &repr->syncs[THRD_SYNC_EXIT], 0);
 				}
 			}
+			twz_thread_sync_init(&tsa[len], THREAD_SYNC_SLEEP, &waker, 0);
+			tsa[len].res = 0;
 			if(sleep_count == len) {
-				int r = twz_thread_sync_multiple(len, tsa, NULL);
+				int r = twz_thread_sync_multiple(len + 1, tsa, NULL);
 				(void)r;
 				/* TODO err */
 			}
+			tsa[len].res = 0;
 
 			{
 				std::lock_guard<std::mutex> _lg(lock);
+				waker = 0;
 				if(len > clients.size()) {
 					len = clients.size();
 				}
@@ -112,6 +122,8 @@ class handler
 					  (struct twzthread_repr *)twz_object_base(&clients[i]->thrdobj);
 					if(repr->syncs[THRD_SYNC_EXIT]) {
 						tsa[i].res = 1;
+					} else {
+						tsa[i].res = 0;
 					}
 				}
 			}
@@ -191,7 +203,7 @@ class handler
 				std::lock_guard<std::mutex> _lg(lock);
 				for(auto client : add_clients) {
 					clients.push_back(client);
-					fprintf(stderr, "added client: %d\n", client->proc->pid);
+					//		fprintf(stderr, "added client: %d\n", client->proc->pid);
 				}
 				add_clients.clear();
 				cv.notify_all();
@@ -203,7 +215,7 @@ class handler
 				{
 					std::lock_guard<std::mutex> _lg(lock);
 					client = clients[hqe->client_idx];
-					fprintf(stderr, "erase %ld / %ld\n", hqe->client_idx, clients.size());
+					//	fprintf(stderr, "erase %ld / %ld\n", hqe->client_idx, clients.size());
 					clients.erase(clients.begin() + hqe->client_idx);
 					queue_complete(&client_add_queue, (struct queue_entry *)hqe, 0);
 				}
@@ -212,7 +224,7 @@ class handler
 				  queue_receive(&client->queue, (struct queue_entry *)&tqe, QUEUE_NONBLOCK) == 0) {
 					handle_client(client, &tqe, true);
 				}
-				fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
+				// fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
 				client->exit();
 			} break;
 		}
@@ -222,7 +234,9 @@ class handler
 	void handler_thread()
 	{
 		for(;;) {
+			// debug_printf("WAITING\n");
 			ssize_t ret = queue_sub_dequeue_multiple(qspec_len, qspec);
+			// debug_printf("HANDLING\n");
 			/* TODO: check ret */
 			(void)ret;
 			for(size_t i = 1; i < qspec_len; i++) {
@@ -270,11 +284,13 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 }
 }
 
+#include "async.h"
+#include <sys/stat.h>
 #include <twz/name.h>
 int main()
 {
 	twzobj api_obj;
-	int r = twz_object_new(&api_obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
+	int r = twz_object_new(&api_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {
 		abort();
 	}
@@ -284,6 +300,8 @@ int main()
 	auto h = new handler();
 	handlers.push_back(h);
 
+	async_init();
+	mkdir("/dev", 0644);
 	twz_name_assign(twz_object_guid(&api_obj), "/dev/unix");
 
 	for(;;) {

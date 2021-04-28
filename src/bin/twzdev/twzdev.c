@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -5,14 +6,15 @@
 #include <unistd.h>
 
 #include <twz/bstream.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/driver/memory.h>
-#include <twz/driver/queue.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/pty.h>
 #include <twz/queue.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/memory.h>
+#include <twz/sys/dev/queue.h>
 
 void pcie_load_bus(twzobj *obj);
 
@@ -24,14 +26,16 @@ int create_pty_pair(char *server, char *client)
 	if((r = twz_object_new(&pty_s,
 	      NULL,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
 	if((r = twz_object_new(&pty_c,
 	      NULL,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
@@ -60,7 +64,8 @@ int create_bstream(char *name)
 	if((r = twz_object_new(&stream,
 	      NULL,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
@@ -206,7 +211,8 @@ int main()
 		int r;
 
 		twzobj qobj;
-		if(twz_object_new(&qobj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE)
+		if(twz_object_new(
+		     &qobj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE)
 		   < 0)
 			abort();
 		queue_init_hdr(&qobj, 5, sizeof(struct queue_entry_bio), 5, sizeof(struct queue_entry_bio));

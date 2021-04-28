@@ -1,9 +1,12 @@
 #pragma once
 
-#include <twz/__twz.h>
-
-#include <twz/_objid.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <twz/_types.h>
+#include <twz/objid.h>
+
+struct __twzobj;
+typedef struct __twzobj twzobj;
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,7 +19,7 @@ struct twz_nament {
 	char name[];
 };
 
-__must_check int twz_name_resolve(twzobj *obj,
+int twz_name_resolve(twzobj *obj,
   const char *name,
   int (*fn)(twzobj *, const char *, int, objid_t *),
   int flags,

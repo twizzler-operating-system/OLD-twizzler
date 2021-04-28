@@ -1,6 +1,6 @@
 #pragma once
 
-#include <twz/_obj.h>
+#include <twz/obj.h>
 
 #define TWZSLOT_CVIEW 0x1fff0ul
 #define TWZSLOT_TCTRL 0x1fff1ul

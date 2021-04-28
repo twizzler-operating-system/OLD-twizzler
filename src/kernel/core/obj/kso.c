@@ -1,8 +1,9 @@
 #include <device.h>
 #include <object.h>
 #include <spinlock.h>
-#include <twz/_thrd.h>
-#include <twz/driver/bus.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/kso.h>
+#include <twz/sys/thread.h>
 /* TODO: better system for tracking slots in the array */
 static _Atomic size_t idx = 0;
 static struct spinlock lock = SPINLOCK_INIT;

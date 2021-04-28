@@ -5,6 +5,7 @@
 #include <slots.h>
 #include <thread.h>
 #include <tmpmap.h>
+#include <twz/meta.h>
 int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip)
 {
 	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));
@@ -55,7 +56,7 @@ int obj_check_permission(struct object *obj, uint64_t flags)
 	return r;
 }
 
-#include <twz/_sctx.h>
+#include <twz/sys/sctx.h>
 static uint32_t __conv_objperm_to_scp(uint64_t p)
 {
 	uint32_t perms = 0;

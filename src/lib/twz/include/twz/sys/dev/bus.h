@@ -1,5 +1,9 @@
 #pragma once
-#include <twz/_kso.h>
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include <twz/sys/kso.h>
 
 struct bus_repr {
 	struct kso_hdr hdr;
@@ -13,6 +17,7 @@ struct bus_repr {
 
 #include <errno.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 
 static inline struct bus_repr *twz_bus_getrepr(twzobj *obj)
 {

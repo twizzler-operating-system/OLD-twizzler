@@ -1,6 +1,9 @@
 #pragma once
 
-#include <twz/_obj.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include <twz/objid.h>
 
 #define SYS_NULL 0
 #define SYS_THRD_SPAWN 1

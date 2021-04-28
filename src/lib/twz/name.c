@@ -6,8 +6,10 @@
 #include <string.h>
 #include <twz/_err.h>
 #include <twz/hier.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 
 #include <twz/debug.h>
 /* TODO: make a real function for this */
@@ -194,8 +196,8 @@ int twz_name_resolve(twzobj *obj,
 	return __twz_name_dfl_resolve(obj, name, flags, id);
 }
 
-#include <twz/fault.h>
-#include <twz/view.h>
+#include <twz/sys/fault.h>
+#include <twz/sys/view.h>
 static int __twz_fot_indirect_resolve_dfl(twzobj *obj,
   struct fotentry *fe,
   const void *p,
@@ -218,16 +220,16 @@ static int __twz_fot_indirect_resolve_dfl(twzobj *obj,
 
 	void *_r = twz_ptr_rebase(ns, (void *)p);
 	size_t slot = VADDR_TO_SLOT(p);
-	if(slot < TWZ_OBJ_CACHE_SIZE) {
-		obj->_int_cache[slot] = ns;
-	}
+	// if(slot < TWZ_OBJ_CACHE_SIZE) {
+	//	obj->_int_cache[slot] = ns;
+	//}
 	*vptr = _r;
 	return 0;
 }
 
 #include <dlfcn.h>
 
-#include <twz/thread.h>
+#include <twz/sys/thread.h>
 static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
   struct fotentry *fe,
   const void *p,
@@ -235,13 +237,13 @@ static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
   uint64_t *info)
 {
 	size_t slot = VADDR_TO_SLOT(p);
-	if(obj->_int_sofn_cache[slot]) {
-		*vptr = obj->_int_sofn_cache[slot];
-		return 0;
-	}
+	// if(obj->_int_sofn_cache[slot]) {
+	//	*vptr = obj->_int_sofn_cache[slot];
+	//	return 0;
+	//}
 
 	char *name = twz_object_lea(obj, fe->name.data);
-	// debug_printf("load dl: %s :: %p\n", name, obj->_int_base);
+	//debug_printf("load dl: %s :: %p\n", name, obj->base);
 
 	size_t sl = strlen(name);
 	if(sl > 128) {
@@ -260,7 +262,9 @@ static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
 		symname = dc + 2;
 	}
 
+	//debug_printf("CALLING DLOPEN\n");
 	void *dl = dlopen(name, RTLD_NOW);
+	//debug_printf("AADADAWDAWDAWDAWD\n");
 	if(!dl) {
 		*info = FAULT_PPTR_RESOLVE;
 		return -errno;
@@ -280,7 +284,8 @@ static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
 	}
 
 	*vptr = sym;
-	obj->_int_sofn_cache[slot] = sym;
+	//debug_printf("thu dls\n");
+	// obj->_int_sofn_cache[slot] = sym;
 
 	return 0;
 }

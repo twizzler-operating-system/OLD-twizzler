@@ -5,6 +5,9 @@
 
 #include <twz/_types.h>
 
+struct __twzobj;
+typedef struct __twzobj twzobj;
+
 #ifdef __cplusplus
 extern "C" {
 #endif

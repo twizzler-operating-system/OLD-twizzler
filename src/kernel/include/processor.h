@@ -23,7 +23,7 @@
 #define PROCESSOR_MAX_CPUS 64
 #endif
 
-#include <twz/driver/processor.h>
+#include <twz/sys/dev/processor.h>
 struct processor {
 	struct arch_processor arch;
 	struct list runqueue;

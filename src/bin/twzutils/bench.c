@@ -33,7 +33,7 @@ void do_test(char *mem, long stride, int w)
 int main()
 {
 	twzobj obj;
-	if(twz_object_new(&obj, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE) < 0)
+	if(twz_object_new(&obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE) < 0)
 		abort();
 
 	// char *mem = twz_object_base(&obj);

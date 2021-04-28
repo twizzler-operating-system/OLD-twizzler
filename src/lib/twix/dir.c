@@ -5,9 +5,9 @@
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
-#include <twz/_sys.h>
 #include <twz/hier.h>
 #include <twz/name.h>
+#include <twz/sys/syscall.h>
 #include <unistd.h>
 
 ssize_t linux_sys_readlink(const char *path, char *buf, size_t bufsz)

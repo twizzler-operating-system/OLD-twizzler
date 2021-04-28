@@ -18,4 +18,4 @@ struct twix_queue_entry build_tqe(enum twix_command cmd, int flags, size_t bufsz
 void twix_sync_command(struct twix_queue_entry *tqe);
 
 long hook_fork(struct syscall_args *args);
-void resetup_queue(void);
+void resetup_queue(long);

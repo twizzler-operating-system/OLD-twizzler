@@ -1,14 +1,16 @@
 #include <twix/twix.h>
 #include <twz/obj.h>
-#include <twz/thread.h>
-#include <twz/view.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 #include "../syscalls.h"
 #include "v2.h"
 
-#if 0
-asm(".global __return_from_clone\n"
-    "__return_from_clone:"
+asm(".global __return_from_clone_v2\n"
+    "__return_from_clone_v2:"
+    "movq $1, %rdi;"
+    "callq resetup_queue;"
     "popq %r15;"
     "popq %r14;"
     "popq %r13;"
@@ -25,13 +27,11 @@ asm(".global __return_from_clone\n"
     "popq %rax;" /* ignore the old rsp */
     "movq $0, %rax;"
     "ret;");
-#endif
 
 asm(".global __return_from_fork_v2\n"
     "__return_from_fork_v2:"
-    "pushq $0;"
+    "movq $0, %rdi;"
     "callq resetup_queue;"
-    "popq %r15;"
     "popq %r15;"
     "popq %r14;"
     "popq %r13;"
@@ -49,43 +49,88 @@ asm(".global __return_from_fork_v2\n"
     "movq $0, %rax;"
     "ret;");
 
-extern uint64_t __return_from_clone(void);
-extern uint64_t __return_from_fork_v2(void);
-#if 0
-long hook_clone(struct twix_register_frame *frame,
-  unsigned long flags,
-  void *child_stack,
-  int *ptid,
-  int *ctid,
-  unsigned long newtls)
+#define _GNU_SOURCE
+#include <sched.h>
+extern uint64_t __return_from_clone_v2(void);
+long hook_clone(struct syscall_args *args)
 {
-	(void)ptid;
-	(void)ctid;
+	unsigned long flags = args->a0;
+	void *child_stack = (void *)args->a1;
+	int *ptid = (int *)args->a2;
+	int *ctid = (int *)args->a3;
+	unsigned long newtls = args->a4;
 	if(flags != 0x7d0f00) {
 		return -ENOSYS;
 	}
 
+	struct twix_register_frame *frame = args->frame;
 	memcpy((void *)((uintptr_t)child_stack - sizeof(struct twix_register_frame)),
 	  frame,
 	  sizeof(struct twix_register_frame));
 	child_stack = (void *)((uintptr_t)child_stack - sizeof(struct twix_register_frame));
-	/* TODO: track these, and when these exit or whatever, release these as well */
-	struct thread thr;
+
 	int r;
-	if((r = twz_thread_spawn(&thr,
-	      &(struct thrd_spawn_args){ .start_func = (void *)__return_from_clone,
-	        .arg = NULL,
-	        .stack_base = child_stack,
-	        .stack_size = 8,
-	        .tls_base = (char *)newtls }))) {
+	twzobj thread;
+	if((r = twz_object_new(&thread,
+	      NULL,
+	      NULL,
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+		return r;
+	}
+	struct twzthread_repr *newrepr = twz_object_base(&thread);
+	newrepr->reprid = twz_object_guid(&thread);
+
+	struct twix_queue_entry tqe = build_tqe(
+	  TWIX_CMD_CLONE, 0, 0, 3, ID_LO(twz_object_guid(&thread)), ID_HI(twz_object_guid(&thread)), 0);
+	twix_sync_command(&tqe);
+
+	if((r = tqe.ret) < 0) {
 		return r;
 	}
 
-	/* TODO */
-	static _Atomic int __static_thrid = 0;
-	return ++__static_thrid;
+	if(flags & CLONE_CHILD_SETTID) {
+		*ctid = tqe.ret;
+	}
+	struct sys_thrd_spawn_args sa = {
+		.target_view = 0,
+		.start_func = (void *)__return_from_clone_v2,
+		.arg = NULL,
+		.stack_base = (void *)child_stack, // twz_ptr_rebase(TWZSLOT_STACK, soff),
+		.stack_size = 8,
+		.tls_base = (void *)newtls,
+		.thrd_ctrl = TWZSLOT_THRD,
+	};
+
+	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {
+		return r;
+	}
+
+	void *arg = NULL;
+	if(flags & CLONE_CHILD_CLEARTID) {
+		/* TODO */
+		arg = ctid;
+	}
+
+	if(flags & CLONE_PARENT_SETTID) {
+		*ptid = tqe.ret;
+	}
+
+	return tqe.ret;
 }
-#endif
+
+#include <sys/mman.h>
+
+struct mmap_slot {
+	twzobj obj;
+	int prot;
+	int flags;
+	size_t slot;
+	struct mmap_slot *next;
+};
+
+extern uint64_t __return_from_clone(void);
+extern uint64_t __return_from_fork_v2(void);
 
 static bool __fork_view_clone(twzobj *nobj,
   size_t i,
@@ -104,18 +149,18 @@ static bool __fork_view_clone(twzobj *nobj,
 	return false;
 }
 
+/* TODO: handle cleanup */
 long hook_fork(struct syscall_args *args)
 {
 	/* fork() is a multi-stage process. We need to:
 	 * 1) Create a new thread, ready to execute.
-	 * 2) Register that thread as a client with the unix-server, indicating that we are forking.
-	 * 3) Clone our view object, creating new objects as necessary
-	 * 4) Setup the thread to execute a call to the unix-server that registers it as a client, and
-	 *    then returns using the parent's frame.
-	 * 5) Spawn the thread.
+	 * 2) Register that thread as a client with the unix-server, indicating that we are
+	 * forking. 3) Clone our view object, creating new objects as necessary 4) Setup the
+	 * thread to execute a call to the unix-server that registers it as a client, and then
+	 * returns using the parent's frame. 5) Spawn the thread.
 	 *
-	 * The unix-server will recall that we are forking, and will then clone a process internally,
-	 * and keep it ready for the new thread. */
+	 * The unix-server will recall that we are forking, and will then clone a process
+	 * internally, and keep it ready for the new thread. */
 
 	int r;
 	twzobj current_view, new_view, new_stack;
@@ -124,8 +169,8 @@ long hook_fork(struct syscall_args *args)
 	if((r = twz_object_new(&new_view,
 	      &current_view,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE | TWZ_OC_VOLATILE
-	        | TWZ_OC_TIED_NONE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 
@@ -133,20 +178,32 @@ long hook_fork(struct syscall_args *args)
 		goto cleanup_view;
 	}
 
-	struct thread thread;
-	if((r = twz_thread_create(&thread))) {
+	twzobj thread;
+	if((r = twz_object_new(&thread,
+	      NULL,
+	      NULL,
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
 		goto cleanup_view;
 	}
+	struct twzthread_repr *newrepr = twz_object_base(&thread);
+	newrepr->reprid = twz_object_guid(&thread);
 
 	twz_view_fixedset(
-	  &thread.obj, TWZSLOT_THRD, twz_object_guid(&thread.obj), VE_READ | VE_WRITE | VE_FIXED);
+	  &thread, TWZSLOT_THRD, twz_object_guid(&thread), VE_READ | VE_WRITE | VE_FIXED);
 
 	twz_view_set(&new_view, TWZSLOT_CVIEW, twz_object_guid(&new_view), VE_READ | VE_WRITE);
 
+	void *rsp;
+	asm volatile("mov %%rsp, %0" : "=r"(rsp)::"memory");
+	twzobj curstack;
+	twz_object_init_ptr(&curstack, rsp);
+
 	if((r = twz_object_new(&new_stack,
-	      twz_stdstack,
+	      &curstack,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE | TWZ_OC_VOLATILE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		goto cleanup_thread;
 	}
 	twz_view_set(&new_view, TWZSLOT_STACK, twz_object_guid(&new_stack), VE_READ | VE_WRITE);
@@ -189,7 +246,8 @@ long hook_fork(struct syscall_args *args)
 			/* TODO: cleanup */
 			return r;
 		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
+		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
+		// IDPR(nid));
 		if(flags & VE_FIXED) {
 		}
 		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
@@ -223,7 +281,8 @@ long hook_fork(struct syscall_args *args)
 			/* TODO: cleanup */
 			return r;
 		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
+		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
+		// IDPR(nid));
 		if(flags & VE_FIXED) {
 		}
 		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
@@ -239,8 +298,8 @@ long hook_fork(struct syscall_args *args)
 	  0,
 	  0,
 	  3,
-	  ID_LO(twz_object_guid(&thread.obj)),
-	  ID_HI(twz_object_guid(&thread.obj)),
+	  ID_LO(twz_object_guid(&thread)),
+	  ID_HI(twz_object_guid(&thread)),
 	  TWIX_FLAGS_CLONE_PROCESS);
 	twix_sync_command(&tqe);
 	if((r = tqe.ret) < 0) {
@@ -260,7 +319,7 @@ long hook_fork(struct syscall_args *args)
 		.thrd_ctrl = TWZSLOT_THRD,
 	};
 
-	if((r = sys_thrd_spawn(twz_object_guid(&thread.obj), &sa, 0, NULL))) {
+	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {
 		goto cleanup_stack;
 	}
 
@@ -272,7 +331,7 @@ long hook_fork(struct syscall_args *args)
 cleanup_stack:
 	twz_object_delete(&new_view, 0);
 cleanup_thread:
-	twz_thread_release(&thread);
+	twz_object_release(&thread);
 cleanup_view:
 	twz_object_delete(&new_view, 0);
 

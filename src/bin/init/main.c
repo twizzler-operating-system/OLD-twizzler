@@ -5,21 +5,24 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <twz/_sys.h>
 #include <twz/bstream.h>
 #include <twz/debug.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/driver/memory.h>
 #include <twz/hier.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/persist.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/memory.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/syscall.h>
 #include <unistd.h>
 
 bool term_ready = false;
 
-#define EPRINTF(...) ({ term_ready ? fprintf(stderr, ##__VA_ARGS__) : debug_printf(__VA_ARGS__); })
+#define EPRINTF(...)                                                                               \
+	({ term_ready && 0 ? fprintf(stderr, ##__VA_ARGS__) : debug_printf(__VA_ARGS__); })
 
 void start_terminal(char *input, char *output, char *pty)
 {
@@ -89,16 +92,28 @@ void reopen(const char *in, const char *out, const char *err)
 	close(2);
 	if(open(in, O_RDWR) != 0)
 		EPRINTF("failed to open `%s' as stdin\n", in);
-	if(open(out, O_RDWR) != 1)
+	if(open(out, O_RDWR) != 1) {
 		EPRINTF("failed to open `%s' as stdout\n", out);
+	}
 	if(open(err, O_RDWR) != 2)
 		EPRINTF("failed to open `%s' as stderr\n", err);
 }
 
-#include <twz/driver/queue.h>
+void *tm_1(void *a)
+{
+	debug_printf("Hello from thread!\n");
+	for(;;)
+		;
+}
+
 #include <twz/queue.h>
+#include <twz/sec/security.h>
+#include <twz/sys/dev/queue.h>
+#include <twz/sys/thread.h>
+bool twix_force_v2_retry(void);
 int main()
 {
+	debug_printf("[init] starting\n");
 	int r;
 	kso_set_name(NULL, "[instance] init");
 
@@ -127,7 +142,8 @@ int main()
 	if((r = twz_object_new(&lobj,
 	      NULL,
 	      NULL,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE | TWZ_OC_TIED_NONE))) {
+	      OBJ_VOLATILE,
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		EPRINTF("failed to create log object\n");
 		abort();
 	}
@@ -176,6 +192,28 @@ int main()
 			exit(1);
 		}
 	}
+	/* TODO: dont do this */
+	twzobj context;
+	if(twz_object_new(
+	     &context, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE)) {
+		abort();
+	}
+	twz_sctx_init(&context, "__generic");
+	if(sys_attach(0, twz_object_guid(&context), 0, 2)) {
+		abort();
+	}
+
+	if(!fork()) {
+		execlp("/usr/bin/unix", "unix", NULL);
+	}
+
+	debug_printf("trying open connection to unix server\n");
+	while(1) {
+		usleep(10000);
+		if(twix_force_v2_retry())
+			break;
+	}
+	debug_printf("opened!\n");
 
 	/* start the device manager */
 	if(!fork()) {
@@ -186,7 +224,7 @@ int main()
 	int status;
 	r = wait(&status);
 
-#if 1
+#if 0
 	if(access("/dev/nvme", F_OK) == 0) {
 		if(!fork()) {
 			execlp("pager", "pager", NULL);

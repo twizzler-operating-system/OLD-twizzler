@@ -1,36 +1,14 @@
 #pragma once
+#include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
+#include <twz/sys/slots.h>
+#include <twz/sys/sys.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #define TWZ_GATE_SIZE 64
-/*
-#define __TWZ_GATE(fn, g)                                                                          \
-    __asm__(".section .gates, \"ax\", @progbits\n"                                                 \
-            ".global __twz_gate_" #fn "\n"                                                         \
-            ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
-            ".org " #g "*32, 0x90\n"                                                               \
-            "__twz_gate_" #fn ":\n"                                                                \
-            "leaq " #fn "(%rip), %rax\n"                                                           \
-            "jmpq *%rax\n"                                                                         \
-            "retq\n"                                                                               \
-            ".balign 16, 0x90\n"                                                                   \
-            ".previous");
-__asm__(".section .gates, \"ax\", @progbits\n"
-        ".global __twz_gate_bstream_write \n"
-        ".type __twz_gate_bstream_write STT_FUNC\n"
-        ".org 2*32, 0x90\n"
-        "__twz_gate_bstream_write:\n"
-        "movabs $bstream_write, %rax\n"
-        "leaq -__twz_gate_bstream_write+2*32(%rip), %r15\n"
-        "addq %r15, %rax\n"
-        "jmp .\n"
-        ".balign 32, 0x90\n"
-        ".previous");
-*/
 
 extern void libtwz_gate_return(long);
 extern void *__twz_secapi_nextstack;
@@ -53,21 +31,6 @@ extern void *__twz_secapi_nextstack;
 	        ".balign 64, 0x90\n"                                                                   \
 	        ".previous");
 
-#define __TWZ_GATE(fn, g)                                                                          \
-	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
-	        ".global __twz_gate_" #fn "\n"                                                         \
-	        ".type __twz_gate_" #fn " STT_FUNC\n"                                                  \
-	        ".org " #g "*64, 0x90\n"                                                               \
-	        "__twz_gate_" #fn ":\n"                                                                \
-	        "movabs $" #fn ", %rax\n"                                                              \
-	        "leaq -__twz_gate_" #fn "+" #g "*32(%rip), %r10\n"                                     \
-	        "addq %r10, %rax\n"                                                                    \
-	        "jmpq *%rax\n"                                                                         \
-	        "retq\n"                                                                               \
-	        ".balign 32, 0x90\n"                                                                   \
-	        ".previous");
-
-#define TWZ_GATE(fn, g) __TWZ_GATE(fn, g)
 #define TWZ_GATE_SHARED(fn, g) __TWZ_GATE_SHARED(fn, g)
 #define TWZ_GATE_OFFSET (OBJ_NULLPAGE_SIZE + 0x400)
 
@@ -107,6 +70,7 @@ static inline void *twz_secure_api_alloc_stackarg(size_t size, size_t *ctx)
 	return (void *)((TWZSLOT_TMPSTACK * OBJ_MAXSIZE) + *ctx);
 }
 
+#include <twz/debug.h>
 static inline int twz_secure_api_open_name(const char *name, struct secure_api *api)
 {
 	api->hdr = NULL;
@@ -129,16 +93,8 @@ static inline void twz_secure_api_close(struct secure_api *api)
 	}
 }
 
-#include <twz/_kso.h>
-#include <twz/_sys.h>
-#include <twz/debug.h>
-
-static __inline__ unsigned long long ___rdtsc(void)
-{
-	unsigned hi, lo;
-	__asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi)::"memory");
-	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
-}
+#include <twz/sys/kso.h>
+#include <twz/sys/syscall.h>
 
 static inline long __do_sapi_call(struct secure_api *api, const struct sys_become_args *args)
 {

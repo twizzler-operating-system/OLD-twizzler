@@ -6,7 +6,9 @@
 #include <twz/debug.h>
 #include <twz/event.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
+#include <twz/sys/sync.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/syscall.h>
 
 void event_obj_init(twzobj *obj, struct evhdr *hdr)
 {

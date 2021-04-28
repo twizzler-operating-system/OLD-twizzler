@@ -1,6 +1,8 @@
 #include <twz/_err.h>
 #include <twz/io.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
+#include <twz/ptr.h>
 
 #include <twz/debug.h>
 ssize_t twzio_read(twzobj *obj, void *buf, size_t len, size_t off, unsigned flags)

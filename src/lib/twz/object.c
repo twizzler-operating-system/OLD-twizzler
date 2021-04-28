@@ -3,14 +3,16 @@
 #include <stdlib.h>
 #include <twz/_err.h>
 #include <twz/debug.h>
-#include <twz/fault.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/sys.h>
-#include <twz/thread.h>
-#include <twz/view.h>
-
 #include <twz/persist.h>
+#include <twz/ptr.h>
+#include <twz/sys/fault.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/sys.h>
+#include <twz/sys/thread.h>
+#include <twz/sys/view.h>
 
 #include <twz.h>
 
@@ -28,11 +30,11 @@ static void _twz_lea_fault(twzobj *o,
 
 static void obj_init(twzobj *obj, void *base, uint32_t vf, objid_t id, uint64_t flags)
 {
-	obj->_int_base = base;
-	obj->_int_id = id;
-	obj->_int_vf = vf;
-	obj->_int_flags = TWZ_OBJ_VALID | flags;
-	memset(obj->_int_sofn_cache, 0, sizeof(obj->_int_sofn_cache));
+	obj->base = base;
+	obj->id = id;
+	obj->vf = vf;
+	obj->flags = TWZ_OBJ_VALID | flags;
+	// memset(obj->sofn_cache, 0, sizeof(obj->sofn_cache));
 }
 
 EXTERNAL void twz_object_setsz(twzobj *obj, enum twz_object_setsz_mode mode, ssize_t amount)
@@ -73,41 +75,34 @@ EXTERNAL void twz_object_setsz(twzobj *obj, enum twz_object_setsz_mode mode, ssi
 EXTERNAL
 void *twz_object_base(twzobj *obj)
 {
-	if(!(obj->_int_flags & TWZ_OBJ_VALID)) {
+	if(!(obj->flags & TWZ_OBJ_VALID)) {
 		_twz_lea_fault(obj,
 		  NULL,
 		  __builtin_extract_return_addr(__builtin_return_address(0)),
 		  FAULT_PPTR_INVALID,
 		  0);
 	}
-	return (void *)((char *)obj->_int_base + OBJ_NULLPAGE_SIZE);
+	return (void *)((char *)obj->base + OBJ_NULLPAGE_SIZE);
 }
 
 EXTERNAL
-void twz_object_from_ptr_cpp(const void *p, twzobj *tmp)
+int twz_object_init_ptr(twzobj *tmp, const void *p)
 {
 	obj_init(tmp, (void *)((uintptr_t)p & ~(OBJ_MAXSIZE - 1)), 0, 0, TWZ_OBJ_NORELEASE);
-}
-
-EXTERNAL
-twzobj twz_object_from_ptr(const void *p)
-{
-	twzobj tmp;
-	obj_init(&tmp, (void *)((uintptr_t)p & ~(OBJ_MAXSIZE - 1)), 0, 0, TWZ_OBJ_NORELEASE);
-	return tmp;
+	return 0;
 }
 
 EXTERNAL
 struct metainfo *twz_object_meta(twzobj *obj)
 {
-	if(!(obj->_int_flags & TWZ_OBJ_VALID)) {
+	if(!(obj->flags & TWZ_OBJ_VALID)) {
 		_twz_lea_fault(obj,
 		  (void *)(OBJ_MAXSIZE - OBJ_METAPAGE_SIZE),
 		  __builtin_extract_return_addr(__builtin_return_address(0)),
 		  FAULT_PPTR_INVALID,
 		  0);
 	}
-	return (struct metainfo *)((char *)obj->_int_base + OBJ_MAXSIZE - OBJ_METAPAGE_SIZE);
+	return (struct metainfo *)((char *)obj->base + OBJ_MAXSIZE - OBJ_METAPAGE_SIZE);
 }
 
 EXTERNAL
@@ -117,9 +112,9 @@ int twz_object_create(int flags, objid_t kuid, objid_t src, objid_t *id)
 	if(flags & TWZ_OC_ZERONONCE) {
 		flags = (flags & ~TWZ_OC_ZERONONCE) | TWZ_SYS_OC_ZERONONCE;
 	}
-	if(flags & TWZ_OC_VOLATILE) {
-		flags = (flags & ~TWZ_OC_VOLATILE) | TWZ_SYS_OC_VOLATILE;
-	}
+	// if(flags & TWZ_OC_VOLATILE) {
+	//		flags = (flags & ~TWZ_OC_VOLATILE) | TWZ_SYS_OC_VOLATILE;
+	//	}
 
 	int r;
 	if((r = sys_ocreate(flags, kuid, src, id))) {
@@ -227,11 +222,11 @@ int twz_object_unwire(twzobj *view, twzobj *obj)
 }
 
 EXTERNAL
-int twz_object_init_guid(twzobj *obj, objid_t id, int flags)
+int twz_object_init_guid(twzobj *obj, objid_t id, uint32_t flags)
 {
 	ssize_t slot = twz_view_allocate_slot(NULL, id, flags);
 	if(slot < 0) {
-		obj->_int_flags = 0;
+		obj->flags = 0;
 		return slot;
 	}
 
@@ -242,25 +237,29 @@ int twz_object_init_guid(twzobj *obj, objid_t id, int flags)
 EXTERNAL
 objid_t twz_object_guid(twzobj *o)
 {
-	if(o->_int_flags & TWZ_OBJ_ID) {
-		return o->_int_id;
+	if(o->flags & TWZ_OBJ_ID) {
+		return o->id;
 	}
 	objid_t id = 0;
-	if(twz_vaddr_to_obj(o->_int_base, &id, NULL)) {
+	if(twz_vaddr_to_obj(o->base, &id, NULL)) {
 		struct fault_object_info fi = twz_fault_build_object_info(0,
 		  __builtin_extract_return_addr(__builtin_return_address(0)),
-		  o->_int_base,
+		  o->base,
 		  FAULT_OBJECT_UNKNOWN);
 		twz_fault_raise(FAULT_OBJECT, &fi);
 		return twz_object_guid(o);
 	}
-	o->_int_id = id;
-	o->_int_flags |= TWZ_OBJ_ID;
+	o->id = id;
+	o->flags |= TWZ_OBJ_ID;
 	return id;
 }
 
 EXTERNAL
-int twz_object_new(twzobj *obj, twzobj *src, twzobj *ku, uint64_t flags)
+int twz_object_new(twzobj *obj,
+  twzobj *src,
+  twzobj *ku,
+  enum object_backing_type type,
+  uint64_t flags)
 {
 	objid_t kuid;
 	if(ku == TWZ_KU_USER) {
@@ -290,9 +289,9 @@ int twz_object_new(twzobj *obj, twzobj *src, twzobj *ku, uint64_t flags)
 }
 
 EXTERNAL
-int twz_object_init_name(twzobj *obj, const char *name, int flags)
+int twz_object_init_name(twzobj *obj, const char *name, uint32_t flags)
 {
-	obj->_int_flags = 0;
+	obj->flags = 0;
 	objid_t id;
 	int r = twz_name_resolve(NULL, name, NULL, 0, &id);
 	if(r < 0)
@@ -308,16 +307,15 @@ int twz_object_init_name(twzobj *obj, const char *name, int flags)
 EXTERNAL
 void twz_object_release(twzobj *obj)
 {
-	if(obj->_int_flags & TWZ_OBJ_NORELEASE) {
+	if(obj->flags & TWZ_OBJ_NORELEASE) {
 		libtwz_panic("tried to release an object marked no-release-needed");
 	}
-	if(obj->_int_flags & TWZ_OBJ_VALID) {
-		twz_view_release_slot(
-		  NULL, twz_object_guid(obj), obj->_int_vf, VADDR_TO_SLOT(obj->_int_base));
+	if(obj->flags & TWZ_OBJ_VALID) {
+		twz_view_release_slot(NULL, twz_object_guid(obj), obj->vf, VADDR_TO_SLOT(obj->base));
 	}
-	obj->_int_base = NULL;
-	obj->_int_flags = 0;
-	obj->_int_id = 0;
+	obj->base = NULL;
+	obj->flags = 0;
+	obj->id = 0;
 }
 
 EXTERNAL
@@ -501,8 +499,68 @@ int __twz_ptr_store_guid(twzobj *obj, const void **res, twzobj *tgt, const void 
 	return __twz_ptr_make(obj, tgt ? twz_object_guid(tgt) : target, p, flags, res);
 }
 
+struct __store_name_args {
+	struct fotentry *fe;
+	const char *name;
+	const void *resolver;
+	uint64_t flags;
+};
+
+static void __store_name_ctor(void *item, void *data)
+{
+	struct __store_name_args *args = data;
+	strcpy(item, args->name);
+	args->fe->name.nresolver = (void *)args->resolver;
+	args->fe->flags = args->flags | _FE_ALLOC;
+	args->fe->info = 0;
+}
+
+#include <twz/alloc.h>
 EXTERNAL
-int __twz_ptr_store_fote(twzobj *obj, const void **res, struct fotentry *f, const void *p)
+int __twz_ptr_store_name(twzobj *o,
+  const void **loc,
+  const char *name,
+  const void *p,
+  const void *resolver,
+  uint64_t flags)
+{
+	struct metainfo *mi = twz_object_meta(o);
+
+	flags &= ~_FE_VALID;
+	while(1) {
+		uint32_t i = atomic_fetch_add(&mi->fotentries, 1);
+		if(i == 0)
+			i = atomic_fetch_add(&mi->fotentries, 1);
+		if(i == OBJ_MAXFOTE)
+			return -ENOSPC;
+		struct fotentry *fe = _twz_object_get_fote(o, i);
+		if(!(atomic_fetch_or(&fe->flags, _FE_ALLOC) & _FE_ALLOC)) {
+			/* successfully allocated */
+			struct __store_name_args args = {
+				.fe = fe,
+				.name = name,
+				.resolver = resolver,
+				.flags = flags | FE_NAME,
+			};
+			int r =
+			  twz_alloc(o, strlen(name) + 1, (void **)&fe->name.data, 0, __store_name_ctor, &args);
+			if(r) {
+				debug_printf("NEED TO IMPLEMENT :(\n");
+				return r;
+			}
+			/* flush the new entry */
+			_clwb(fe);
+			_pfence();
+			atomic_fetch_or(&fe->flags, _FE_VALID);
+			_clwb(fe);
+			_pfence();
+			*loc = twz_ptr_rebase(i, p);
+			return 0;
+		}
+	}
+}
+
+EXTERNAL int __twz_ptr_store_fote(twzobj *obj, const void **res, struct fotentry *f, const void *p)
 {
 	ssize_t fe = twz_object_addfot(obj, 0, 0);
 	if(fe < 0)
@@ -554,14 +612,14 @@ EXTERNAL
 void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 {
 	size_t slot = VADDR_TO_SLOT(p);
-#if 1
-	if(o->_int_flags & TWZ_OBJ_CACHE) {
-		if(slot < TWZ_OBJ_CACHE_SIZE && o->_int_cache[slot]) {
-			return twz_ptr_rebase(o->_int_cache[slot], (void *)p);
+#if 0
+	if(o->flags & TWZ_OBJ_CACHE) {
+		if(slot < TWZ_OBJ_CACHE_SIZE && o->cache[slot]) {
+			return twz_ptr_rebase(o->cache[slot], (void *)p);
 		}
 	} else {
-		memset(o->_int_cache, 0, sizeof(o->_int_cache));
-		o->_int_flags |= TWZ_OBJ_CACHE;
+		memset(o->cache, 0, sizeof(o->cache));
+		o->flags |= TWZ_OBJ_CACHE;
 	}
 
 #endif
@@ -608,9 +666,9 @@ void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 	}
 
 	void *_r = twz_ptr_rebase(ns, (void *)p);
-	if(slot < TWZ_OBJ_CACHE_SIZE) {
-		o->_int_cache[slot] = ns;
-	}
+	// if(slot < TWZ_OBJ_CACHE_SIZE) {
+	//	o->cache[slot] = ns;
+	//}
 	return _r;
 fault:
 	_twz_lea_fault(o, p, __builtin_extract_return_addr(__builtin_return_address(0)), info, r);

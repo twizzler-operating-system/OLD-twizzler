@@ -1,6 +1,5 @@
 #pragma once
 
-#include <twz/_kso.h>
 #include <twz/gate.h>
 #include <twz/queue.h>
 

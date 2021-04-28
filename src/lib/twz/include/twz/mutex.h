@@ -1,17 +1,20 @@
 #pragma once
-#include <twz/sys.h>
 
 #ifdef __cplusplus
 #include <atomic>
-using std::atomic_uint_least64_t;
 extern "C" {
-#else /* not __cplusplus */
+#else
 #include <stdatomic.h>
-#endif /* __cplusplus */
+#endif
 
 struct mutex {
+#ifdef __cplusplus
+	std::atomic_uint_least64_t sleep;
+	std::atomic_uint_least64_t resetcode;
+#else
 	atomic_uint_least64_t sleep;
 	atomic_uint_least64_t resetcode;
+#endif
 };
 
 #define MUTEX_INIT                                                                                 \

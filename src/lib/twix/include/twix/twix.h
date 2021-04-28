@@ -3,7 +3,6 @@
 #include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/queue.h>
-#include <twz/security.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,8 +27,8 @@ struct twix_queue_entry {
 	long arg0, arg1, arg2, arg3, arg4, arg5;
 	long buflen;
 	long ret;
-#if __cplusplus
-	twix_queue_entry(twix_queue_entry &other)
+#ifdef __cplusplus
+	twix_queue_entry(const twix_queue_entry &other)
 	{
 		qe.cmd_id = other.qe.cmd_id.load();
 		qe.info = other.qe.info;
@@ -43,6 +42,23 @@ struct twix_queue_entry {
 		arg5 = other.arg5;
 		buflen = other.buflen;
 		ret = other.ret;
+	}
+
+	twix_queue_entry &operator=(const twix_queue_entry &other)
+	{
+		qe.cmd_id = other.qe.cmd_id.load();
+		qe.info = other.qe.info;
+		cmd = other.cmd;
+		flags = other.flags;
+		arg0 = other.arg0;
+		arg1 = other.arg1;
+		arg2 = other.arg2;
+		arg3 = other.arg3;
+		arg4 = other.arg4;
+		arg5 = other.arg5;
+		buflen = other.buflen;
+		ret = other.ret;
+		return *this;
 	}
 
 	twix_queue_entry() = default;
@@ -94,7 +110,22 @@ enum twix_command {
 	TWIX_CMD_FACCESSAT,
 	TWIX_CMD_DUP,
 	TWIX_CMD_PRLIMIT,
+	TWIX_CMD_EXEC,
+	TWIX_CMD_POLL,
 	NUM_TWIX_COMMANDS,
+};
+
+#define TWIX_POLL_TIMEOUT 1
+#define TWIX_POLL_SIGMASK 2
+
+#include <poll.h>
+#include <signal.h>
+#include <time.h>
+struct twix_poll_info {
+	struct timespec timeout;
+	sigset_t sigmask;
+	size_t nr_polls;
+	struct pollfd polls[];
 };
 
 #define UNAME_LEN 1024

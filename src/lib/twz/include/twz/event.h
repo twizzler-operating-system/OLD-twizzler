@@ -1,5 +1,8 @@
 #pragma once
 
+struct __twzobj;
+typedef struct __twzobj twzobj;
+
 #ifdef __cplusplus
 #include <atomic>
 using std::atomic_uint_least64_t;

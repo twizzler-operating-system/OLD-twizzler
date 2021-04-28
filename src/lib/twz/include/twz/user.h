@@ -1,7 +1,6 @@
 #pragma once
-
 #include <stdint.h>
-#include <twz/_objid.h>
+#include <twz/objid.h>
 
 struct keyring_hdr;
 struct user_hdr {

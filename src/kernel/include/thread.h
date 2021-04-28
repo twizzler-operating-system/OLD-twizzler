@@ -8,8 +8,8 @@
 #include <time.h>
 #include <workqueue.h>
 
-#include <twz/_fault.h>
-#include <twz/_thrd.h>
+#include <twz/sys/fault.h>
+#include <twz/sys/thread.h>
 
 struct processor;
 

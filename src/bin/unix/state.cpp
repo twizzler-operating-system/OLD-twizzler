@@ -5,6 +5,8 @@
 #include <mutex>
 #include <unordered_map>
 
+#include <twz/sys/obj.h>
+
 static std::atomic_int next_taskid(2);
 
 template<typename K, typename V>
@@ -50,6 +52,7 @@ static refmap<int, unixthread> thrtable;
 
 static std::mutex forked_lock;
 static std::unordered_map<objid_t, std::shared_ptr<unixprocess>> forked_procs;
+static std::unordered_map<objid_t, std::shared_ptr<unixthread>> forked_thrds;
 
 std::shared_ptr<unixprocess> process_lookup(int pid)
 {
@@ -60,6 +63,26 @@ void procs_insert_forked(objid_t id, std::shared_ptr<unixprocess> proc)
 {
 	std::lock_guard<std::mutex> _lg(forked_lock);
 	forked_procs.insert(std::make_pair(id, proc));
+}
+
+void thrds_insert_forked(objid_t id, std::shared_ptr<unixthread> thrd)
+{
+	std::lock_guard<std::mutex> _lg(forked_lock);
+	forked_thrds.insert(std::make_pair(id, thrd));
+}
+
+std::shared_ptr<unixthread> thrds_lookup_forked(objid_t id)
+{
+	/* TODO: also need to clean up this map when a parent exits... */
+	std::lock_guard<std::mutex> _lg(forked_lock);
+	auto it = forked_thrds.find(id);
+	if(it == forked_thrds.end()) {
+		return nullptr;
+	}
+
+	auto ret = it->second;
+	forked_thrds.erase(it);
+	return ret;
 }
 
 std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id)
@@ -79,9 +102,13 @@ std::shared_ptr<unixprocess> procs_lookup_forked(objid_t id)
 void unixprocess::exit()
 {
 	/* already locked */
-	fprintf(stderr, "process exited!\n");
-	state = PROC_EXITED;
+	// fprintf(stderr, "process exited! %d\n", pid);
 
+	{
+		std::lock_guard<std::mutex> _lg(lock);
+		state = PROC_EXITED;
+		status_changed = true;
+	}
 	/* TODO: kill child threads */
 	for(auto th : threads) {
 		th->kill();
@@ -91,17 +118,19 @@ void unixprocess::exit()
 		/* handle parent process exit */
 		child->parent = nullptr;
 	}
+	children.clear();
 
+	// fprintf(stderr, "TODO: send sigchild\n");
 	/* handle child process exit for parent */
-	if(parent) {
-		parent->child_died(pid);
-	} else {
-		proctable.remove(pid);
-	}
+	// if(parent) {
+	// parent->child_died(pid);
+	//} else {
+	proctable.remove(pid);
+	//}
 
 	/* TODO: clean up */
 	for(auto pw : waiting_clients) {
-		//	delete pw;
+		delete pw;
 	}
 	waiting_clients.clear();
 }
@@ -118,7 +147,7 @@ void unixprocess::kill_all_threads(int except)
 
 void unixthread::kill()
 {
-	fprintf(stderr, "TODO: thread kill\n");
+	// fprintf(stderr, "TODO: thread kill\n");
 	sys_signal(twz_object_guid(&client->thrdobj), -1ul, SIGKILL, 0, 0);
 	/* TODO: actually kill thread */
 }
@@ -148,6 +177,13 @@ void unixprocess::send_signal(int sig)
 	if(!ok) {
 		threads[0]->send_signal(sig, true);
 	}
+}
+
+unixthread::unixthread(std::shared_ptr<unixprocess> parent)
+{
+	tid = next_taskid.fetch_add(1);
+	parent_process = parent;
+	client = nullptr;
 }
 
 unixprocess::unixprocess(std::shared_ptr<unixprocess> parent)
@@ -201,6 +237,8 @@ bool unixprocess::child_status_change(unixprocess *child, int status)
 			pw->client->complete(&pw->tqe);
 			waiting_clients.erase(waiting_clients.begin() + i);
 			delete pw;
+			if(child->state == PROC_EXITED)
+				child_died(child->pid);
 			return true;
 		}
 	}
@@ -210,12 +248,18 @@ bool unixprocess::child_status_change(unixprocess *child, int status)
 
 int client_init(std::shared_ptr<queue_client> client)
 {
-	int r = twz_object_new(
-	  &client->queue, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
+	int r = twz_object_new(&client->queue,
+	  NULL,
+	  NULL,
+	  OBJ_VOLATILE,
+	  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
 	if(r)
 		return r;
-	r = twz_object_new(
-	  &client->buffer, NULL, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
+	r = twz_object_new(&client->buffer,
+	  NULL,
+	  NULL,
+	  OBJ_VOLATILE,
+	  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE);
 	if(r)
 		return r;
 	r = queue_init_hdr(
@@ -223,22 +267,41 @@ int client_init(std::shared_ptr<queue_client> client)
 	if(r)
 		return r;
 
+	int existing = 0;
 	std::shared_ptr<unixprocess> existing_proc =
 	  procs_lookup_forked(twz_object_guid(&client->thrdobj));
 	if(existing_proc != nullptr) {
-		fprintf(stderr, "queue_client_init existing\n");
+		existing = 1;
+		// debug_printf("queue_client_init existing\n");
 		client->proc = existing_proc;
 		proctable.insert_existing(existing_proc->pid, existing_proc);
-	} else {
-		int taskid = next_taskid.fetch_add(1);
-		proctable.insert(taskid);
-		client->proc = proctable.lookup(taskid);
-	}
-	thrtable.insert(client->proc->pid, client->proc, client);
-	client->thr = thrtable.lookup(client->proc->pid);
-	client->thr->perproc_id = client->proc->add_thread(client->thr);
 
-	if(!existing_proc) {
+		thrtable.insert(client->proc->pid, client->proc, client);
+		client->thr = thrtable.lookup(client->proc->pid);
+		client->thr->perproc_id = client->proc->add_thread(client->thr);
+	} else {
+		std::shared_ptr<unixthread> existing_thread =
+		  thrds_lookup_forked(twz_object_guid(&client->thrdobj));
+		if(existing_thread != nullptr) {
+			existing = 2;
+			// debug_printf("queue_client_init existing thread\n");
+			client->proc = existing_thread->parent_process;
+			client->thr = existing_thread;
+			existing_thread->perproc_id = client->proc->add_thread(existing_thread);
+			existing_thread->client = client;
+			thrtable.insert_existing(existing_thread->tid, existing_thread);
+		} else {
+			int taskid = next_taskid.fetch_add(1);
+			proctable.insert(taskid);
+			client->proc = proctable.lookup(taskid);
+
+			thrtable.insert(client->proc->pid, client->proc, client);
+			client->thr = thrtable.lookup(client->proc->pid);
+			client->thr->perproc_id = client->proc->add_thread(client->thr);
+		}
+	}
+
+	if(!existing) {
 		auto [rr, desc] = open_file(nullptr, "/");
 		if(rr) {
 			return rr;
@@ -246,7 +309,8 @@ int client_init(std::shared_ptr<queue_client> client)
 		client->proc->cwd = desc;
 	}
 
-	client->proc->mark_ready();
+	if(existing != 2)
+		client->proc->mark_ready();
 
 	return 0;
 }
@@ -283,16 +347,14 @@ void unixprocess::mark_ready()
 
 void queue_client::exit()
 {
-	fprintf(stderr, ":::: %p\n", thr.get());
 	thr->exit();
 }
 
 queue_client::~queue_client()
 {
-	fprintf(stderr, "client destructed! (tid %d)\n", thr->tid);
+	// fprintf(stderr, "client destructed! (tid %d)\n", thr->tid);
 	twz_object_delete(&queue, 0);
 	twz_object_delete(&buffer, 0);
 	(void)twz_object_unwire(NULL, &thrdobj);
 	thrtable.remove(thr->tid);
-	// thr->exit();
 }

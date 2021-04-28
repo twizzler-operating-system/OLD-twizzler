@@ -13,7 +13,8 @@
 #include <slab.h>
 #include <slots.h>
 #include <tmpmap.h>
-#include <twz/_sys.h>
+#include <twz/meta.h>
+#include <twz/sys/syscall.h>
 
 static _Atomic size_t obj_count = 0;
 static struct rbroot obj_tree = RBINIT;

@@ -1,10 +1,11 @@
 #include <stdio.h>
-#include <twz/_kso.h>
-#include <twz/driver/bus.h>
-#include <twz/driver/device.h>
-#include <twz/driver/processor.h>
-#include <twz/driver/system.h>
+#include <twz/meta.h>
 #include <twz/obj.h>
+#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
+#include <twz/sys/dev/processor.h>
+#include <twz/sys/dev/system.h>
+#include <twz/sys/kso.h>
 
 void print_system(twzobj *sys)
 {

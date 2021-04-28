@@ -2,7 +2,8 @@
 #include <stdbool.h>
 #include <twix/twix.h>
 #include <twz/debug.h>
-#include <twz/view.h>
+#include <twz/sys/obj.h>
+#include <twz/sys/view.h>
 
 #include "../syscalls.h"
 
@@ -13,6 +14,8 @@ twzobj state_object;
 
 struct twix_conn {
 	twzobj cmdqueue, buffer;
+	objid_t qid, bid;
+	_Atomic size_t info;
 
 	_Atomic int block_count;
 	_Atomic size_t pending_count;
@@ -29,7 +32,8 @@ struct unix_server {
 };
 
 #include <signal.h>
-#include <twz/fault.h>
+#include <twz/sys/fault.h>
+#include <twz/sys/thread.h>
 #define SA_DFL                                                                                     \
 	(struct k_sigaction)                                                                           \
 	{                                                                                              \
@@ -125,11 +129,9 @@ static struct unix_server userver = {};
 
 void twix_sync_command(struct twix_queue_entry *tqe)
 {
-	static uint32_t info = 0;
-	uint32_t _info = info++;
-	tqe->qe.info = _info;
-
 	struct twix_conn *conn = twz_object_base(&state_object);
+	uint32_t _info = conn->info++;
+	tqe->qe.info = _info;
 
 	conn->block_count++;
 
@@ -212,33 +214,46 @@ void __twix_signal_handler(int fault, void *data, void *userdata)
 	}
 }
 
-void resetup_queue(void)
+void resetup_queue(long is_thread)
 {
-	// debug_printf("child: here!\n");
+	/* TODO do we need to serialize this? */
+	// debug_printf("child: here! %ld\n", is_thread);
 	// for(long i = 0; i < 100000; i++) {
 	//	__syscall6(0, 0, 0, 0, 0, 0, 0);
 	//}
 	// debug_printf("child: done\n");
+
 	twz_fault_set(FAULT_SIGNAL, __twix_signal_handler, NULL);
-	userver.ok = false;
-	userver.inited = true;
+	// debug_printf("::: %d %p %p\n", is_thread, &userver, userver.api.hdr);
+	if(!is_thread) {
+		userver.ok = false;
+		userver.inited = true;
+	}
 	objid_t qid, bid;
+
+	if(!is_thread) {
+		if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
+			abort();
+		}
+	}
 	int r = twix_open_queue(&userver.api, 0, &qid, &bid);
 	if(r) {
 		abort();
 	}
 
-	twix_log("reopen! " IDFMT "\n", IDPR(qid));
+	// twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
 	objid_t stateid;
-	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE, 0, 0, &stateid)) {
+	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &stateid)) {
 		abort();
 	}
 
 	twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
-	state_object = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_UNIX));
+	twz_object_init_ptr(&state_object, SLOT_TO_VADDR(TWZSLOT_UNIX));
 
 	struct twix_conn *conn = twz_object_base(&state_object);
+	conn->bid = bid;
+	conn->qid = qid;
 
 	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
 		abort();
@@ -248,6 +263,7 @@ void resetup_queue(void)
 
 	userver.ok = true;
 	userver.inited = true;
+	// debug_printf("AFTER SETUP %p\n", userver.api.hdr);
 }
 
 static bool setup_queue(void)
@@ -256,53 +272,75 @@ static bool setup_queue(void)
 		return userver.ok;
 	userver.ok = false;
 	userver.inited = true;
-	if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
-		return false;
-	}
+	uint32_t flags;
+	twz_view_get(NULL, TWZSLOT_UNIX, NULL, &flags);
+	bool already = (flags & VE_VALID) && (flags & VE_FIXED);
 	objid_t qid, bid;
-	int r = twix_open_queue(&userver.api, 0, &qid, &bid);
-	if(r) {
-		return false;
+	if(already) {
+		// debug_printf("reopening existing connection\n");
+		if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
+			return false;
+		}
+	} else {
+		if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
+			return false;
+		}
+		int r = twix_open_queue(&userver.api, 0, &qid, &bid);
+		if(r) {
+			return false;
+		}
+
+		objid_t stateid;
+		if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &stateid)) {
+			return false;
+		}
+		twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
 	}
 
-	objid_t stateid;
-	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_VOLATILE, 0, 0, &stateid)) {
-		return false;
-	}
-
-	twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
-	state_object = twz_object_from_ptr(SLOT_TO_VADDR(TWZSLOT_UNIX));
+	twz_object_init_ptr(&state_object, SLOT_TO_VADDR(TWZSLOT_UNIX));
 
 	struct twix_conn *conn = twz_object_base(&state_object);
+	if(!already) {
+		conn->qid = qid;
+		conn->bid = bid;
+	}
+	// debug_printf("OPEN WITH " IDFMT "  " IDFMT "\n", IDPR(conn->qid), IDPR(conn->bid));
 
-	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
+	if(twz_object_init_guid(&conn->cmdqueue, conn->qid, FE_READ | FE_WRITE))
 		return false;
-
-	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
+	if(twz_object_init_guid(&conn->buffer, conn->bid, FE_READ | FE_WRITE))
 		return false;
 
 	userver.ok = true;
 	userver.inited = true;
 
-	for(int fd = 0; fd < MAX_FD; fd++) {
-		struct file *file = twix_get_fd(fd);
-		if(file) {
-			objid_t id = twz_object_guid(&file->obj);
-			struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
-			  0,
-			  0,
-			  5,
-			  (long)fd,
-			  ID_LO(id),
-			  ID_HI(id),
-			  (long)file->fcntl_fl | 3 /*TODO*/,
-			  file->pos);
-			twix_sync_command(&tqe);
+	if(!already) {
+		for(int fd = 0; fd < MAX_FD; fd++) {
+			struct file *file = twix_get_fd(fd);
+			if(file) {
+				objid_t id = twz_object_guid(&file->obj);
+				struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
+				  0,
+				  0,
+				  5,
+				  (long)fd,
+				  ID_LO(id),
+				  ID_HI(id),
+				  (long)file->fcntl_fl | 3 /*TODO*/,
+				  file->pos);
+				twix_sync_command(&tqe);
+			}
 		}
 	}
 	twz_fault_set(FAULT_SIGNAL, __twix_signal_handler, NULL);
 
 	return true;
+}
+
+bool twix_force_v2_retry(void)
+{
+	userver.inited = false;
+	return setup_queue();
 }
 
 #include "../syscall_defs.h"
@@ -362,11 +400,12 @@ long hook_sigaction(struct syscall_args *args)
 long hook_open(struct syscall_args *args)
 {
 	const char *path = (const char *)args->a0;
+	// debug_printf("::::: %s\n", path);
 	struct twix_queue_entry tqe =
 	  build_tqe(TWIX_CMD_OPENAT, 0, strlen(path), 3, -1, args->a1, args->a2);
 	write_bufdata(path, strlen(path) + 1, 0);
 	twix_sync_command(&tqe);
-	twix_log("open returned %ld\n", tqe.ret);
+	// debug_printf("open returned %ld\n", tqe.ret);
 	return tqe.ret;
 }
 
@@ -493,6 +532,13 @@ long hook_exit(struct syscall_args *args)
 	return 0;
 }
 
+long hook_nanosleep(struct syscall_args *args)
+{
+	struct timespec *spec = (void *)args->a0;
+	int x = 0;
+	return twz_thread_sync32(THREAD_SYNC_SLEEP, (_Atomic unsigned int *)&x, 0, spec);
+}
+
 long hook_getdents(struct syscall_args *args)
 {
 	int fd = args->a0;
@@ -566,7 +612,7 @@ long hook_readlink(struct syscall_args *args)
 #define FUTEX_CLOCK_REALTIME 256
 #define FUTEX_CMD_MASK ~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
 
-#include <twz/thread.h>
+#include <twz/sys/thread.h>
 long hook_futex(struct syscall_args *args)
 {
 	int *uaddr = (int *)args->a0;
@@ -691,6 +737,7 @@ static long do_dup(int old, int new, int flags, int version)
 {
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_DUP, 0, 0, 4, old, new, flags, version);
 	twix_sync_command(&tqe);
+	// debug_printf("___ DUP %d %d %d %d -> %ld\n", old, new, flags, version, tqe.ret);
 	return tqe.ret;
 }
 
@@ -710,8 +757,9 @@ long hook_dup3(struct syscall_args *args)
 }
 
 #include <sys/utsname.h>
-long hook_uname(struct utsname *buf)
+long hook_uname(struct syscall_args *args)
 {
+	struct utsname *buf = (void *)args->a0;
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_UNAME, 0, 0, 0);
 	twix_sync_command(&tqe);
 	if(tqe.ret == 0) {
@@ -719,6 +767,7 @@ long hook_uname(struct utsname *buf)
 		extract_bufdata(&info, sizeof(info), 0);
 		strcpy(buf->sysname, info.sysname);
 		strcpy(buf->nodename, info.sysname);
+		strcpy(buf->nodename, "twizzler"); // TODO
 		strcpy(buf->release, info.release);
 		strcpy(buf->version, info.version);
 	}
@@ -812,10 +861,19 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getrlimit] = hook_getrlimit,
 	[LINUX_SYS_setrlimit] = hook_setrlimit,
 	[LINUX_SYS_sigaction] = hook_sigaction,
+	[LINUX_SYS_clone] = hook_clone,
+	[LINUX_SYS_execve] = hook_execve,
+	[LINUX_SYS_ppoll] = hook_ppoll,
+	[LINUX_SYS_poll] = hook_poll,
+	[LINUX_SYS_select] = hook_select,
+	[LINUX_SYS_pselect6] = hook_pselect,
+	[LINUX_SYS_uname] = hook_uname,
+	[LINUX_SYS_nanosleep] = hook_nanosleep,
 };
 
 extern const char *syscall_names[];
 
+extern int env_state;
 int try_twix_version2(struct twix_register_frame *frame,
   long num,
   long a0,
@@ -839,15 +897,27 @@ int try_twix_version2(struct twix_register_frame *frame,
 	if(!setup_queue()) {
 		return -1;
 	}
-	twix_log("twix_v2 syscall: %3ld (%s)\n", num, syscall_names[num]);
+	if(env_state & ENV_SHOW_ALL) {
+		twix_log("[twix] invoked syscall %d (%s)\n", num, syscall_names[num]);
+	}
+	// twix_log("twix_v2 syscall: %3ld (%s) %p\n", num, syscall_names[num], userver.api.hdr);
 	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
-		if(num != 14) // TODO signals
-			twix_log("twix_v2 syscall: UNHANDLED %3ld (%s)\n", num, syscall_names[num]);
+		if(env_state & ENV_SHOW_UNIMP) {
+			twix_log(":: syscall not implemented %ld (%s)\n", num, syscall_names[num]);
+		}
+
 		*ret = -ENOSYS;
 		return -2;
 	}
-	twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
+	// twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 
 	*ret = syscall_v2_table[num](&args);
+	if((*ret == -ENOSYS || *ret == -ENOTSUP) && (env_state & ENV_SHOW_UNIMP)) {
+		twix_log(":: syscall %snot implemented %ld (%s)\n",
+		  *ret == -ENOSYS ? "" : "feature ",
+		  num,
+		  syscall_names[num]);
+	}
+
 	return *ret == -ENOSYS ? -3 : 0;
 }

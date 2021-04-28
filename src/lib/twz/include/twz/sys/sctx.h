@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stddef.h>
-#include <twz/__twz.h>
-#include <twz/_kso.h>
-#include <twz/_obj.h>
-#include <twz/_objid.h>
+#include <stdint.h>
+
+#include <twz/objid.h>
+#include <twz/sys/kso.h>
 
 struct screvoc {
 	uint64_t create;
@@ -90,11 +90,13 @@ struct scdlg {
 	char data[];
 } __attribute__((packed));
 
-static_assert(sizeof(struct scdlg) == sizeof(struct sccap),
+#ifndef __cplusplus
+_Static_assert(sizeof(struct scdlg) == sizeof(struct sccap),
   "CAP and DLG struct size must be the same");
 
-static_assert(offsetof(struct scdlg, magic) == offsetof(struct sccap, magic),
+_Static_assert(offsetof(struct scdlg, magic) == offsetof(struct sccap, magic),
   "CAP and DLG struct magic offset must be the same");
+#endif
 
 struct scbucket {
 	objid_t target;
