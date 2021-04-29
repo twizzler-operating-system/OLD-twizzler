@@ -51,7 +51,7 @@ void example_name_an_object(twzobj *obj)
 
 	/* let's say we have an object in handle obj, and we want to give it a name so we can access it
 	 * later. We can use the naming API for that: */
-	twz_name_assign(twz_object_guid(obj), "/some/path");
+	twz_name_dfl_assign(twz_object_guid(obj), "/some/path");
 	/* note: this can fail */
 }
 

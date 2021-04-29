@@ -24,20 +24,16 @@ void tmain(const char *username)
 	char userpath[1024];
 	snprintf(userpath, 512, "%s.user", username);
 
-	objid_t uid;
-	int r;
-	r = twz_name_resolve(NULL, userpath, NULL, 0, &uid);
-	if(r) {
-		fprintf(stderr, "failed to resolve '%s'\n", userpath);
-		exit(1);
-	}
-
 	twzobj user;
-	twz_object_init_guid(&user, uid, FE_READ);
+	int r = twz_object_init_name(&user, userpath, FE_READ);
+	if(r < 0) {
+		fprintf(stderr, "user `%s' not found\n", username);
+		return;
+	}
 	struct user_hdr *uh = twz_object_base(&user);
 
 	char userstring[128];
-	snprintf(userstring, 128, IDFMT, IDPR(uid));
+	snprintf(userstring, 128, IDFMT, IDPR(twz_object_guid(&user)));
 	setenv("TWZUSER", userstring, 1);
 	setenv("USER", username, 1);
 	char *ps1 = NULL;
@@ -144,6 +140,7 @@ int main(int argc, char **argv)
 		pid_t pid;
 		if(!(pid = fork())) {
 			tmain(buffer);
+			exit(-1);
 		}
 		if(pid == -1) {
 			warn("fork");

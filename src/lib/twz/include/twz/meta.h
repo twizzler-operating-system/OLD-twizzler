@@ -60,9 +60,6 @@ struct metainfo {
 #define FE_NAME 0x1000
 #define FE_DERIVE 0x2000
 
-#define _FE_ALLOC 0x10000
-#define _FE_VALID 0x20000
-
 struct fotentry {
 	union {
 		objid_t id;

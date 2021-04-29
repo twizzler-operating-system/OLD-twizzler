@@ -256,11 +256,11 @@ static void pcie_load_driver(struct pcie_function *pf)
 		return;
 	}
 	if(hdr->classid == 1 && hdr->subclassid == 8 && hdr->progif == 2) {
-		twz_name_assign(pf->cid, "/dev/nvme");
+		twz_name_dfl_assign(pf->cid, "/dev/nvme");
 		return;
 	}
 	if(hdr->vendorid == 0x8086 && hdr->deviceid == 0x10d3) {
-		twz_name_assign(pf->cid, "/dev/e1000");
+		twz_name_dfl_assign(pf->cid, "/dev/e1000");
 	}
 }
 

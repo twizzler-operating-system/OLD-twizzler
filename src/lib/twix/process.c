@@ -434,7 +434,7 @@ static int __twz_exec_create_view(twzobj *view, objid_t id, objid_t *vid)
 long linux_sys_execve(const char *path, const char *const *argv, char *const *env)
 {
 	objid_t id = 0;
-	int r = twz_name_resolve(NULL, path, NULL, 0, &id);
+	int r = twz_name_dfl_resolve(path, 0, &id);
 	if(r) {
 		return r;
 	}

@@ -6,6 +6,7 @@
 #include <twz/obj.h>
 #include <twz/obj/hier.h>
 #include <twz/obj/io.h>
+#include <twz/sys/name.h>
 
 #include "syscalls.h"
 
@@ -14,7 +15,7 @@ int twix_openpathat(int dfd, const char *path, int flags, objid_t *id)
 	(void)flags; // TODO
 	int r;
 	if(path[0] == '/') {
-		r = twz_name_resolve(NULL, path, NULL, 0, id);
+		r = twz_name_dfl_resolve(path, 0, id);
 		if(r)
 			return r;
 	} else {

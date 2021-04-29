@@ -46,11 +46,11 @@ int create_pty_pair(char *server, char *client)
 	if((r = pty_obj_init_client(&pty_c, twz_object_base(&pty_c), ps)))
 		return r;
 
-	if((r = twz_name_assign(twz_object_guid(&pty_s), server))) {
+	if((r = twz_name_dfl_assign(twz_object_guid(&pty_s), server))) {
 		return r;
 	}
 
-	if((r = twz_name_assign(twz_object_guid(&pty_c), client))) {
+	if((r = twz_name_dfl_assign(twz_object_guid(&pty_c), client))) {
 		return r;
 	}
 
@@ -73,7 +73,7 @@ int create_bstream(char *name)
 		return r;
 	}
 
-	return twz_name_assign(twz_object_guid(&stream), name);
+	return twz_name_dfl_assign(twz_object_guid(&stream), name);
 }
 
 struct isa_desc {
@@ -124,7 +124,7 @@ static void start_stream_device(objid_t id)
 	}
 	char *raw_name;
 	asprintf(&raw_name, "/dev/raw/%s", desc->drv);
-	twz_name_assign(twz_object_guid(&dobj), raw_name);
+	twz_name_dfl_assign(twz_object_guid(&dobj), raw_name);
 
 	char *exec;
 	asprintf(&exec, "/usr/bin/%s", desc->drv);
@@ -145,7 +145,7 @@ static void start_misc_device(objid_t id)
 		case DEVICE_ID_FRAMEBUFFER:
 			printf("[twzdev] registered framebuffer\n");
 			create_pty_pair("/dev/pty/pty0", "/dev/pty/ptyc0");
-			twz_name_assign(id, "/dev/framebuffer");
+			twz_name_dfl_assign(id, "/dev/framebuffer");
 			break;
 	}
 }
@@ -196,7 +196,7 @@ int main()
 						struct nv_header *hdr = twz_device_getds(&nvobj);
 						char name[128];
 						sprintf(name, "/dev/nv/nvr%lx.%x", hdr->devid, hdr->regid);
-						twz_name_assign(k->id, name);
+						twz_name_dfl_assign(k->id, name);
 					}
 				} else {
 					fprintf(stderr, "unknown bus_type: %d\n", br->bus_type);
@@ -218,7 +218,7 @@ int main()
 		queue_init_hdr(&qobj, 5, sizeof(struct queue_entry_bio), 5, sizeof(struct queue_entry_bio));
 
 		printf("[twzdev] created nvme queue " IDFMT "\n", IDPR(twz_object_guid(&qobj)));
-		twz_name_assign(twz_object_guid(&qobj), "/dev/nvme-queue");
+		twz_name_dfl_assign(twz_object_guid(&qobj), "/dev/nvme-queue");
 		if(!fork()) {
 			kso_set_name(NULL, "[instance] nvme-driver");
 			/*

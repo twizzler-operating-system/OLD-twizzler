@@ -118,7 +118,7 @@ int twz_name_assign_namespace(objid_t id, const char *name)
 	return 0;
 }
 
-int twz_name_assign(objid_t id, const char *name)
+int twz_name_dfl_assign(objid_t id, const char *name)
 {
 	if(!__name_init())
 		return -ENOTSUP;
@@ -196,6 +196,11 @@ int twz_name_resolve(twzobj *obj,
 	if(fn)
 		return fn(obj, name, flags, id);
 	return __twz_name_dfl_resolve(obj, name, flags, id);
+}
+
+int twz_name_dfl_resolve(const char *name, int flags, objid_t *id)
+{
+	return __twz_name_dfl_resolve(NULL, name, flags, id);
 }
 
 #include <twz/sys/fault.h>

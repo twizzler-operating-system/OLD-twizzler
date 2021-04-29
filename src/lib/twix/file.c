@@ -26,7 +26,7 @@ long linux_sys_open(const char *path, int flags, int mode)
 			id = twz_object_guid(&o0);
 		}
 	} else {
-		if((r = twz_name_resolve(NULL, path, NULL, 0, &id))) {
+		if((r = twz_name_dfl_resolve(path, 0, &id))) {
 			if(!(flags & O_CREAT)) {
 				return -ENOENT;
 			}
@@ -39,7 +39,7 @@ long linux_sys_open(const char *path, int flags, int mode)
 			      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE | af, 0, 0, &id))) {
 				return r;
 			}
-			if((r = twz_name_assign(id, path))) {
+			if((r = twz_name_dfl_assign(id, path))) {
 				twz_object_delete_guid(id, 0);
 				return r;
 			}

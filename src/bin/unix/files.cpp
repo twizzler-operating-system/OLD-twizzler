@@ -2,6 +2,7 @@
 #include <twz/obj.h>
 #include <twz/obj/io.h>
 #include <twz/persist.h>
+#include <twz/sys/name.h>
 
 #define RWF_NOWAIT 0x8
 

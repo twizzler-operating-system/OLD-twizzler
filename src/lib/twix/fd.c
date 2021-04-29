@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/sys/name.h>
 #include <twz/sys/slots.h>
 #include <twz/sys/view.h>
 

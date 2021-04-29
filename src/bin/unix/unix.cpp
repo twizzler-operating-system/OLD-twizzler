@@ -302,7 +302,7 @@ int main()
 
 	async_init();
 	mkdir("/dev", 0644);
-	twz_name_assign(twz_object_guid(&api_obj), "/dev/unix");
+	twz_name_dfl_assign(twz_object_guid(&api_obj), "/dev/unix");
 
 	for(;;) {
 		sleep(100);

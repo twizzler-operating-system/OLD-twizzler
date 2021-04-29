@@ -7,6 +7,7 @@
 #include <string.h>
 #include <twz/name.h>
 #include <twz/obj/hier.h>
+#include <twz/sys/name.h>
 #include <twz/sys/syscall.h>
 #include <unistd.h>
 

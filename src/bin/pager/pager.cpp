@@ -4,6 +4,7 @@
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/obj/queue.h>
+#include <twz/sys/name.h>
 #include <twz/sys/obj.h>
 #include <twz/sys/sys.h>
 #include <unistd.h>

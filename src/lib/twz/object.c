@@ -300,7 +300,7 @@ int twz_object_init_name(twzobj *obj, const char *name, uint32_t flags)
 {
 	obj->flags = 0;
 	objid_t id;
-	int r = twz_name_resolve(NULL, name, NULL, 0, &id);
+	int r = twz_name_dfl_resolve(name, 0, &id);
 	if(r < 0)
 		return r;
 	ssize_t slot = twz_view_allocate_slot(NULL, id, flags);

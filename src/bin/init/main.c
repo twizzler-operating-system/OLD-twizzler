@@ -148,7 +148,7 @@ int main()
 		abort();
 	}
 
-	if((r = twz_name_assign(twz_object_guid(&lobj), "/dev/init-log"))) {
+	if((r = twz_name_dfl_assign(twz_object_guid(&lobj), "/dev/init-log"))) {
 		EPRINTF("failed to assign log object name\n");
 		abort();
 	}
@@ -163,7 +163,7 @@ int main()
 		EPRINTF("failed to create null object");
 		abort();
 	}
-	if((r = twz_name_assign(nid, "/dev/null"))) {
+	if((r = twz_name_dfl_assign(nid, "/dev/null"))) {
 		EPRINTF("failed to assign null object name");
 		abort();
 	}
@@ -181,7 +181,7 @@ int main()
 	term_ready = true;
 
 	objid_t si;
-	r = twz_name_resolve(NULL, "usr_bin_init.sctx", NULL, 0, &si);
+	r = twz_name_dfl_resolve("usr_bin_init.sctx", 0, &si);
 	if(r) {
 		EPRINTF("failed to resolve 'init.sctx'\n");
 		// exit(1);

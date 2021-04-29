@@ -6,6 +6,7 @@
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/obj/hier.h>
+#include <twz/sys/name.h>
 
 static int _recur_twz_hier_resolve_name(twzobj *ns,
   const char *path,

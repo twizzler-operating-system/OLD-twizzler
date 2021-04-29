@@ -18,3 +18,18 @@ static inline struct fotentry *_twz_object_get_fote(twzobj *obj, size_t e)
 _Bool objid_parse(const char *name, size_t len, objid_t *id);
 void twz_object_lea_add_cache_sofn(twzobj *o, size_t slot, void *fn);
 void twz_object_lea_add_cache(twzobj *o, size_t slot, uint64_t res);
+
+#define _FE_ALLOC 0x10000
+#define _FE_VALID 0x20000
+
+struct fotentry;
+int twz_fot_indirect_resolve(twzobj *obj,
+  struct fotentry *fe,
+  const void *p,
+  void **vptr,
+  uint64_t *info);
+int twz_name_resolve(twzobj *obj,
+  const char *name,
+  int (*fn)(twzobj *, const char *, int, objid_t *),
+  int flags,
+  objid_t *id);
