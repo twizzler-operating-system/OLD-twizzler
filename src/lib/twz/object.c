@@ -34,7 +34,8 @@ static void obj_init(twzobj *obj, void *base, uint32_t vf, objid_t id, uint64_t 
 	obj->id = id;
 	obj->vf = vf;
 	obj->flags = TWZ_OBJ_VALID | flags;
-	// memset(obj->sofn_cache, 0, sizeof(obj->sofn_cache));
+	obj->cache = NULL;
+	mutex_init(&obj->lock);
 }
 
 EXTERNAL void twz_object_setsz(twzobj *obj, enum twz_object_setsz_mode mode, ssize_t amount)
@@ -237,9 +238,11 @@ int twz_object_init_guid(twzobj *obj, objid_t id, uint32_t flags)
 EXTERNAL
 objid_t twz_object_guid(twzobj *o)
 {
+	/* the bit in flags is used for serializing access to o->id (acq-rel). */
 	if(o->flags & TWZ_OBJ_ID) {
 		return o->id;
 	}
+	/* if this flag isn't set, we need to serialize writing the ID and updating the flag. */
 	objid_t id = 0;
 	if(twz_vaddr_to_obj(o->base, &id, NULL)) {
 		struct fault_object_info fi = twz_fault_build_object_info(0,
@@ -249,8 +252,12 @@ objid_t twz_object_guid(twzobj *o)
 		twz_fault_raise(FAULT_OBJECT, &fi);
 		return twz_object_guid(o);
 	}
-	o->id = id;
-	o->flags |= TWZ_OBJ_ID;
+	mutex_acquire(&o->lock);
+	if(!(o->flags & TWZ_OBJ_ID)) {
+		o->id = id;
+		o->flags |= TWZ_OBJ_ID;
+	}
+	mutex_release(&o->lock);
 	return id;
 }
 
@@ -316,6 +323,8 @@ void twz_object_release(twzobj *obj)
 	obj->base = NULL;
 	obj->flags = 0;
 	obj->id = 0;
+	if(obj->cache)
+		free(obj->cache);
 }
 
 EXTERNAL
@@ -608,10 +617,70 @@ void *__twz_ptr_swizzle(twzobj *obj, const void *p, uint64_t flags)
 	return twz_ptr_rebase(fe, (void *)p);
 }
 
+struct cache_entry {
+	_Atomic uint64_t entry;
+};
+
+#define CACHE_LEN 32
+
+#define CE_SOFN (1ull << 63)
+
+static void *__twz_object_lea_cached(twzobj *o, const void *p, uint32_t mask)
+{
+	size_t slot = VADDR_TO_SLOT(p);
+	if(slot >= CACHE_LEN)
+		return NULL;
+	if(!(o->flags & TWZ_OBJ_CACHE)) {
+		mutex_acquire(&o->lock);
+		if(!(o->flags & TWZ_OBJ_CACHE)) {
+			o->cache = calloc(CACHE_LEN, sizeof(struct cache_entry));
+			o->flags |= TWZ_OBJ_CACHE;
+		}
+		mutex_release(&o->lock);
+	}
+
+	struct cache_entry *c = o->cache;
+	uint64_t entry = atomic_load(&c[slot].entry);
+	if(entry == 0)
+		return NULL;
+	if(entry & CE_SOFN) {
+		return (void *)(entry & (~CE_SOFN));
+	}
+	return twz_ptr_rebase(entry, (void *)p);
+}
+
+static void __twz_object_lea_add_cache(twzobj *o, size_t slot, uint64_t res)
+{
+	if(slot >= CACHE_LEN)
+		return;
+	if(!(o->flags & TWZ_OBJ_CACHE)) {
+		mutex_acquire(&o->lock);
+		if(!(o->flags & TWZ_OBJ_CACHE)) {
+			o->cache = calloc(CACHE_LEN, sizeof(struct cache_entry));
+			o->flags |= TWZ_OBJ_CACHE;
+		}
+		mutex_release(&o->lock);
+	}
+	struct cache_entry *c = o->cache;
+	atomic_store(&c[slot].entry, res);
+}
+
+void twz_object_lea_add_cache(twzobj *o, size_t slot, uint64_t res)
+{
+	__twz_object_lea_add_cache(o, slot, res);
+}
+
+void twz_object_lea_add_cache_sofn(twzobj *o, size_t slot, void *fn)
+{
+	__twz_object_lea_add_cache(o, slot, (uint64_t)fn | CE_SOFN);
+}
+
 EXTERNAL
 void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 {
-	size_t slot = VADDR_TO_SLOT(p);
+	void *cr = __twz_object_lea_cached(o, p, mask);
+	if(cr)
+		return cr;
 #if 0
 	if(o->flags & TWZ_OBJ_CACHE) {
 		if(slot < TWZ_OBJ_CACHE_SIZE && o->cache[slot]) {
@@ -624,6 +693,7 @@ void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 
 #endif
 
+	size_t slot = VADDR_TO_SLOT(p);
 	struct metainfo *mi = twz_object_meta(o);
 	struct fotentry *fe = _twz_object_get_fote(o, slot);
 
@@ -666,6 +736,7 @@ void *__twz_object_lea_foreign(twzobj *o, const void *p, uint32_t mask)
 	}
 
 	void *_r = twz_ptr_rebase(ns, (void *)p);
+	twz_object_lea_add_cache(o, slot, ns);
 	// if(slot < TWZ_OBJ_CACHE_SIZE) {
 	//	o->cache[slot] = ns;
 	//}

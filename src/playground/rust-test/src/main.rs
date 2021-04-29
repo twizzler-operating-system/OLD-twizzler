@@ -179,6 +179,7 @@ fn access_test() {
 
 fn main()
 {
+    panic!("Hello");
     let handler = std::thread::spawn(|| {
         println!("Hello from thread!");
     });

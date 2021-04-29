@@ -72,8 +72,6 @@ long linux_sys_unlink(char *path)
 	return r;
 }
 
-#define LINUX_SYS_mremap 25
-
 #include <sys/mman.h>
 long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t off);
 long linux_sys_mremap(void *old, size_t old_sz, size_t new_sz, int flags, void *new)

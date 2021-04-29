@@ -25,6 +25,7 @@ enum object_backing_type {
 #include <stddef.h>
 #include <stdint.h>
 
+#include <twz/mutex.h>
 #include <twz/objid.h>
 
 #ifdef __cplusplus
@@ -43,6 +44,7 @@ struct __twzobj {
 	objid_t id;
 	void *cache;
 	uint32_t vf;
+	struct mutex lock;
 };
 
 typedef struct __twzobj twzobj;

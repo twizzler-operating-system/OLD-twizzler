@@ -87,15 +87,6 @@ _Static_assert(small_scaling(NR_SMALL - 1) == MAX_SMALL, "");
 #define log2(...)
 #endif
 
-struct mutex {
-	int lock;
-};
-
-/* TODO */
-#define mutex_acquire(x)
-#define mutex_release(x)
-#define mutex_init(x)
-
 #define HDR_F_VOLATILE 1
 
 struct alloc_hdr {
@@ -1024,7 +1015,6 @@ static int __twz_alloc(twzobj *obj,
   void (*ctor)(void *, void *),
   void *data)
 {
-	mutex_acquire(&hdr->lock);
 	external_call_preamble(obj, hdr, flags);
 
 	/* add to len until we have something usable */
@@ -1059,14 +1049,12 @@ static int __twz_alloc(twzobj *obj,
 		if(try_find_in_bin(hdr, size_class, &req)) {
 			log("  found in bin");
 			verify_allocator(hdr);
-			mutex_release(&hdr->lock);
 			return 0;
 		}
 	} else {
 		if(try_huge(hdr, &req)) {
 			log("  found in huge");
 			verify_allocator(hdr);
-			mutex_release(&hdr->lock);
 			return 0;
 		}
 	}
@@ -1076,7 +1064,6 @@ static int __twz_alloc(twzobj *obj,
 	if(try_unsorted(hdr, &req)) {
 		log("  unsorted");
 		verify_allocator(hdr);
-		mutex_release(&hdr->lock);
 		return 0;
 	}
 
@@ -1092,7 +1079,6 @@ static int __twz_alloc(twzobj *obj,
 	if(try_steal(hdr, &req)) {
 		log("  stolen");
 		verify_allocator(hdr);
-		mutex_release(&hdr->lock);
 		return 0;
 	}
 
@@ -1100,11 +1086,9 @@ static int __twz_alloc(twzobj *obj,
 	if(try_new_chunk(hdr, &req)) {
 		log("  allocating new");
 		verify_allocator(hdr);
-		mutex_release(&hdr->lock);
 		return 0;
 	}
 
-	mutex_release(&hdr->lock);
 	return -ENOMEM;
 }
 

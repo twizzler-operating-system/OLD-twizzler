@@ -23,6 +23,7 @@
 #define LINUX_SYS_access 21
 
 #define LINUX_SYS_select 23
+#define LINUX_SYS_mremap 25
 
 #define LINUX_SYS_madvise 28
 

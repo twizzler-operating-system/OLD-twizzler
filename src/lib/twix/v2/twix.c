@@ -500,6 +500,40 @@ long hook_mmap(struct syscall_args *args)
 	return (long)SLOT_TO_VADDR(slot) + adj;
 }
 
+long hook_mremap(struct syscall_args *args)
+{
+	void *old = (void *)args->a0;
+	size_t old_sz = args->a1;
+	size_t new_sz = args->a2;
+	int flags = args->a3;
+	void *new = (void *)args->a4;
+	if(old_sz > new_sz)
+		return (long)old;
+
+	if(flags & 2)
+		return -EINVAL;
+
+	if(!(flags & 1)) {
+		return -EINVAL;
+	}
+
+	struct syscall_args _args = {
+		.a0 = 0,
+		.a1 = new_sz,
+		.a2 = PROT_READ | PROT_WRITE,
+		.a3 = MAP_PRIVATE | MAP_ANON,
+		.a4 = -1,
+		.a5 = 0,
+	};
+	long p = hook_mmap(&_args);
+	if(p < 0)
+		return p;
+
+	memcpy((void *)p, old, old_sz);
+
+	return p;
+}
+
 long hook_simple_passthrough(struct syscall_args *args)
 {
 	long cmd = -1;
@@ -893,6 +927,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_pselect6] = hook_pselect,
 	[LINUX_SYS_uname] = hook_uname,
 	[LINUX_SYS_nanosleep] = hook_nanosleep,
+	[LINUX_SYS_mremap] = hook_mremap,
 };
 
 extern const char *syscall_names[];

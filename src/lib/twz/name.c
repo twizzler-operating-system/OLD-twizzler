@@ -11,6 +11,8 @@
 #include <twz/obj/hier.h>
 #include <twz/ptr.h>
 
+#include <twz.h>
+
 #include <twz/debug.h>
 /* TODO: make a real function for this */
 bool objid_parse(const char *name, size_t len, objid_t *id)
@@ -220,9 +222,7 @@ static int __twz_fot_indirect_resolve_dfl(twzobj *obj,
 
 	void *_r = twz_ptr_rebase(ns, (void *)p);
 	size_t slot = VADDR_TO_SLOT(p);
-	// if(slot < TWZ_OBJ_CACHE_SIZE) {
-	//	obj->_int_cache[slot] = ns;
-	//}
+	twz_object_lea_add_cache(obj, slot, ns);
 	*vptr = _r;
 	return 0;
 }
@@ -237,13 +237,8 @@ static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
   uint64_t *info)
 {
 	size_t slot = VADDR_TO_SLOT(p);
-	// if(obj->_int_sofn_cache[slot]) {
-	//	*vptr = obj->_int_sofn_cache[slot];
-	//	return 0;
-	//}
 
 	char *name = twz_object_lea(obj, fe->name.data);
-	// debug_printf("load dl: %s :: %p\n", name, obj->base);
 
 	size_t sl = strlen(name);
 	if(sl > 128) {
@@ -284,6 +279,7 @@ static int __twz_fot_indirect_resolve_sofn(twzobj *obj,
 	}
 
 	*vptr = sym;
+	twz_object_lea_add_cache_sofn(obj, slot, sym);
 	// debug_printf("thu dls\n");
 	// obj->_int_sofn_cache[slot] = sym;
 
