@@ -7,9 +7,9 @@
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/queue.h>
 #include <twz/persist.h>
 #include <twz/ptr.h>
-#include <twz/queue.h>
 #include <twz/sys/obj.h>
 #include <twz/sys/sys.h>
 #include <twz/sys/thread.h>

@@ -1,12 +1,12 @@
 #include <errno.h>
 #include <string.h>
 #include <twz/alloc.h>
-#include <twz/bstream.h>
-#include <twz/event.h>
 #include <twz/gate.h>
-#include <twz/io.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/bstream.h>
+#include <twz/obj/event.h>
+#include <twz/obj/io.h>
 #include <twz/ptr.h>
 
 #include <twz/debug.h>

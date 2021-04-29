@@ -1,7 +1,7 @@
 #pragma once
 
 #include <twz/gate.h>
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 
 #define NSTACK_GATE_OPEN_CLIENT 1
 

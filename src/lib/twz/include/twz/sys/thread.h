@@ -45,16 +45,6 @@ struct twzthread_ctrl_repr {
 
 #ifndef __KERNEL__
 
-struct thrd_spawn_args {
-	objid_t target_view;
-	void (*start_func)(void *); /* thread entry function. */
-	void *arg;                  /* argument for entry function. */
-	char *stack_base;           /* stack base address. */
-	size_t stack_size;
-	char *tls_base; /* tls base address. */
-};
-
-int twz_thread_spawn(twzobj *repr_obj, struct thrd_spawn_args *args, objid_t *ctrlid);
 void twz_thread_set_name(const char *name);
 __attribute__((noreturn)) void twz_thread_exit(uint64_t ecode);
 struct twzthread_repr *twz_thread_repr_base(void);

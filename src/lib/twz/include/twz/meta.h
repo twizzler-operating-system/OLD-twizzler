@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <twz/_types.h>
 
 #include <twz/obj.h>
 
@@ -93,13 +94,20 @@ _Static_assert(OBJ_TOPDATA == 0x3E000000, "");
 #ifndef __KERNEL__
 struct __twzobj;
 typedef struct __twzobj twzobj;
+
 struct metainfo *twz_object_meta(twzobj *);
 
 void *twz_object_getext(twzobj *obj, uint64_t tag);
-
 int twz_object_addext(twzobj *obj, uint64_t tag, void *ptr);
-
 int twz_object_delext(twzobj *obj, uint64_t tag, void *ptr);
+
+enum twz_object_setsz_mode {
+	TWZ_OSSM_ABSOLUTE,
+	TWZ_OSSM_RELATIVE,
+};
+
+void twz_object_setsz(twzobj *obj, enum twz_object_setsz_mode mode, ssize_t amount);
+
 #endif
 
 #ifdef __cplusplus

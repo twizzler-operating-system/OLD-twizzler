@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-#include <twz/bstream.h>
 #include <twz/debug.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/bstream.h>
 #include <twz/ptr.h>
 #include <twz/sys/sys.h>
 #include <twz/sys/thread.h>

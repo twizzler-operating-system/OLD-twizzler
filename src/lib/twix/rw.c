@@ -2,8 +2,8 @@
 #include <signal.h>
 #include <string.h>
 #include <sys/select.h>
-#include <twz/io.h>
 #include <twz/obj.h>
+#include <twz/obj/io.h>
 #include <twz/persist.h>
 #include <twz/sys/view.h>
 
@@ -192,7 +192,7 @@ long linux_sys_ioctl(int fd, unsigned long request, unsigned long arg)
 }
 
 #include <stdlib.h>
-#include <twz/event.h>
+#include <twz/obj/event.h>
 
 static int __select_poll_fd(int fd, uint64_t ev, struct event *event)
 {

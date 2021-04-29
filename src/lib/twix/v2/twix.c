@@ -514,9 +514,33 @@ long hook_simple_passthrough(struct syscall_args *args)
 	return tqe.ret;
 }
 
+#include <sys/ioctl.h>
+#include <termios.h>
 long hook_ioctl(struct syscall_args *args)
 {
-	return 0;
+	size_t len = 0;
+	int cmd = args->a1;
+	switch(cmd) {
+		case TCGETS:
+		case TCSETS:
+		case TCSETSW:
+			len = sizeof(struct termios);
+			break;
+		case TIOCSWINSZ:
+		case TIOCGWINSZ:
+			len = sizeof(struct winsize);
+			break;
+	}
+	struct twix_queue_entry tqe = build_tqe(
+	  TWIX_CMD_IOCTL, 0, len, 6, args->a0, args->a1, args->a2, args->a3, args->a4, args->a5);
+	if(len) {
+		write_bufdata((void *)args->a2, len, 0);
+	}
+	twix_sync_command(&tqe);
+	if(len && tqe.ret >= 0) {
+		extract_bufdata((void *)args->a2, len, 0);
+	}
+	return tqe.ret;
 }
 
 long hook_exit(struct syscall_args *args)
@@ -917,6 +941,9 @@ int try_twix_version2(struct twix_register_frame *frame,
 		  *ret == -ENOSYS ? "" : "feature ",
 		  num,
 		  syscall_names[num]);
+	} else if(env_state & ENV_SHOW_ALL) {
+		twix_log(
+		  "[twix] syscall %d (%s) returned %ld (%lx)\n", num, syscall_names[num], *ret, *ret);
 	}
 
 	return *ret == -ENOSYS ? -3 : 0;

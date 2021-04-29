@@ -349,8 +349,8 @@ unsigned int us_map_shift[128] = {
 
 };
 
-#include <twz/io.h>
 #include <twz/obj.h>
+#include <twz/obj/io.h>
 
 void sendkey(twzobj *out_obj, unsigned char key)
 {

@@ -41,6 +41,7 @@ struct __twzobj {
 #endif
 	  atomic_uint_least64_t flags;
 	objid_t id;
+	void *cache;
 	uint32_t vf;
 };
 
@@ -67,14 +68,6 @@ int twz_object_delete(twzobj *obj, int flags);
 objid_t twz_object_guid(twzobj *o);
 
 void *twz_object_base(twzobj *);
-enum twz_object_setsz_mode {
-	TWZ_OSSM_ABSOLUTE,
-	TWZ_OSSM_RELATIVE,
-};
-
-#include <twz/_types.h>
-void twz_object_setsz(twzobj *obj, enum twz_object_setsz_mode mode, ssize_t amount);
-
 #ifdef __cplusplus
 }
 #endif

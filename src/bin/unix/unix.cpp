@@ -4,7 +4,7 @@
 
 #include <twz/gate.h>
 #include <twz/obj.h>
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 #include <twz/sec/security.h>
 #include <twz/sys/obj.h>
 #include <twz/sys/thread.h>

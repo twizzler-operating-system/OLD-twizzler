@@ -2,9 +2,9 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <twz/event.h>
-#include <twz/io.h>
 #include <twz/mutex.h>
+#include <twz/obj/event.h>
+#include <twz/obj/io.h>
 
 struct __twzobj;
 typedef struct __twzobj twzobj;

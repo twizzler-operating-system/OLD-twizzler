@@ -5,15 +5,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include <twz/keyring.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/keyring.h>
+#include <twz/obj/user.h>
 #include <twz/ptr.h>
 #include <twz/sys/kso.h>
 #include <twz/sys/sys.h>
 #include <twz/sys/thread.h>
-#include <twz/user.h>
 #include <unistd.h>
 
 #include <twz/sec/security.h>

@@ -6,7 +6,7 @@
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 #include <twz/sys/obj.h>
 #include <twz/sys/sys.h>
 #include <twz/sys/thread.h>
@@ -705,8 +705,6 @@ void nvme_wait_for_event(nvme_controller *nc)
 		}
 	}
 }
-
-#include <twz/queue.h>
 
 #include <twz/sys/dev/queue.h>
 

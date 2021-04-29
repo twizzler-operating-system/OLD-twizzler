@@ -4,14 +4,14 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-#include <twz/bstream.h>
 #include <twz/debug.h>
-#include <twz/io.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/bstream.h>
+#include <twz/obj/io.h>
+#include <twz/obj/pty.h>
 #include <twz/ptr.h>
-#include <twz/pty.h>
 #include <twz/sys/dev/device.h>
 #include <twz/sys/dev/misc.h>
 #include <twz/sys/dev/pcie.h>

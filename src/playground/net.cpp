@@ -1,8 +1,8 @@
 #include <cstdio>
 #include <twz/meta.h>
 #include <twz/obj.h>
+#include <twz/obj/queue.h>
 #include <twz/ptr.h>
-#include <twz/queue.h>
 #include <twz/sys/obj.h>
 #include <unistd.h>
 

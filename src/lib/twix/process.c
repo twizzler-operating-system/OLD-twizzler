@@ -595,14 +595,31 @@ long linux_sys_clone(struct twix_register_frame *frame,
 	/* TODO: track these, and when these exit or whatever, release these as well */
 	twzobj thr;
 	mutex_acquire(&thrd_lock);
+
 	int r;
-	if((r = twz_thread_spawn(&thr,
-	      &(struct thrd_spawn_args){ .start_func = (void *)__return_from_clone,
-	        .arg = arg,
-	        .stack_base = child_stack,
-	        .stack_size = 8,
-	        .tls_base = (char *)newtls },
-	      NULL))) {
+	if((r = twz_object_new(
+	      &thr, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+		return r;
+		/* TODO CLEANUP */
+	}
+
+	struct twzthread_repr *newrepr = twz_object_base(&thr);
+	newrepr->reprid = twz_object_guid(&thr);
+
+	struct twzthread_repr *currepr = twz_thread_repr_base();
+
+	struct sys_thrd_spawn_args sa = {
+		.start_func = (void *)__return_from_clone,
+		.arg = arg,
+		.stack_base = child_stack,
+		.stack_size = 8,
+		.tls_base = (char *)newtls,
+		.thrd_ctrl = TWZSLOT_THRD,
+	};
+
+	objid_t _ctrlid;
+	r = sys_thrd_spawn(twz_object_guid(&thr), &sa, 0, &_ctrlid);
+	if(r) {
 		mutex_release(&thrd_lock);
 		return r;
 	}

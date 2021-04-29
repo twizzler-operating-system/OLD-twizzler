@@ -1,7 +1,7 @@
 #include <debug.h>
 #include <object.h>
 #include <processor.h>
-#include <twz/_queue.h>
+#include <twz/obj/_queue.h>
 #include <twz/sys/syscall.h>
 
 #include <queue.h>

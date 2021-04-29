@@ -5,12 +5,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <twz/bstream.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
-#include <twz/pty.h>
-#include <twz/queue.h>
+#include <twz/obj/bstream.h>
+#include <twz/obj/pty.h>
+#include <twz/obj/queue.h>
 #include <twz/sys/dev/bus.h>
 #include <twz/sys/dev/device.h>
 #include <twz/sys/dev/memory.h>

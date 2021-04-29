@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <twz/meta.h>
 #include <twz/obj.h>
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 
 int queue_submit(twzobj *obj, struct queue_entry *qe, int flags)
 {

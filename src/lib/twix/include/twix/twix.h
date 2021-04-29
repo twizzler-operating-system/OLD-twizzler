@@ -2,7 +2,7 @@
 
 #include <twz/gate.h>
 #include <twz/obj.h>
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -112,6 +112,7 @@ enum twix_command {
 	TWIX_CMD_PRLIMIT,
 	TWIX_CMD_EXEC,
 	TWIX_CMD_POLL,
+	TWIX_CMD_IOCTL,
 	NUM_TWIX_COMMANDS,
 };
 

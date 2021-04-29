@@ -4,8 +4,8 @@
 #include <time.h>
 #include <twz/_err.h>
 #include <twz/debug.h>
-#include <twz/event.h>
 #include <twz/obj.h>
+#include <twz/obj/event.h>
 #include <twz/sys/sync.h>
 #include <twz/sys/sys.h>
 #include <twz/sys/syscall.h>
@@ -52,6 +52,7 @@ int event_wait(size_t count, struct event *ev, const struct timespec *timeout)
 	if(count > 4096) {
 		return -EINVAL;
 	}
+	int again = 0;
 	while(true) {
 		struct sys_thread_sync_args args[count];
 		size_t ready = 0;
@@ -65,13 +66,14 @@ int event_wait(size_t count, struct event *ev, const struct timespec *timeout)
 				ready++;
 			}
 		}
-		if(ready > 0)
+		if(ready > 0 || (again && timeout))
 			return ready;
 
 		struct timespec ts = timeout ? *timeout : (struct timespec){};
 		int r = sys_thread_sync(count, args, timeout ? &ts : NULL);
 		if(r < 0)
 			return r;
+		again = 1;
 	}
 }
 

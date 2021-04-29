@@ -7,7 +7,7 @@
 #include <stdint.h>
 
 #include <twz/debug.h>
-#include <twz/hier.h>
+#include <twz/obj/hier.h>
 
 /* TODO: arch-dep */
 #include "syscall_defs.h"

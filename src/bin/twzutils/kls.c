@@ -1,11 +1,11 @@
 #include <stdlib.h>
 #include <sys/wait.h>
 #include <twz/_err.h>
-#include <twz/bstream.h>
 #include <twz/debug.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/bstream.h>
 #include <twz/sys/dev/bus.h>
 #include <twz/sys/dev/device.h>
 #include <twz/sys/dev/system.h>

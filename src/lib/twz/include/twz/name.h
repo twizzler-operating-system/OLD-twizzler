@@ -24,6 +24,7 @@ int twz_name_resolve(twzobj *obj,
   int (*fn)(twzobj *, const char *, int, objid_t *),
   int flags,
   objid_t *id);
+
 int twz_name_assign(objid_t id, const char *name);
 
 ssize_t twz_name_dfl_getnames(const char *startname, struct twz_nament *ents, size_t len);

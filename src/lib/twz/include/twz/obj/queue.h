@@ -1,6 +1,6 @@
 #pragma once
 
-#include <twz/_queue.h>
+#include <twz/obj/_queue.h>
 
 #define QUEUE_NONBLOCK 1
 

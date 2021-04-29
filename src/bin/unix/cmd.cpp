@@ -209,6 +209,7 @@ static std::pair<long, bool> (
 	[TWIX_CMD_PRLIMIT] = twix_cmd_prlimit,
 	[TWIX_CMD_EXEC] = twix_cmd_exec,
 	[TWIX_CMD_POLL] = twix_cmd_poll,
+	[TWIX_CMD_IOCTL] = twix_cmd_ioctl,
 };
 
 static const char *cmd_strs[] = {
@@ -235,6 +236,7 @@ static const char *cmd_strs[] = {
 	[TWIX_CMD_PRLIMIT] = "prlimit",
 	[TWIX_CMD_EXEC] = "exec",
 	[TWIX_CMD_POLL] = "poll",
+	[TWIX_CMD_IOCTL] = "ioctl",
 };
 
 std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)

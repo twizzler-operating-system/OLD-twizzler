@@ -4,7 +4,7 @@
 #include <memory>
 #include <thread>
 #include <twix/twix.h>
-#include <twz/event.h>
+#include <twz/obj/event.h>
 
 #include "state.h"
 

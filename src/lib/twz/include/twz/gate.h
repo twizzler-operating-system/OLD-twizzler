@@ -1,8 +1,10 @@
 #pragma once
 #include <twz/meta.h>
 #include <twz/obj.h>
+#include <twz/sys/kso.h>
 #include <twz/sys/slots.h>
 #include <twz/sys/sys.h>
+#include <twz/sys/syscall.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -93,9 +95,6 @@ static inline void twz_secure_api_close(struct secure_api *api)
 	}
 }
 
-#include <twz/sys/kso.h>
-#include <twz/sys/syscall.h>
-
 static inline long __do_sapi_call(struct secure_api *api, const struct sys_become_args *args)
 {
 	long r = 0;
@@ -104,8 +103,6 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 		if(r == 0)
 			api->flags |= __SAPI_ATTACHED;
 	}
-	// long long b = ___rdtsc();
-	// debug_printf("::::: %ld %d\n", b - args->r15, api->flags);
 	if(r == 0)
 		r = sys_become(args, 0, 0);
 	return r;
@@ -140,24 +137,6 @@ static inline long __do_sapi_call(struct secure_api *api, const struct sys_becom
 		};                                                                                         \
 		__do_sapi_call(api, &args);                                                                \
 	})
-
-/*
-#define twz_secure_api_call2(hdr, gate, arg1, arg2)                                                \
-    ({                                                                                             \
-        twz_secure_api_setup_tmp_stack();                                                          \
-        struct sys_become_args args = {                                                            \
-            .target_view = hdr->view,                                                              \
-            .target_rip = (uint64_t)TWZ_GATE_CALL(NULL, gate),                                     \
-            .rdi = (long)arg1,                                                                     \
-            .rsi = (long)arg2,                                                                     \
-            .rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
-        };                                                                                         \
-        long r = sys_attach(0, hdr->sctx, 0, KSO_SECCTX);                                          \
-        if(r == 0)                                                                                 \
-            r = sys_become(&args, 0, 0);                                                           \
-        r;                                                                                         \
-    })
-*/
 
 #define twz_secure_api_call3(api, gate, arg1, arg2, arg3)                                          \
 	({                                                                                             \

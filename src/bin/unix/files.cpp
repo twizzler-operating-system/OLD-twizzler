@@ -1,6 +1,6 @@
 #include <twix/twix.h>
-#include <twz/io.h>
 #include <twz/obj.h>
+#include <twz/obj/io.h>
 #include <twz/persist.h>
 
 #define RWF_NOWAIT 0x8
@@ -282,11 +282,17 @@ std::pair<long, bool> twix_cmd_poll(std::shared_ptr<queue_client> client, twix_q
 	if(ready == 0) {
 		std::thread t1([tqe, client, events, info, flags, event_count] {
 			twix_queue_entry _tqe = *tqe;
-			event_wait(event_count, events, (flags & TWIX_POLL_TIMEOUT) ? &info->timeout : NULL);
-			auto [ret, respond] = twix_cmd_poll(client, &_tqe);
-			if(respond) {
-				_tqe.ret = ret;
+			int r =
+			  event_wait(event_count, events, (flags & TWIX_POLL_TIMEOUT) ? &info->timeout : NULL);
+			if(r == 0 && (flags & TWIX_POLL_TIMEOUT)) {
+				_tqe.ret = 0;
 				client->complete(&_tqe);
+			} else {
+				auto [ret, respond] = twix_cmd_poll(client, &_tqe);
+				if(respond) {
+					_tqe.ret = ret;
+					client->complete(&_tqe);
+				}
 			}
 			free(events);
 		});
@@ -334,6 +340,29 @@ std::pair<long, bool> twix_cmd_dup(std::shared_ptr<queue_client> client, twix_qu
 	}
 
 	return R_S(newfd);
+}
+
+long filedesc::ioctl(int cmd, void *buf)
+{
+	return twzio_ioctl(&obj, cmd, buf);
+}
+
+std::pair<long, bool> twix_cmd_ioctl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
+{
+	int fd = tqe->arg0;
+	int cmd = tqe->arg1;
+	auto filedesc = client->proc->get_file(fd);
+	if(filedesc == nullptr)
+		return R_S(-EBADF);
+
+	void *buf = NULL;
+	if(tqe->buflen) {
+		buf = client->buffer_base();
+	} else {
+		buf = (void *)tqe->arg2;
+	}
+	long ret = filedesc->ioctl(cmd, buf);
+	return R_S(ret);
 }
 
 std::pair<long, bool> twix_cmd_fcntl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)

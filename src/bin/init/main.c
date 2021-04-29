@@ -5,12 +5,12 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
-#include <twz/bstream.h>
 #include <twz/debug.h>
-#include <twz/hier.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/bstream.h>
+#include <twz/obj/hier.h>
 #include <twz/persist.h>
 #include <twz/sys/dev/bus.h>
 #include <twz/sys/dev/device.h>
@@ -106,7 +106,7 @@ void *tm_1(void *a)
 		;
 }
 
-#include <twz/queue.h>
+#include <twz/obj/queue.h>
 #include <twz/sec/security.h>
 #include <twz/sys/dev/queue.h>
 #include <twz/sys/thread.h>

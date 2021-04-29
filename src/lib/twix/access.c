@@ -2,10 +2,10 @@
 #include <fcntl.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <twz/hier.h>
-#include <twz/io.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/hier.h>
+#include <twz/obj/io.h>
 
 #include "syscalls.h"
 

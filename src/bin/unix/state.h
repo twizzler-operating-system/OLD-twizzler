@@ -1,9 +1,9 @@
 #pragma once
 
 #include <twix/twix.h>
-#include <twz/hier.h>
 #include <twz/obj.h>
-#include <twz/queue.h>
+#include <twz/obj/hier.h>
+#include <twz/obj/queue.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -63,13 +63,13 @@ class filedesc
 	}
 	ssize_t read(void *, size_t, off_t, int, bool);
 	ssize_t write(const void *, size_t, off_t, int, bool);
+	long ioctl(int cmd, void *buf);
 	twzobj obj;
 	objid_t objid;
 	std::atomic<int> fcntl_flags;
 	std::atomic<size_t> pos = { 0 };
 	int d_type;
 	std::string d_name;
-	// struct twz_name_ent dirent;
 };
 
 class descriptor
@@ -404,6 +404,7 @@ std::pair<long, bool> twix_cmd_faccessat(std::shared_ptr<queue_client> client,
   twix_queue_entry *tqe);
 std::pair<long, bool> twix_cmd_dup(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 std::pair<long, bool> twix_cmd_poll(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
+std::pair<long, bool> twix_cmd_ioctl(std::shared_ptr<queue_client> client, twix_queue_entry *tqe);
 
 #define R_S(r) std::make_pair(r, true)
 #define R_A(r) std::make_pair(r, false)

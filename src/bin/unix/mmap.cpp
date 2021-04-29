@@ -1,6 +1,6 @@
 #include <twix/twix.h>
-#include <twz/io.h>
 #include <twz/obj.h>
+#include <twz/obj/io.h>
 #include <twz/persist.h>
 #include <twz/sys/obj.h>
 

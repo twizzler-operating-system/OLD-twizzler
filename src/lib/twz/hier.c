@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <twz/debug.h>
-#include <twz/hier.h>
 #include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
+#include <twz/obj/hier.h>
 
 static int _recur_twz_hier_resolve_name(twzobj *ns,
   const char *path,

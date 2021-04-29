@@ -3,9 +3,9 @@
 #include <stdint.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-#include <twz/bstream.h>
-#include <twz/io.h>
 #include <twz/mutex.h>
+#include <twz/obj/bstream.h>
+#include <twz/obj/io.h>
 
 #define PTY_BUFFER_SZ 1024
 

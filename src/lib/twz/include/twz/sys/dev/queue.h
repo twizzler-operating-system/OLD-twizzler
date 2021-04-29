@@ -1,7 +1,7 @@
 #pragma once
 
 #define __QUEUE_TYPES_ONLY
-#include <twz/_queue.h>
+#include <twz/obj/_queue.h>
 
 #include <twz/objid.h>
 
