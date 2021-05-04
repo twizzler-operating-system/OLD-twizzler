@@ -39,7 +39,13 @@ path/to/twizzler
 Building
 --------
 
-See docs/BUILD.md for instructions. 
+See docs/BUILD.md for instructions for building the OS. To build the documentation, run the
+following commands:
+
+    doxygen docs/Doxygen.user
+	doxygen docs/Doxygen.kernel
+
+This will build the user and kernel docs, placing them in docs-gen-user and docs-gen-kernel.
 
 Writing some test code
 ----------------------

@@ -3,7 +3,6 @@
 enum object_backing_type {
 	OBJ_VOLATILE = 0,
 	OBJ_PERSISTENT = 1,
-	OBJ_DMA = 3,
 };
 
 #define OBJ_NULLPAGE_SIZE 0x1000
@@ -19,6 +18,7 @@ enum object_backing_type {
 #define TWZ_OC_ZERONONCE 0x1000
 #define TWZ_OC_TIED_NONE 0x10000
 #define TWZ_OC_TIED_VIEW 0x20000
+#define TWZ_OC_DMA 0x40000
 
 #ifndef __KERNEL__
 

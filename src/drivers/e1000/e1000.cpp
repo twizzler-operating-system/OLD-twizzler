@@ -159,7 +159,7 @@ int e1000c_init(e1000_controller *nc)
 
 	e1000_reg_write32(nc, REG_CTRL, BAR_MEMORY, CTRL_FD | CTRL_ASDE);
 
-	if(twz_object_new(&nc->buf_obj, NULL, NULL, OBJ_DMA, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
+	if(twz_object_new(&nc->buf_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))
 		return -1;
 
 	int r;
