@@ -267,3 +267,15 @@ bool arch_objspace_getmap(uintptr_t v, uintptr_t *p, int *level, uint64_t *flags
 bool arch_objspace_map(uintptr_t v, uintptr_t p, int level, uint64_t flags);
 
 void obj_clone_cow(struct object *src, struct object *nobj);
+
+#include <lib/vector.h>
+
+struct page_entry {
+	struct page *page;
+};
+
+struct pagevec {
+	_Atomic size_t refs;
+	struct spinlock lock;
+	struct vector pages;
+};

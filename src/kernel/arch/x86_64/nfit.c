@@ -100,6 +100,7 @@ __orderedinitializer(__orderedafter(ACPI_INITIALIZER_ORDER)) static void nfit_in
 		return;
 	}
 
+#if 0
 	char *start = (char *)&nfit->nfits[0];
 	char *ptr = start;
 	while(ptr < start + nfit->header.length) {
@@ -157,4 +158,5 @@ __orderedinitializer(__orderedafter(ACPI_INITIALIZER_ORDER)) static void nfit_in
 		  NULL,
 		  0);
 	}
+#endif
 }

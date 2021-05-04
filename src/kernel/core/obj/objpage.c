@@ -11,7 +11,7 @@
 #include <tmpmap.h>
 
 #include <twz/sys/syscall.h>
-
+#if 0
 static struct slabcache sc_objpage;
 
 void obj_system_init_objpage(void)
@@ -494,3 +494,5 @@ void objpage_do_cow_write(struct objpage *p)
 
 	p->page = np;
 }
+
+#endif

@@ -85,9 +85,9 @@ add_subdirectory(playground)
 
 #"CARGO_TERM_VERBOSE=true"
 
-add_rust_target(rust-test playground/rust-test)
+#add_rust_target(rust-test playground/rust-test)
 
-add_rust_target(logboi-rs bin/logboi-rs)
+#add_rust_target(logboi-rs bin/logboi-rs)
 
 add_custom_command(
 	OUTPUT
