@@ -212,10 +212,8 @@ void processor_percpu_regions_init(void)
 	  percpu_length);
 	if(percpu_length > mm_page_size(0))
 		panic("TODO: large percpu");
-	bsp_percpu_region = (void *)mm_virtual_early_alloc();
+	mm_early_alloc(NULL, &bsp_percpu_region, percpu_length, 16);
 	memcpy(bsp_percpu_region, &kernel_data_percpu_load, percpu_length);
-	// printk(":: %p\n", current_processor);
-	// current_processor->percpu = bsp_percpu_region;
 }
 
 #include <device.h>

@@ -28,8 +28,7 @@ __initializer static void __device_init(void)
 
 struct bus_repr *bus_get_repr(struct object *obj)
 {
-	/* repr is at object base */
-	return obj_get_kbase(obj);
+	panic("A");
 }
 
 void *bus_get_busspecific(struct object *obj)
@@ -40,7 +39,7 @@ void *bus_get_busspecific(struct object *obj)
 
 struct device_repr *device_get_repr(struct object *obj)
 {
-	return obj_get_kbase(obj);
+	panic("A");
 }
 
 void *device_get_devspecific(struct object *obj)
@@ -51,11 +50,7 @@ void *device_get_devspecific(struct object *obj)
 
 void device_release_headers(struct object *obj)
 {
-	obj_release_kaddr(obj);
-	/* TODO: release the address */
-	// struct objpage *op = obj_get_page(obj, OBJ_NULLPAGE_SIZE, true);
-	// obj_put_page(op); /* once for this function */
-	// obj_put_page(op); /* once for device_get_<header> */
+	panic("A");
 }
 
 void device_signal_interrupt(struct object *obj, int inum, uint64_t val)

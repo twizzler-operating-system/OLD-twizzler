@@ -93,6 +93,8 @@ long syscall_thread_spawn(uint64_t tidlo,
 
 	t->thrctrl = obj_lookup(ctrlid, 0);
 
+	panic("A");
+#if 0
 	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
 	ctrl_repr->reprid = tid;
 	ctrl_repr->ctrl_reprid = ctrlid;
@@ -104,6 +106,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 		.id = tid,
 		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
 	};
+#endif
 
 	t->thrctrl->flags |= OF_DELETE;
 

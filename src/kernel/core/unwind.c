@@ -11,10 +11,11 @@ __attribute__((no_sanitize_undefined))
 static void
 __print_frame(struct frame *frame)
 {
-	const struct ksymbol *sym = ksymbol_find_by_value(frame->pc, true);
-	if(sym) {
-		uintptr_t offset = frame->pc - sym->value;
-		printk("  %lx < %s + %lx >\n", frame->pc, sym ? sym->name : "???", offset);
+	const char *name = debug_symbolize((void *)frame->pc);
+	if(name) {
+		printk("  %lx < %s >\n", frame->pc, name);
+	} else {
+		printk("  %lx < ?? >\n", frame->pc);
 	}
 }
 #endif

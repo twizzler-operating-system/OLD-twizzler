@@ -278,17 +278,19 @@ static void __iommu_fault_handler(int v __unused, struct interrupt_handler *h __
 					do_iommu_object_map_slot(o, 0);
 					iommu_set_context_entry(im, sid >> 8, sid & 0xff, ept_phys, 1);
 					struct objpage *p;
-					obj_get_page(o, idx, &p, OBJ_GET_PAGE_ALLOC);
+					panic("A");
+					// obj_get_page(o, idx, &p, OBJ_GET_PAGE_ALLOC);
 
 					printk("[iommu] mapping page %ld\n", p->idx);
 					if(!(p->flags & OBJPAGE_MAPPED)) {
-						arch_object_map_page(o, p);
+						arch_object_map_page(o, p->idx, p->page, 0);
 						p->flags |= OBJPAGE_MAPPED;
 					}
 					arch_object_map_flush(
 					  o, p->idx * mm_page_size(p->page->level) /* TODO: this is brittle */);
 
-					objpage_release(p, 0);
+					panic("A");
+					// objpage_release(p, 0);
 					obj_put(o);
 				} else {
 					printk("[iommu] fault to slot %ld; unknown object\n", slot_num);

@@ -124,7 +124,8 @@ static void __alloc_bar(struct object *obj,
 		} else {
 			amount = mm_page_size(0);
 		}
-		obj_cache_page(obj, start, pg);
+		panic("A");
+		// obj_cache_page(obj, start, pg);
 		if(sz < amount)
 			sz = 0;
 		else
@@ -302,7 +303,8 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 		pg->type = PAGE_TYPE_MMIO;
 		pg->flags |= PAGE_CACHE_UC;
 		pg->level = 1;
-		obj_cache_page(obj, addr, pg);
+		panic("A");
+		// obj_cache_page(obj, addr, pg);
 	}
 	struct bus_repr *repr = bus_get_repr(obj);
 	struct pcie_bus_header *hdr = bus_get_busspecific(obj);

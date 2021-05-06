@@ -4,6 +4,7 @@
 #include <krc.h>
 #include <lib/inthash.h>
 #include <lib/rb.h>
+#include <rwlock.h>
 #include <spinlock.h>
 #include <twz/obj.h>
 #include <twz/sys/kso.h>
@@ -118,6 +119,7 @@ struct object {
 
 	/* general object lock */
 	struct spinlock lock;
+	struct rwlock rwlock;
 
 	/* lock for thread-sync operations */
 	struct spinlock tslock;
@@ -227,7 +229,6 @@ void arch_object_map_slot(struct object_space *, struct object *obj, struct slot
 void arch_object_unmap_slot(struct object_space *space, struct slot *slot);
 void arch_object_unmap_page(struct object *obj, size_t idx);
 void arch_object_unmap_all(struct object *obj);
-bool arch_object_map_page(struct object *obj, struct objpage *);
 bool arch_object_map_flush(struct object *obj, size_t idx);
 bool arch_object_premap_page(struct object *obj, int idx, int level);
 void arch_object_page_remap_cow(struct objpage *op);
@@ -270,12 +271,54 @@ void obj_clone_cow(struct object *src, struct object *nobj);
 
 #include <lib/vector.h>
 
+#define GET_PAGE_BLOCK 1
+
+struct blocklist;
 struct page_entry {
 	struct page *page;
+	struct blocklist *blocks;
 };
 
 struct pagevec {
 	_Atomic size_t refs;
 	struct spinlock lock;
 	struct vector pages;
+	struct list ranges;
 };
+
+struct range {
+	size_t start;
+	size_t len;
+	size_t pv_offset;
+	struct spinlock lock;
+	struct pagevec *pv;
+	struct object *obj;
+	struct rbnode node;
+	struct list entry;
+};
+
+size_t range_pv_idx(struct range *, size_t);
+struct range *range_split(struct range *, size_t);
+
+void range_clone(struct range *);
+int pagevec_get_page(struct pagevec *, size_t, struct page **, int flags);
+size_t pagevec_len(struct pagevec *);
+struct range *object_add_range(struct object *, struct pagevec *, size_t, size_t, size_t);
+struct pagevec *object_new_pagevec(struct object *, size_t, size_t *);
+struct range *object_find_range(struct object *, size_t);
+bool arch_object_map_page(struct object *obj, size_t, struct page *, int);
+
+struct pagevec *pagevec_new(void);
+void pagevec_append_page(struct pagevec *pv, struct page *page);
+void pagevec_combine(struct pagevec *a, struct pagevec *b);
+
+#define PAGE_MAP_COW 1
+
+struct copy_args {
+	struct object *src;
+	size_t src_start;
+	size_t dst_start;
+	size_t length;
+};
+
+int object_copy_pages(struct object *dst, struct copy_args *args, size_t nr_args);

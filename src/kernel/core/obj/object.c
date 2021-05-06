@@ -85,7 +85,8 @@ static void _obj_dtor(void *_u, void *ptr)
 void obj_system_init(void)
 {
 	slabcache_init(&sc_objs, "sc_objs", sizeof(struct object), _obj_ctor, _obj_dtor, NULL);
-	obj_system_init_objpage();
+	panic("A");
+	// obj_system_init_objpage();
 }
 
 static struct kso_calls *_kso_calls[KSO_MAX];
@@ -159,6 +160,7 @@ void obj_assign_id(struct object *obj, objid_t id)
 	spinlock_release_restore(&objlock);
 }
 
+#if 0
 struct object *obj_create_clone(uint128_t id, struct object *src, enum kso_type ksot)
 {
 	struct object *obj = __obj_alloc(ksot, id);
@@ -177,6 +179,7 @@ struct object *obj_create_clone(uint128_t id, struct object *src, enum kso_type 
 	}
 	return obj;
 }
+#endif
 
 struct object *obj_lookup(uint128_t id, int flags)
 {
@@ -197,6 +200,8 @@ struct object *obj_lookup(uint128_t id, int flags)
 		spinlock_release_restore(&obj->lock);
 	} else {
 		spinlock_release_restore(&objlock);
+		panic("A");
+#if 0
 		struct nv_region *reg = nv_region_lookup_object(id);
 		if(reg) {
 			obj = obj_create(0, 0);
@@ -213,6 +218,7 @@ struct object *obj_lookup(uint128_t id, int flags)
 			}
 			spinlock_release_restore(&objlock);
 		}
+#endif
 	}
 	return obj;
 }
@@ -272,6 +278,7 @@ struct slot *obj_alloc_slot(struct object *obj)
 	return obj->slot;
 }
 
+#if 0
 static void _obj_release(void *_obj)
 {
 	struct object *obj = _obj;
@@ -345,6 +352,7 @@ static void _obj_release(void *_obj)
 		slabcache_free(&sc_objs, obj);
 	}
 }
+#endif
 
 void obj_put(struct object *o)
 {
@@ -354,7 +362,8 @@ void obj_put(struct object *o)
 		}
 		spinlock_release_restore(&objlock);
 		// workqueue_insert(&current_processor->wq, &o->delete_task, _obj_release, o);
-		_obj_release(o);
+		//_obj_release(o);
+		printk("TODO release object\n");
 	}
 }
 
@@ -383,7 +392,8 @@ bool obj_get_pflags(struct object *obj, uint32_t *pf)
 
 objid_t obj_compute_id(struct object *obj)
 {
-	void *kaddr = obj_get_kaddr(obj);
+	panic("A");
+	void *kaddr = NULL; // obj_get_kaddr(obj);
 	struct metainfo *mi = (void *)((char *)kaddr + (OBJ_MAXSIZE - OBJ_METAPAGE_SIZE));
 
 	typeof(mi->p_flags) p_flags = mi->p_flags;
@@ -428,8 +438,6 @@ objid_t obj_compute_id(struct object *obj)
 	for(int i = 0; i < 16; i++) {
 		out[i] = tmp[i] ^ tmp[i + 16];
 	}
-
-	obj_release_kaddr(obj);
 
 	return *(objid_t *)out;
 }

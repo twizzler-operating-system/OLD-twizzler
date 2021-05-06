@@ -117,7 +117,7 @@ static void x86_64_enable_vmx(struct processor *proc)
 	/* get the revision ID. This is needed for several VM data structures. */
 	x86_64_rdmsr(X86_MSR_VMX_BASIC, &lo, &hi);
 	revision_id = lo & 0x7FFFFFFF;
-	uint32_t *vmxon_revid = (uint32_t *)mm_ptov(vmxon_region);
+	uint32_t *vmxon_revid = (uint32_t *)mm_early_ptov(vmxon_region);
 	*vmxon_revid = revision_id;
 
 	uint8_t error;
@@ -481,20 +481,21 @@ static void __init_ept_root(void)
 {
 	if(_bootstrap_object_space.arch.ept_phys)
 		return;
-	uintptr_t pml4phys = mm_physical_early_alloc();
+	/* identity-map the first GB of memory. That should be enough to get us going. */
+	uintptr_t pml4phys;
+	uint64_t *pml4;
+	mm_early_alloc(&pml4phys, (void **)&pml4, 0x1000, 0x1000);
 
-	uint64_t *pml4 = mm_ptov(pml4phys);
-	memset(pml4, 0, mm_page_size(0));
-	pml4[0] = mm_physical_early_alloc();
-	uint64_t *pdpt = mm_ptov(pml4[0]);
+	uint64_t *pdpt;
+	mm_early_alloc(&pml4[0], (void **)&pdpt, 0x1000, 0x1000);
+
 	pml4[0] |= EPT_READ | EPT_WRITE | EPT_EXEC;
-	memset(pdpt, 0, mm_page_size(0));
 	pdpt[0] |= EPT_IGNORE_PAT | EPT_MEMTYPE_WB | EPT_READ | EPT_WRITE | EPT_EXEC | PAGE_LARGE;
 
 	_bootstrap_object_space.arch.ept = pml4;
 	_bootstrap_object_space.arch.ept_phys = pml4phys;
-	_bootstrap_object_space.arch.pdpts = mm_virtual_early_alloc();
-	_bootstrap_object_space.arch.counts = mm_virtual_early_alloc();
+	mm_early_alloc(NULL, (void **)&_bootstrap_object_space.arch.pdpts, 0x1000, 0x1000);
+	mm_early_alloc(NULL, (void **)&_bootstrap_object_space.arch.counts, 0x1000, 0x1000);
 	_bootstrap_object_space.arch.pdpts[0] = pdpt;
 }
 
@@ -633,17 +634,15 @@ static void vtx_setup_vcpu(struct processor *proc)
 	/* we actually have to use these, and they should be all zero (none owned by host) */
 	static uintptr_t bitmaps = 0;
 	if(!bitmaps)
-		bitmaps = mm_physical_early_alloc();
+		mm_early_alloc(&bitmaps, NULL, 0x1000, 0x1000);
 	vmcs_writel(VMCS_MSR_BITMAPS_ADDR, bitmaps);
 
 	if(support_ept_switch_vmfunc) {
 		vmcs_writel(VMCS_VMFUNC_CONTROLS, 1 /* enable EPT-switching */);
-		static uintptr_t eptp_list = 0;
-		if(!eptp_list)
-			eptp_list = (uintptr_t)mm_virtual_early_alloc();
-		proc->arch.eptp_list = (void *)eptp_list;
+		uintptr_t el_phys;
+		mm_early_alloc(&el_phys, (void **)&proc->arch.eptp_list, 0x1000, 0x1000);
 		proc->arch.eptp_list[0] = _bootstrap_object_space.arch.ept_phys | (3 << 3) | 6;
-		vmcs_writel(VMCS_EPTP_LIST, mm_vtop(proc->arch.eptp_list));
+		vmcs_writel(VMCS_EPTP_LIST, el_phys);
 	}
 
 	/* TODO (minor): veinfo needs to be page-aligned, but we're over-allocating here */
@@ -676,7 +675,7 @@ void x86_64_start_vmx(struct processor *proc)
 	proc->arch.vcpu_state_regs[PROC_PTR] = (uintptr_t)proc;
 	/* set initial argument to vmx_entry_point */
 	proc->arch.vcpu_state_regs[REG_RDI] = (uintptr_t)proc;
-	uint32_t *vmcs_rev = (uint32_t *)mm_ptov(proc->arch.vmcs);
+	uint32_t *vmcs_rev = mm_early_ptov(proc->arch.vmcs);
 	void *p = vmcs_rev;
 	memset(p, 0, 0x1000);
 	*vmcs_rev = revision_id & 0x7FFFFFFF;

@@ -58,6 +58,7 @@ long syscall_ostat(uint64_t idlo, uint64_t idhi, int stat_type, uint64_t arg, vo
 {
 	objid_t id = MKID(idhi, idlo);
 
+#if 0
 	struct object *obj = obj_lookup(id, OBJ_LOOKUP_HIDDEN);
 	if(!obj) {
 		return -ENOENT;
@@ -130,8 +131,10 @@ long syscall_ostat(uint64_t idlo, uint64_t idhi, int stat_type, uint64_t arg, vo
 		} break;
 	}
 	obj_put(obj);
+#endif
+	panic("A");
 
-	return ret;
+	return 0;
 }
 
 long syscall_ocopy(objid_t *destid,
@@ -165,7 +168,9 @@ long syscall_ocopy(objid_t *destid,
 		return -ENOENT;
 	}
 
-	int r = obj_copy_pages(dest, src, doff, soff, len);
+	// int r = obj_copy_pages(dest, src, doff, soff, len);
+	int r = -ENOSYS;
+	panic("A");
 
 	obj_put(dest);
 	if(src)
@@ -396,6 +401,8 @@ long syscall_ocreate(uint64_t kulo,
 		return -ENOTSUP;
 	}
 	if(srcid) {
+		panic("A");
+#if 0
 		so = obj_lookup(srcid, 0);
 		if(!so) {
 			return -ENOENT;
@@ -406,10 +413,12 @@ long syscall_ocreate(uint64_t kulo,
 		}
 		spinlock_acquire_save(&so->lock);
 		o = obj_create_clone(0, so, ksot);
+#endif
 	} else {
 		o = obj_create(0, ksot);
 	}
 
+#if 0
 	if(flags & TWZ_SYS_OC_PERSIST_) {
 		o->flags |= OF_PERSIST;
 		o->preg = nv_region_select();
@@ -418,6 +427,7 @@ long syscall_ocreate(uint64_t kulo,
 			return -ENOSPC;
 		}
 	}
+#endif
 
 	struct metainfo mi = {
 		.magic = MI_MAGIC,
@@ -437,9 +447,11 @@ long syscall_ocreate(uint64_t kulo,
 	objid_t id = obj_compute_id(o);
 	obj_assign_id(o, id);
 
+#if 0
 	if(o->flags & OF_PERSIST) {
 		nv_region_persist_obj_meta(o);
 	}
+#endif
 
 #if CONFIG_DEBUG_OBJECT_LIFE
 	if(srcid)
@@ -520,6 +532,7 @@ long syscall_opin(uint64_t lo, uint64_t hi, uint64_t *addr, int flags)
 #include <page.h>
 long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long arg3)
 {
+#if 0
 	objid_t id = MKID(hi, lo);
 	struct object *o = obj_lookup(id, 0);
 	if(!o)
@@ -542,7 +555,7 @@ long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long a
 				pg->page->flags |= flag_if_notzero(arg3 & OC_CM_WB, PAGE_CACHE_WB);
 				pg->page->flags |= flag_if_notzero(arg3 & OC_CM_WT, PAGE_CACHE_WT);
 				pg->page->flags |= flag_if_notzero(arg3 & OC_CM_WC, PAGE_CACHE_WC);
-				arch_object_map_page(o, pg);
+				arch_object_map_page(o, pg->idx, pg->page, 0);
 				objpage_release(pg, 0);
 			}
 			break;
@@ -556,7 +569,7 @@ long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long a
 				struct objpage *pg;
 				obj_get_page(o, i * mm_page_size(0), &pg, OBJ_GET_PAGE_ALLOC);
 				/* TODO: locking */
-				arch_object_map_page(o, pg);
+				arch_object_map_page(o, pg->idx, pg->page, 0);
 				if(arg3)
 					arch_object_map_flush(o, i * mm_page_size(0));
 				// objpage_release(pg, 0);
@@ -588,4 +601,6 @@ long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long a
 
 	obj_put(o);
 	return r;
+#endif
+	panic("A");
 }

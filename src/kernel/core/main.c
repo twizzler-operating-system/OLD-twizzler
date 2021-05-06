@@ -64,26 +64,13 @@ static void post_init_calls_execute(bool secondary)
 	}
 }
 
-/* functions called from here expect virtual memory to be set up. However, functions
- * called from here cannot rely on global contructors having run, as those are allowed
- * to use memory management routines, so they are run after this. Furthermore,
- * they cannot use per-cpu data.
- */
-void kernel_early_init(void)
-{
-	mm_init();
-	processor_percpu_regions_init();
-	processor_early_init();
-}
-
+extern void _init(void);
+extern int kernel_init_array_start;
+extern int kernel_init_array_end;
 /* at this point, memory management, interrupt routines, global constructors, and shared
  * kernel state between nodes have been initialized. Now initialize all application processors
  * and per-node threading.
  */
-
-extern void _init(void);
-extern int kernel_init_array_start;
-extern int kernel_init_array_end;
 void kernel_init(void)
 {
 	page_init_bootstrap();

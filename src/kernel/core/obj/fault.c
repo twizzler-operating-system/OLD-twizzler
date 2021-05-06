@@ -1,6 +1,7 @@
 #include <page.h>
 #include <pager.h>
 #include <processor.h>
+#include <rwlock.h>
 #include <secctx.h>
 #include <slots.h>
 #include <thread.h>
@@ -166,11 +167,8 @@ struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
 
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
-	static size_t __c = 0;
-	__c++;
 	size_t idx = (loaddr % mm_page_size(MAX_PGLEVEL)) / mm_page_size(0);
 	if(idx == 0 && !VADDR_IS_KERNEL(vaddr)) {
-		printk("NULL FAULT: %lx %lx %lx %x\n", ip, loaddr, vaddr, flags);
 		struct fault_null_info info = twz_fault_build_null_info((void *)ip, (void *)vaddr);
 		thread_raise_fault(current_thread, FAULT_NULL, &info, sizeof(info));
 		return;
@@ -188,65 +186,21 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 		  loaddr / OBJ_MAXSIZE);
 	}
 
-	if(current_thread) {
-		if(current_thread->_last_oaddr != loaddr || current_thread->_last_flags != flags) {
-			current_thread->_last_oaddr = loaddr;
-			current_thread->_last_flags = flags;
-			current_thread->_last_count = 0;
-		} else {
-			current_thread->_last_count++;
-			if(current_thread->_last_count > 5000) {
-				panic("DOUBLE OADDR FAULT :: " IDFMT "; %lx %lx %x\n",
-				  IDPR(o ? o->id : 0),
-				  ip,
-				  loaddr,
-				  flags);
-			}
-		}
-	}
-#if 0
-	// uint64_t rsp;
-	// asm volatile("mov %%rsp, %0" : "=r"(rsp));
-	// printk("---> %lx\n", rsp);
-	if(current_thread)
-		printk("OSPACE FAULT %ld: ip=%lx loaddr=%lx (idx=%lx) vaddr=%lx flags=%x :: " IDFMT
-		       " %lx\n",
-		  current_thread ? current_thread->id : -1,
-		  ip,
-		  loaddr,
-		  idx,
-		  vaddr,
-		  flags,
-		  IDPR(o->id),
-		  o->flags);
-#endif
-
 	uint64_t perms = 0;
 	uint64_t existing_flags;
 
 	bool do_map = !arch_object_getmap_slot_flags(NULL, slot, &existing_flags);
 	do_map = do_map || (existing_flags & flags) != flags;
 
-	// printk("A\n");
-
-	//	objid_t bs = ((objid_t)0x50055A5D4E2A7D7F << 64) | 0x974BB8B26C30C99Aul;
-	objid_t bs = ((objid_t)0x347D434E6693D076 << 64) | 0x5907F55CA6CE1890ul;
-	if(o->id == bs) {
-		//	printk(":: %d %lx %x\n", do_map, existing_flags, flags);
-	}
-	// asm volatile("mov %%rsp, %0" : "=r"(rsp));
-	// printk("---> %lx\n", rsp);
 	if(do_map) {
 		if(!VADDR_IS_KERNEL(vaddr) && !(o->flags & OF_KERNEL)) {
 			if(o->flags & OF_PAGER) {
-				/* TODO */
 				perms = OBJSPACE_READ | OBJSPACE_WRITE | OBJSPACE_EXEC_U;
 			} else {
 				if(!__objspace_fault_calculate_perms(o, flags, loaddr, vaddr, ip, &perms)) {
 					goto done;
 				}
 			}
-
 			perms &= (OBJSPACE_READ | OBJSPACE_WRITE | OBJSPACE_EXEC_U);
 		} else {
 			perms = OBJSPACE_READ | OBJSPACE_WRITE;
@@ -255,27 +209,55 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 			panic("TODO: this mapping will never work");
 		}
 
-		//		if(o->id == bs)
-		//			printk("mapping with perms %lx\n", perms);
-
-		//		if(o->id == bs)
-		//			printk("B\n");
 		spinlock_acquire_save(&slot->lock);
 		if(!arch_object_getmap_slot_flags(NULL, slot, &existing_flags)) {
-			//		if(o->flags & OF_KERNEL)
-			//			arch_object_map_slot(NULL, o, slot, perms);
-			//		else
 			object_space_map_slot(NULL, slot, perms);
 		} else if((existing_flags & flags) != flags) {
 			arch_object_map_slot(NULL, o, slot, perms);
 		}
-		//	printk("C\n");
 		spinlock_release_restore(&slot->lock);
 	}
 
+	struct rwlock_result rwres = rwlock_rlock(&o->rwlock, 0);
+	struct range *range = object_find_range(o, idx);
+	if(!range) {
+		rwres = rwlock_upgrade(&rwres, 0);
+		size_t off;
+		struct pagevec *pv = object_new_pagevec(o, idx, &off);
+		range = object_add_range(o, pv, idx, pagevec_len(pv) - off, off);
+		rwres = rwlock_downgrade(&rwres);
+	}
+
+	size_t pvidx = range_pv_idx(range, idx);
+
+	struct page *page;
+	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
+
+	if(ret == GET_PAGE_BLOCK) {
+		/* TODO: return a "def resched" thing */
+	} else {
+		int mapflags = 0;
+		if(range->pv->refs > 1) {
+			if(flags & OBJSPACE_FAULT_WRITE) {
+				rwres = rwlock_upgrade(&rwres, 0);
+				range = range_split(range, idx - range->start);
+				range_clone(range);
+				rwres = rwlock_downgrade(&rwres);
+
+				ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
+				assert(ret == 0);
+			} else {
+				flags |= PAGE_MAP_COW;
+			}
+		}
+		arch_object_map_page(o, idx, page, mapflags);
+	}
+
+	rwlock_runlock(&rwres);
+
+#if 0
 	if(o->flags & OF_ALLOC) {
 		struct objpage p = { 0 };
-		//	printk("X\n");
 		p.page = page_alloc(PAGE_TYPE_VOLATILE,
 		  (current_thread && current_thread->page_alloc) ? PAGE_CRITICAL : 0,
 		  0); /* TODO: refcount, largepage */
@@ -289,43 +271,6 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 		struct objpage *p = NULL;
 		enum obj_get_page_result gpr =
 		  obj_get_page(o, loaddr % OBJ_MAXSIZE, &p, OBJ_GET_PAGE_ALLOC | OBJ_GET_PAGE_PAGEROK);
-#if 0
-		if(!(o->flags & OF_KERNEL) && current_thread && current_thread->_last_count > 1000) {
-			uint64_t flags, phys;
-			int level;
-			bool _r = arch_object_getmap(o, loaddr % OBJ_MAXSIZE, &phys, &level, &flags);
-			printk("AAA %p %p %x: %lx %lx %lx :: %lx : %d :: %d %lx :::: %lx %d %lx %d %lx :: %lx "
-			       ":::: %p\n",
-			  slot,
-			  o,
-			  flags,
-			  ip,
-			  loaddr,
-			  vaddr,
-			  o->flags,
-			  do_map,
-			  gpr,
-			  p ? p->flags : 0,
-			  o->arch.pt_root,
-			  _r,
-			  phys,
-			  level,
-			  flags,
-			  p && p->page ? p->page->addr : 0,
-			  current_thread);
-		}
-		if(current_thread && current_thread->_last_count > 1000) {
-			printk(":::: %lx %d %lx %p %p %lx %d\n",
-			  ip,
-			  gpr,
-			  o->flags,
-			  p,
-			  p->page,
-			  p->flags,
-			  p->page->cowcount);
-			p->flags &= ~OBJPAGE_MAPPED;
-		}
-#endif
 		switch(gpr) {
 			case GETPAGE_OK:
 				break;
@@ -399,6 +344,7 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 			spinlock_release_restore(&o->lock);
 		}
 	}
+#endif
 done:
 	obj_put(o);
 	slot_release(slot);

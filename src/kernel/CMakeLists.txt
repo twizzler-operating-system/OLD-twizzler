@@ -47,6 +47,7 @@ list(APPEND KERNEL_SOURCES
 	core/panic.c
 	core/processor.c
 	core/rand.c
+	core/rwlock.c
 	core/schedule.c
 	core/spinlock.c
 	core/syscall.c
@@ -66,8 +67,11 @@ list(APPEND KERNEL_SOURCES
 	core/obj/kso.c
 	core/obj/object.c
 	core/obj/objpage.c
+	core/obj/objmap.c
 	core/obj/pager.c
+	core/obj/pagevec.c
 	core/obj/queue.c
+	core/obj/range.c
 	core/obj/rw.c
 	core/obj/secctx.c
 	core/obj/slots.c
@@ -266,6 +270,7 @@ target_link_options(kernel PRIVATE
 	"-Wl,-z,max-page-size=0x1000"
 	"-Wl,-z,common-page-size=0x1000"
 	"-nostdlib"
+	"-Wl,--no-dynamic-linker"
 	"-T" "${CMAKE_CURRENT_BINARY_DIR}/link.ld"
 )
 

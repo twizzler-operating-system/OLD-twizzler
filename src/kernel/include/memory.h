@@ -63,7 +63,6 @@ struct memregion {
 	size_t off;
 };
 
-void mm_init(void);
 void mm_init_phase_2(void);
 void arch_mm_init(void);
 uintptr_t pmm_buddy_allocate(struct mem_allocator *, size_t length);
@@ -80,25 +79,19 @@ void mm_init_region(struct memregion *reg,
 
 void *__mm_memory_alloc(size_t length, int type, bool clear, const char *, int);
 void mm_memory_dealloc(void *addr);
-uintptr_t mm_physical_early_alloc(void);
+void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align);
 void *mm_ptov(uintptr_t addr);
 uintptr_t mm_vtop(void *addr);
 uintptr_t mm_vtoo(void *addr);
 void *mm_ptov_try(uintptr_t addr);
 uintptr_t mm_otop(uintptr_t oaddr);
+void *mm_early_ptov(uintptr_t phys);
 
 void mm_update_stats(void);
 struct page_stats;
 int page_build_stats(struct page_stats *stats, int idx);
 void mm_print_stats(void);
 void mm_print_kalloc_stats(void);
-
-static inline void *mm_virtual_early_alloc(void)
-{
-	void *p = mm_ptov(mm_physical_early_alloc());
-	memset(p, 0, mm_page_size(0));
-	return p;
-}
 
 #include <krc.h>
 #include <lib/list.h>

@@ -21,6 +21,7 @@ void slot_release(struct slot *);
 void slots_init(void);
 void slot_init_bootstrap(size_t, size_t);
 
+#if 0
 /* TODO: arch-dep; larger address spaces */
 #define KVSLOT_KERNEL_IMAGE ({ vm_max_slot() - 1; })
 
@@ -48,3 +49,4 @@ void slot_init_bootstrap(size_t, size_t);
 
 #define KOSLOT_BOOTSTRAP 0
 #define KOSLOT_INIT_ALLOC 1
+#endif

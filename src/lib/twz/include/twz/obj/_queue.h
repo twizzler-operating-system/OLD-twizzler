@@ -150,6 +150,8 @@ static inline struct queue_entry *__get_entry(struct object *obj,
   int sq,
   uint32_t pos)
 {
+	panic("A");
+#if 0
 	/* a queue object already has the kbase ref count > 1 */
 	void *base = obj_get_kaddr(obj);
 	void *r =
@@ -158,6 +160,7 @@ static inline struct queue_entry *__get_entry(struct object *obj,
 	obj_release_kaddr(obj);
 	// printk("[kq] get_entry : %p\n", (char *)base + (long)r);
 	return (struct queue_entry *)((char *)base + (long)r);
+#endif
 }
 
 #else

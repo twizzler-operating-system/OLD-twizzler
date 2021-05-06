@@ -84,33 +84,13 @@ uintptr_t mm_otop(uintptr_t oaddr)
 
 uintptr_t mm_vtop(void *addr)
 {
-	uintptr_t v = (uintptr_t)addr;
-	if(v >= (uintptr_t)SLOT_TO_VADDR(KVSLOT_BOOTSTRAP)
-	   && v <= (uintptr_t)SLOT_TO_VADDR(KVSLOT_BOOTSTRAP) + (OBJ_MAXSIZE - 1)) {
-		//	printk("vtop: %p -> %lx\n", addr, (uintptr_t)addr - PHYSICAL_MAP_START);
-		return (uintptr_t)addr - PHYSICAL_MAP_START;
-	}
 	uintptr_t oaddr = mm_vtoo(addr);
 	uintptr_t paddr = mm_otop(oaddr);
-	// printk("vtop: %p -> %lx -> %lx\n", addr, oaddr, paddr);
 	return paddr;
-}
-
-void *mm_ptov_try(uintptr_t addr)
-{
-	uintptr_t p = (uintptr_t)addr;
-	if(p >= SLOT_TO_OADDR(0) && p <= SLOT_TO_OADDR(0) + (OBJ_MAXSIZE - 1)) {
-		return (void *)((uintptr_t)addr + PHYSICAL_MAP_START);
-	}
-	return NULL;
 }
 
 void *mm_ptov(uintptr_t addr)
 {
-	uintptr_t p = (uintptr_t)addr;
-	if(p >= SLOT_TO_OADDR(0) && p <= SLOT_TO_OADDR(0) + (OBJ_MAXSIZE - 1)) {
-		return (void *)((uintptr_t)addr + PHYSICAL_MAP_START);
-	}
 	panic("UNIMP");
 }
 
@@ -126,11 +106,6 @@ void mm_init_region(struct memregion *reg,
 	reg->type = type;
 	reg->subtype = st;
 	reg->off = 0;
-}
-
-void mm_init(void)
-{
-	arch_mm_init();
 }
 
 size_t mm_early_count = 0;
@@ -222,6 +197,7 @@ void mm_update_stats(void)
 
 void mm_init_phase_2(void)
 {
+#if 0
 	obj_system_init();
 	slot_init_bootstrap(KOSLOT_INIT_ALLOC, KVSLOT_ALLOC_START);
 	_initial_allocator.start = SLOT_TO_OADDR(KOSLOT_INIT_ALLOC);
@@ -244,11 +220,47 @@ void mm_init_phase_2(void)
 		}
 	}
 	slots_init();
+#endif
+	panic("A");
 
 	mm_ready = true;
 	// mm_print_stats();
 }
 
+void *mm_early_ptov(uintptr_t phys)
+{
+	return (void *)(phys += PHYSICAL_MAP_START);
+}
+
+void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align)
+{
+	if(!list_empty(&allocators)) {
+		panic("tried to early-alloc after bootstrap phase");
+	}
+	align = (align == 0) ? 8 : align;
+	foreach(e, list, &physical_regions) {
+		struct memregion *reg = list_entry(e, struct memregion, entry);
+		/* reg->ready indicates that the memory is ready for allocation -- early allocator won't
+		 * work.
+		 * */
+		if(reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE
+		   && reg->start < MEMORY_BOOTSTRAP_MAX && reg->length > 0 && reg->start > 0
+		   && !reg->ready) {
+			reg->start = align_up(reg->start, align);
+			uintptr_t alloc = reg->start;
+			reg->start += len;
+			reg->length -= len;
+			assert(alloc);
+			mm_early_count += len;
+			*phys = alloc;
+			*virt = mm_early_ptov(alloc);
+			return;
+		}
+	}
+	panic("out of early-alloc memory");
+}
+
+#if 0
 uintptr_t mm_physical_early_alloc(void)
 {
 	if(!list_empty(&allocators)) {
@@ -272,6 +284,7 @@ uintptr_t mm_physical_early_alloc(void)
 	}
 	panic("out of early-alloc memory");
 }
+#endif
 
 #include <processor.h>
 void *__mm_memory_alloc(size_t length,
@@ -327,11 +340,7 @@ void *__mm_memory_alloc(size_t length,
 	}
 	if(list_empty(&allocators)) {
 		/* still in bootstrap mode */
-		if(length != mm_page_size(0))
-			panic("tried to allocate non-page-size memory in bootstrap mode: %lx", length);
-		void *p = mm_virtual_early_alloc();
-		// printk("early alloc: %p\n", p);
-		return p;
+		panic("A");
 	}
 	spinlock_acquire_save(&allocator_lock);
 	bool old_cf = page_set_crit_flag();

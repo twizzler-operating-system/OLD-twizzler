@@ -129,6 +129,8 @@ bool arch_vm_map(struct vm_context *ctx, uintptr_t virt, uintptr_t phys, int lev
  * slots, maybe? Refcounts? */
 void arch_vm_map_object(struct vm_context *ctx, struct vmap *map, struct slot *slot)
 {
+	panic("A");
+#if 0
 	uintptr_t vaddr = (uintptr_t)SLOT_TO_VADDR(map->slot);
 	uintptr_t oaddr = SLOT_TO_OADDR(slot->num);
 	// bool is_kernel = VADDR_IS_KERNEL(vaddr);
@@ -139,10 +141,13 @@ void arch_vm_map_object(struct vm_context *ctx, struct vmap *map, struct slot *s
 	   == false) {
 		// panic("map fail");
 	}
+#endif
 }
 
 void arch_vm_unmap_object(struct vm_context *ctx, struct vmap *map)
 {
+	panic("A");
+#if 0
 	uintptr_t vaddr = (uintptr_t)SLOT_TO_VADDR(map->slot);
 
 	if(arch_vm_unmap(ctx, vaddr) == false) {
@@ -150,6 +155,7 @@ void arch_vm_unmap_object(struct vm_context *ctx, struct vmap *map)
 		panic("failed to unmap object: was already unmapped");
 #endif
 	}
+#endif
 }
 
 #define PHYS_LOAD_ADDRESS (KERNEL_PHYSICAL_BASE + KERNEL_LOAD_OFFSET)
@@ -176,24 +182,28 @@ void x86_64_vm_kernel_context_init(void)
 	if(!_init) {
 		_init = true;
 
-		uintptr_t pml4_phys = mm_physical_early_alloc();
-		uint64_t *pml4 = (uint64_t *)mm_ptov(pml4_phys);
-		memset(pml4, 0, mm_page_size(0));
+		uintptr_t pml4_phys;
+		uint64_t *pml4;
+		mm_early_alloc(&pml4_phys, (void **)&pml4, 0x1000, 0x1000);
 
-		/* init remap */
-		uintptr_t pdpt_phys = mm_physical_early_alloc();
-		uint64_t *pdpt = mm_ptov(pdpt_phys);
-		memset(pdpt, 0, mm_page_size(0));
-		size_t pml4_slot = KVSLOT_KERNEL_IMAGE / 512ul;
-		assert(KVSLOT_BOOTSTRAP / 512ul == pml4_slot);
-		size_t pdpt_slot = KVSLOT_KERNEL_IMAGE % 512ul;
-		pml4[pml4_slot] = pdpt_phys | VM_MAP_WRITE | PAGE_PRESENT; /* TODO: W^X */
+		size_t pml4_slot = PML4_IDX(KERNEL_VIRTUAL_BASE);
+		size_t pdpt_slot = PDPT_IDX(KERNEL_VIRTUAL_BASE);
+
+		uint64_t *pdpt;
+		mm_early_alloc(&pml4[pml4_slot], (void **)&pdpt, 0x1000, 0x1000);
+		pml4[pml4_slot] |= VM_MAP_WRITE | PAGE_PRESENT;
 		pdpt[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
-
-		pdpt_slot = KVSLOT_BOOTSTRAP % 512ul;
-		pdpt[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
-
 		kernel_virts_pdpt[pml4_slot / 2] = pdpt;
+
+		pml4_slot = PML4_IDX(PHYSICAL_MAP_START);
+		pdpt_slot = PDPT_IDX(PHYSICAL_MAP_START);
+
+		if(!pml4[pml4_slot]) {
+			mm_early_alloc(&pml4[pml4_slot], (void **)&pdpt, 0x1000, 0x1000);
+			pml4[pml4_slot] |= VM_MAP_WRITE | PAGE_PRESENT;
+			kernel_virts_pdpt[pml4_slot / 2] = pdpt;
+		}
+		pdpt[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
 
 		kernel_ctx.arch.kernel_pdpts = kernel_virts_pdpt;
 		kernel_ctx.arch.pml4 = pml4;

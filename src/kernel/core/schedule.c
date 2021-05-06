@@ -312,7 +312,6 @@ void thread_exit(void)
 	obj_write_data_atomic64(obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);
 	thread_wake_object(
 	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE, INT_MAX);
-	obj_free_kaddr(obj);
 	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
 	obj_put(obj);
 
@@ -360,10 +359,6 @@ struct thread *thread_create(void)
 static void __print_fault_info(struct thread *t, int fault, void *info)
 {
 	printk("unhandled fault: %ld: %d\n", t ? (long)t->id : -1, fault);
-	struct object *to = kso_get_obj(t->throbj, thr);
-	struct kso_hdr *kh = obj_get_kbase(to);
-	printk("   %s\n", kh->name);
-	obj_put(to);
 	// debug_print_backtrace();
 	switch(fault) {
 		struct fault_object_info *foi;

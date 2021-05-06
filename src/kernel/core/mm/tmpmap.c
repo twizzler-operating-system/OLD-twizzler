@@ -7,42 +7,18 @@
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>
 
-/* TODO: put this in header */
-extern struct vm_context kernel_ctx;
-
-static struct spinlock lock = SPINLOCK_INIT;
-
-static struct object tmpmap_object;
-static struct vmap tmpmap_vmap;
-
-static uint8_t *l0bitmap;
-/* TODO: this is a waste of memory */
-static uint8_t *l1bitmap;
-
-static size_t alloced = 0;
-
 void tmpmap_collect_stats(struct memory_stats *stats)
 {
-	stats->tmpmap_used = alloced;
 }
 
 __initializer static void tmpmap_init(void)
 {
-	obj_init(&tmpmap_object);
-	tmpmap_object.flags = OF_KERNEL;
-	vm_vmap_init(&tmpmap_vmap, &tmpmap_object, KVSLOT_TMP_MAP, VM_MAP_WRITE | VM_MAP_GLOBAL);
-	vm_context_map(&kernel_ctx, &tmpmap_vmap);
-
-	obj_alloc_kernel_slot(&tmpmap_object);
-
-	arch_vm_map_object(&kernel_ctx, &tmpmap_vmap, tmpmap_object.kslot);
-	l0bitmap = mm_memory_alloc((OBJ_MAXSIZE / mm_page_size(0)) / 8, PM_TYPE_DRAM, true);
-	l1bitmap = mm_memory_alloc((OBJ_MAXSIZE / mm_page_size(1)) / 8, PM_TYPE_DRAM, true);
 }
 
 //#include <processor.h>
 void tmpmap_unmap_page(void *addr)
 {
+#if 0
 	uintptr_t virt = (uintptr_t)addr - (uintptr_t)SLOT_TO_VADDR(KVSLOT_TMP_MAP);
 	int level = 0;
 	if(virt >= OBJ_MAXSIZE / 2) {
@@ -69,10 +45,13 @@ void tmpmap_unmap_page(void *addr)
 	//	  PROCESSOR_IPI_DEST_OTHERS, PROCESSOR_IPI_SHOOTDOWN, NULL, PROCESSOR_IPI_NOWAIT);
 
 	spinlock_release_restore(&lock);
+#endif
+	panic("TMPMAP");
 }
 
 void *tmpmap_map_page(struct page *page)
 {
+#if 0
 	uintptr_t virt;
 	spinlock_acquire_save(&lock);
 
@@ -110,4 +89,6 @@ void *tmpmap_map_page(struct page *page)
 	/* TODO: better invalidation */
 	// printk("tmpmap: %lx %lx\n", virt, SLOT_TO_VADDR(KVSLOT_TMP_MAP));
 	return (void *)(virt + (uintptr_t)SLOT_TO_VADDR(KVSLOT_TMP_MAP));
+#endif
+	panic("TMPMAP");
 }

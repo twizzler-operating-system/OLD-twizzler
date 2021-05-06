@@ -493,7 +493,8 @@ static void __lookup_perms(struct sctx *sc,
 		return;
 	}
 	spinlock_release_restore(&sc->cache_lock);
-	char *kbase = obj_get_kbase(sc->obj);
+	panic("A");
+	char *kbase = NULL; // obj_get_kbase(sc->obj);
 	struct secctx *ctx = (void *)kbase;
 
 	uint32_t perms = 0;
@@ -506,9 +507,11 @@ static void __lookup_perms(struct sctx *sc,
 	do {
 		struct scbucket *b;
 		b = (void *)(kbase + sizeof(*ctx) + sizeof(*b) * slot);
+#if 0
 		if(!obj_kaddr_valid(sc->obj, b, sizeof(*b))) {
 			break;
 		}
+#endif
 
 		if(b->target == target->id) {
 			EPRINTK("    - lookup_perms: found!: %x %lx\n", b->pmask, b->flags);

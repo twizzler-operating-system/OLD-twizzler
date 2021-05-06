@@ -17,7 +17,8 @@ bool arch_object_getmap_slot_flags(struct object_space *space, struct slot *slot
 	if(!space)
 		space = current_thread ? &current_thread->active_sc->space : &_bootstrap_object_space;
 
-	uintptr_t virt = SLOT_TO_OADDR(slot->num);
+	panic("A");
+	uintptr_t virt = 0;
 	int pml4_idx = PML4_IDX(virt);
 	int pdpt_idx = PDPT_IDX(virt);
 
@@ -119,7 +120,8 @@ void arch_object_unmap_slot(struct object_space *space, struct slot *slot)
 	if(!space)
 		space = current_thread ? &current_thread->active_sc->space : &_bootstrap_object_space;
 
-	uintptr_t virt = SLOT_TO_OADDR(slot->num);
+	panic("A");
+	uintptr_t virt = 0;
 	int pml4_idx = PML4_IDX(virt);
 	int pdpt_idx = PDPT_IDX(virt);
 
@@ -155,7 +157,8 @@ void arch_object_map_slot(struct object_space *space,
 	if(!space)
 		space = current_thread ? &current_thread->active_sc->space : &_bootstrap_object_space;
 
-	uintptr_t virt = SLOT_TO_OADDR(slot->num);
+	panic("A");
+	uintptr_t virt = 0;
 	int pml4_idx = PML4_IDX(virt);
 	int pdpt_idx = PDPT_IDX(virt);
 
@@ -268,16 +271,14 @@ bool arch_object_getmap(struct object *obj,
 	return true;
 }
 
-bool arch_object_map_page(struct object *obj, struct objpage *op)
+bool arch_object_map_page(struct object *obj, size_t idx, struct page *page, int mapflags)
 {
-	assert(op->page->level == 0 || op->page->level == 1);
-	assert(op->page->addr);
-	assert((op->page->addr & (mm_page_size(op->page->level) - 1)) == 0);
-	uintptr_t virt = op->idx * mm_page_size(op->page->level);
+	assert(page->addr);
+	uintptr_t virt = idx * mm_page_size(0);
 	int pd_idx = PD_IDX(virt);
 	int pt_idx = PT_IDX(virt);
 	uint64_t flags = 0;
-	switch(PAGE_CACHE_TYPE(op->page)) {
+	switch(PAGE_CACHE_TYPE(page)) {
 		default:
 		case PAGE_CACHE_WB:
 			flags = EPT_MEMTYPE_WB;
@@ -295,26 +296,21 @@ bool arch_object_map_page(struct object *obj, struct objpage *op)
 
 	/* map with ALL permissions; we'll restrict permissions at a higher level */
 	flags |= EPT_READ | EPT_WRITE | EPT_EXEC | EPT_IGNORE_PAT; /* TODO: should we ignore PAT? */
-	if((op->flags & OBJPAGE_COW) && !(obj->flags & OF_KERNEL)) {
+	if((mapflags & PAGE_MAP_COW)) {
 		flags &= ~EPT_WRITE;
 	}
 
 	if(flags & EPT_WRITE) {
 		/* TODO: set this if the page is actually dirty only */
-		op->page->flags &= ~PAGE_ZERO;
+		page->flags &= ~PAGE_ZERO;
 	}
 
-	if(op->page->level == 1) {
-		obj->arch.pd[pd_idx] = op->page->addr | flags | PAGE_LARGE;
-	} else {
-		if(!obj->arch.pts[pd_idx]) {
-			obj->arch.pts[pd_idx] = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
-			obj->arch.pd[pd_idx] = mm_vtop(obj->arch.pts[pd_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC;
-			//	printk(";; %lx\n", obj->arch.pd[pd_idx]);
-		}
-		uint64_t *pt = obj->arch.pts[pd_idx];
-		pt[pt_idx] = op->page->addr | flags;
+	if(!obj->arch.pts[pd_idx]) {
+		obj->arch.pts[pd_idx] = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+		obj->arch.pd[pd_idx] = mm_vtop(obj->arch.pts[pd_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC;
 	}
+	uint64_t *pt = obj->arch.pts[pd_idx];
+	pt[pt_idx] = page->addr | flags;
 	return true;
 }
 

@@ -20,11 +20,6 @@ static struct spinlock lock = SPINLOCK_INIT;
 
 static uintptr_t start = 0;
 
-static struct object pmap_object;
-static struct vmap pmap_vmap;
-
-static struct arena pmap_arena;
-
 static struct rbroot root = RBINIT;
 
 void pmap_collect_stats(struct memory_stats *stats)
@@ -49,19 +44,11 @@ static int __pmap_compar(struct pmap *a, struct pmap *b)
 
 static void pmap_init(void)
 {
-	obj_init(&pmap_object);
-	pmap_object.flags = OF_KERNEL;
-	vm_vmap_init(&pmap_vmap, &pmap_object, KVSLOT_PMAP, VM_MAP_WRITE | VM_MAP_GLOBAL);
-	vm_context_map(&kernel_ctx, &pmap_vmap);
-
-	obj_alloc_kernel_slot(&pmap_object);
-	arena_create(&pmap_arena);
-
-	arch_vm_map_object(&kernel_ctx, &pmap_vmap, pmap_object.kslot);
 }
 
 static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 {
+#if 0
 	struct pmap *pmap;
 	struct rbnode *node = rb_search(&root, phys, struct pmap, node, __pmap_compar_key);
 	if(!node) {
@@ -85,6 +72,8 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 	}
 
 	return pmap;
+#endif
+	panic("A");
 }
 
 void *pmap_allocate(uintptr_t phys, size_t len, int cache_type)
@@ -107,6 +96,7 @@ void *pmap_allocate(uintptr_t phys, size_t len, int cache_type)
 			virt = pmap->virt;
 	}
 	spinlock_release_restore(&lock);
+	panic("A");
 	// printk("pmap alloc %lx:%lx -> %lx\n", phys, phys + len - 1, virt + off);
-	return (void *)(virt + off + (uintptr_t)SLOT_TO_VADDR(KVSLOT_PMAP));
+	// return (void *)(virt + off + (uintptr_t)SLOT_TO_VADDR(KVSLOT_PMAP));
 }

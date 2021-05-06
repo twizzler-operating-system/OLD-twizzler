@@ -96,7 +96,6 @@ void vm_context_destroy(struct vm_context *v)
 #if CONFIG_DEBUG_OBJECT_SLOT
 	printk("VM_CONTEXT_DESTROY OBJ: " IDFMT "\n", IDPR(obj->id));
 #endif
-	obj_free_kaddr(obj);
 	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
 	obj_put(obj);
 
@@ -340,64 +339,6 @@ static inline void popul_info(struct fault_object_info *info,
 	*info = twz_fault_build_object_info(objid, (void *)ip, (void *)addr, iflags);
 }
 
-static void vm_kernel_alloc_slot(struct object *obj)
-{
-	spinlock_acquire_save(&kvmap_lock);
-	static ssize_t counter = -1;
-	if(counter == -1)
-		counter = KVSLOT_START;
-
-	struct vmap *m;
-	if(list_empty(&kvmap_stack)) {
-		m = slabcache_alloc(&sc_vmap);
-		if((size_t)counter == KVSLOT_MAX) {
-			panic("out of kvslots");
-		}
-		m->slot = counter++;
-	} else {
-		struct list *e = list_pop(&kvmap_stack);
-		m = list_entry(e, struct vmap, entry);
-	}
-
-	vm_vmap_init(m, obj, m->slot, VE_READ | VE_WRITE);
-	spinlock_release_restore(&kvmap_lock);
-
-	obj->kvmap = m;
-}
-
-void vm_kernel_map_object(struct object *obj)
-{
-	assert(obj->kslot);
-	assert(!obj->kvmap);
-
-	vm_kernel_alloc_slot(obj);
-	spinlock_acquire_save(&kernel_ctx.lock);
-	vm_context_map(&kernel_ctx, obj->kvmap);
-	arch_vm_map_object(&kernel_ctx, obj->kvmap, obj->kslot);
-	spinlock_release_restore(&kernel_ctx.lock);
-}
-
-void vm_kernel_unmap_object(struct object *obj)
-{
-	struct vmap *vmap = obj->kvmap;
-	obj->kvmap = NULL;
-
-	spinlock_acquire_save(&kernel_ctx.lock);
-	arch_vm_unmap_object(&kernel_ctx, vmap);
-	struct object *xobj = vmap->obj;
-	vmap->obj = NULL;
-	rb_delete(&vmap->node, &kernel_ctx.root);
-	spinlock_release_restore(&kernel_ctx.lock);
-
-	spinlock_acquire_save(&kvmap_lock);
-
-	list_insert(&kvmap_stack, &vmap->entry);
-
-	spinlock_release_restore(&kvmap_lock);
-
-	obj_put(xobj);
-}
-
 #include <queue.h>
 static int __do_map(struct vm_context *ctx,
   uintptr_t ip,
@@ -407,8 +348,7 @@ static int __do_map(struct vm_context *ctx,
   bool wire)
 {
 	size_t slot = addr / mm_page_size(MAX_PGLEVEL);
-	if(slot >= KVSLOT_START)
-		return -EPERM;
+	panic("ensure addr is user");
 	struct vmap *map = NULL;
 	spinlock_acquire_save(&ctx->lock);
 	struct rbnode *node = rb_search(&ctx->root, slot, struct vmap, node, vmap_compar_key);

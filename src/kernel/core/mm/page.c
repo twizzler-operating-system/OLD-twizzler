@@ -238,6 +238,7 @@ void page_print_stats(void)
 
 void page_init_bootstrap(void)
 {
+#if 0
 	/* bootstrap page allocator */
 	for(int c = 0; c < 1024; c++) {
 		struct page *pages = mm_virtual_early_alloc();
@@ -264,6 +265,7 @@ void page_init_bootstrap(void)
 			mm_page_bootstrap_count++;
 		}
 	}
+#endif
 }
 
 void page_init(struct memregion *region)
@@ -318,11 +320,9 @@ void page_init(struct memregion *region)
 #include <tmpmap.h>
 static void page_zero(struct page *p)
 {
+	panic("A");
+#if 0
 	void *va = mm_ptov_try(p->addr);
-	if(va == (void *)0xfffffffffffffffful) {
-		/* TODO */
-		panic("SAD! :: %lx\n", p->addr);
-	}
 	if(va) {
 		memset(va, 0, mm_page_size(p->level));
 		p->flags |= PAGE_ZERO;
@@ -338,6 +338,7 @@ static void page_zero(struct page *p)
 	memset(addr, 0, mm_page_size(p->level));
 	tmpmap_unmap_page(addr);
 	p->flags |= PAGE_ZERO;
+#endif
 }
 
 /* deallocation strategy:
@@ -456,6 +457,7 @@ static bool __do_page_split(struct page_group *group, bool simple)
 
 struct page *page_alloc(int type __unused, int flags, int level)
 {
+	printk("TODO: simplify -- can we get rid of the whole recursive thing?\n");
 	struct page_group *pg = NULL;
 	if(!mm_ready) {
 		level = 0;

@@ -189,7 +189,8 @@ static void load_object_data(struct object *obj, char *tardata, size_t tarlen)
 
 		// printk("Loading object " IDFMT "\r", IDPR(obj->id));
 		for(size_t i = idx; i < idx + len / mm_page_size(0); i++) {
-			obj_cache_page(obj, i * mm_page_size(0), page_alloc(PAGE_TYPE_VOLATILE, 0, 0));
+			panic("A");
+			// obj_cache_page(obj, i * mm_page_size(0), page_alloc(PAGE_TYPE_VOLATILE, 0, 0));
 		}
 		obj_write_data(obj, idx * mm_page_size(0) - OBJ_NULLPAGE_SIZE, len, data);
 		h = (struct ustar_header *)((char *)h + 512 + reclen);
@@ -336,7 +337,8 @@ static void __late_init_framebuffer(void *a __unused)
 		pg->flags |= PAGE_CACHE_WC;
 		pg->level = 1;
 		size_t amount = mm_page_size(1);
-		obj_cache_page(fb_obj, start, pg);
+		panic("A");
+		// obj_cache_page(fb_obj, start, pg);
 		if(sz < amount)
 			sz = 0;
 		else
@@ -357,126 +359,137 @@ void x86_64_init(uint32_t magic, struct multiboot *mth)
 	x86_feature_detect();
 	proc_init();
 
-	// void (*initrd_hook)(void *) = NULL;
-	if(magic == MULTIBOOT2_BOOTLOADER_MAGIC) {
-		struct multiboot_info *info = (void *)mth;
-		struct multiboot_tag *tag;
-		struct multiboot_tag_mmap *mmap_tag = NULL;
-		struct multiboot_tag_module *module_tag = NULL;
-		for(char *t = info->tags; t < info->tags + (info->total_size - sizeof(*info));
-		    t += align_up(tag->size, 8)) {
-			tag = (void *)t;
-			switch(tag->type) {
-				struct multiboot_tag_old_acpi *acpi_old_tag;
-				struct multiboot_tag_new_acpi *acpi_new_tag;
-				struct multiboot_tag_framebuffer *framebuffer_hdr;
-				case MULTIBOOT_TAG_TYPE_END:
-					/* force loop to exit */
-					t = info->tags + info->total_size;
-					break;
-				case MULTIBOOT_TAG_TYPE_MMAP:
-					mmap_tag = (void *)tag;
-					break;
-				case MULTIBOOT_TAG_TYPE_MODULE:
-					module_tag = (void *)tag;
-					break;
-				case MULTIBOOT_TAG_TYPE_ACPI_OLD:
-					acpi_old_tag = (void *)tag;
-					acpi_set_rsdp(acpi_old_tag->rsdp, tag->size - sizeof(*acpi_old_tag));
-					break;
-				case MULTIBOOT_TAG_TYPE_ACPI_NEW:
-					acpi_new_tag = (void *)tag;
-					acpi_set_rsdp(acpi_new_tag->rsdp, tag->size - sizeof(*acpi_new_tag));
-					break;
-				case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-					framebuffer_hdr = (void *)tag;
-					printk("[boot] multiboot framebuffer: addr=%llx, %d %d %d, bpp=%d, type=%d\n",
-					  framebuffer_hdr->common.framebuffer_addr,
-					  framebuffer_hdr->common.framebuffer_width,
-					  framebuffer_hdr->common.framebuffer_height,
-					  framebuffer_hdr->common.framebuffer_pitch,
-					  framebuffer_hdr->common.framebuffer_bpp,
-					  framebuffer_hdr->common.framebuffer_type);
-					fbinfo = *framebuffer_hdr;
-					found_fbinfo = true;
-					break;
-			}
-		}
-		if(!mmap_tag)
-			panic("multiboot2 information structure did not contain memory maps.");
-
-		/* do the memory map processing later, since we'll need to not report regions taken up by
-		 * the kernel, or by modules */
-		size_t nr_entries = (mmap_tag->size - sizeof(*mmap_tag)) / mmap_tag->entry_size;
-		uintptr_t ks_addr = align_down(PHYS((uintptr_t)&kernel_start), 0x1000);
-		uintptr_t ke_addr = align_up(PHYS((uintptr_t)&kernel_end), 0x1000);
-		uintptr_t ms = module_tag ? align_down(module_tag->mod_start, 0x1000) : 0;
-		uintptr_t me = module_tag ? align_up(module_tag->mod_end, 0x1000) : 0;
-
-		x86_64_register_kernel_region(ks_addr, ke_addr - ks_addr);
-		x86_64_register_initrd_region(ms, me - ms);
-
-		for(size_t i = 0; i < nr_entries; i++) {
-			struct multiboot_mmap_entry *entry =
-			  (void *)((char *)mmap_tag->entries + i * mmap_tag->entry_size);
-
-			if(entry->type == MULTIBOOT_MEMORY_PERSISTENT) {
-				/* we parse the ACPI NFIT table for this */
-				continue;
-			}
-			size_t processed_len;
-			for(size_t off = 0; off < entry->len; off += processed_len) {
-				processed_len = entry->len - off;
-
-				if(module_tag && ms == entry->addr + off) {
-					/* skip to the end of the module */
-					processed_len = me - ms;
-					continue;
-				} else if(module_tag && ms > entry->addr + off && ms < entry->addr + entry->len) {
-					/* start of module is within this region, but there's some free memory here. */
-					processed_len = ms - (off + entry->addr);
-				} else if(module_tag && me > entry->addr + off && me < entry->addr + entry->len) {
-					/* the end of the module is in this region; skip to the end. */
-					processed_len = me - (off + entry->addr);
-					continue;
-				}
-
-				if(ks_addr == entry->addr + off) {
-					/* skip to the end of the module */
-					processed_len = ke_addr - ks_addr;
-					continue;
-				} else if(ks_addr > entry->addr + off && ks_addr < entry->addr + processed_len) {
-					/* start of module is within this region, but there's some free memory here. */
-					processed_len = ks_addr - (off + entry->addr);
-				} else if(ke_addr > entry->addr + off && ke_addr < entry->addr + processed_len) {
-					/* the end of the module is in this region; skip to the end. */
-					processed_len = ke_addr - (off + entry->addr);
-					continue;
-				}
-
-				assert(processed_len > 0);
-
-				if(off + processed_len > entry->len) {
-					processed_len = entry->len - off;
-				}
-
-				x86_64_memory_record(entry->addr + off,
-				  processed_len,
-				  memory_type_map(entry->type),
-				  memory_subtype_map(entry->type));
-			}
-		}
-		if(module_tag) {
-			mod_start = mm_ptov(module_tag->mod_start);
-			mod_len = module_tag->mod_end - module_tag->mod_start;
-		}
-	} else if(magic == 0x2BADB002) {
-		panic("Twizzler no longer supports multiboot 1; please upgrade to multiboot 2");
-	} else {
+	if(magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
 		panic("unknown bootloader type!");
 	}
+	struct multiboot_info *info = (void *)mth;
+	struct multiboot_tag *tag;
+	struct multiboot_tag_mmap *mmap_tag = NULL;
+	struct multiboot_tag_module *module_tag = NULL;
+	struct multiboot_tag_elf_sections *elf_sections = NULL;
+	for(char *t = info->tags; t < info->tags + (info->total_size - sizeof(*info));
+	    t += align_up(tag->size, 8)) {
+		tag = (void *)t;
+		switch(tag->type) {
+			struct multiboot_tag_old_acpi *acpi_old_tag;
+			struct multiboot_tag_new_acpi *acpi_new_tag;
+			struct multiboot_tag_framebuffer *framebuffer_hdr;
+			case MULTIBOOT_TAG_TYPE_END:
+				/* force loop to exit */
+				t = info->tags + info->total_size;
+				break;
+			case MULTIBOOT_TAG_TYPE_MMAP:
+				mmap_tag = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_MODULE:
+				module_tag = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_ACPI_OLD:
+				acpi_old_tag = (void *)tag;
+				acpi_set_rsdp(acpi_old_tag->rsdp, tag->size - sizeof(*acpi_old_tag));
+				break;
+			case MULTIBOOT_TAG_TYPE_ACPI_NEW:
+				acpi_new_tag = (void *)tag;
+				acpi_set_rsdp(acpi_new_tag->rsdp, tag->size - sizeof(*acpi_new_tag));
+				break;
+			case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
+				elf_sections = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
+				framebuffer_hdr = (void *)tag;
+				printk("[boot] multiboot framebuffer: addr=%llx, %d %d %d, bpp=%d, type=%d\n",
+				  framebuffer_hdr->common.framebuffer_addr,
+				  framebuffer_hdr->common.framebuffer_width,
+				  framebuffer_hdr->common.framebuffer_height,
+				  framebuffer_hdr->common.framebuffer_pitch,
+				  framebuffer_hdr->common.framebuffer_bpp,
+				  framebuffer_hdr->common.framebuffer_type);
+				fbinfo = *framebuffer_hdr;
+				found_fbinfo = true;
+				break;
+		}
+	}
+	if(!mmap_tag)
+		panic("multiboot2 information structure did not contain memory maps.");
 
-	kernel_early_init();
+	/* do the memory map processing later, since we'll need to not report regions taken up by
+	 * the kernel, or by modules */
+	size_t nr_entries = (mmap_tag->size - sizeof(*mmap_tag)) / mmap_tag->entry_size;
+	uintptr_t ks_addr = align_down(PHYS((uintptr_t)&kernel_start), 0x1000);
+	uintptr_t ke_addr = align_up(PHYS((uintptr_t)&kernel_end), 0x1000);
+	uintptr_t ms = module_tag ? align_down(module_tag->mod_start, 0x1000) : 0;
+	uintptr_t me = module_tag ? align_up(module_tag->mod_end, 0x1000) : 0;
+
+	x86_64_register_kernel_region(ks_addr, ke_addr - ks_addr);
+	x86_64_register_initrd_region(ms, me - ms);
+
+	for(size_t i = 0; i < nr_entries; i++) {
+		struct multiboot_mmap_entry *entry =
+		  (void *)((char *)mmap_tag->entries + i * mmap_tag->entry_size);
+
+		if(entry->type == MULTIBOOT_MEMORY_PERSISTENT) {
+			/* we parse the ACPI NFIT table for this */
+			continue;
+		}
+		size_t processed_len;
+		for(size_t off = 0; off < entry->len; off += processed_len) {
+			processed_len = entry->len - off;
+
+			if(module_tag && ms == entry->addr + off) {
+				/* skip to the end of the module */
+				processed_len = me - ms;
+				continue;
+			} else if(module_tag && ms > entry->addr + off && ms < entry->addr + entry->len) {
+				/* start of module is within this region, but there's some free memory here. */
+				processed_len = ms - (off + entry->addr);
+			} else if(module_tag && me > entry->addr + off && me < entry->addr + entry->len) {
+				/* the end of the module is in this region; skip to the end. */
+				processed_len = me - (off + entry->addr);
+				continue;
+			}
+
+			if(ks_addr == entry->addr + off) {
+				/* skip to the end of the module */
+				processed_len = ke_addr - ks_addr;
+				continue;
+			} else if(ks_addr > entry->addr + off && ks_addr < entry->addr + processed_len) {
+				/* start of module is within this region, but there's some free memory here. */
+				processed_len = ks_addr - (off + entry->addr);
+			} else if(ke_addr > entry->addr + off && ke_addr < entry->addr + processed_len) {
+				/* the end of the module is in this region; skip to the end. */
+				processed_len = ke_addr - (off + entry->addr);
+				continue;
+			}
+
+			assert(processed_len > 0);
+
+			if(off + processed_len > entry->len) {
+				processed_len = entry->len - off;
+			}
+
+			x86_64_memory_record(entry->addr + off,
+			  processed_len,
+			  memory_type_map(entry->type),
+			  memory_subtype_map(entry->type));
+		}
+	}
+	if(module_tag) {
+		mod_start = mm_early_ptov(module_tag->mod_start);
+		mod_len = module_tag->mod_end - module_tag->mod_start;
+	}
+
+	arch_mm_init();
+
+	if(elf_sections) {
+		debug_elf_register_sections((Elf64_Shdr *)elf_sections->sections,
+		  elf_sections->num,
+		  elf_sections->entsize,
+		  elf_sections->shndx);
+	}
+
+	processor_percpu_regions_init();
+	processor_early_init();
+
 	x86_64_lapic_init_percpu();
 
 	/* need to wait on this until here because this requires memory allocation */
@@ -587,11 +600,11 @@ void arch_processor_early_init(struct processor *proc)
 {
 	/* TODO: some of this can be free'd later. Implement a system to free early_memory. Add it to a
 	 * list, and then after init call some function that converts these to usable pages? */
-	proc->arch.hyper_stack = mm_virtual_early_alloc();
-	proc->arch.kernel_stack = mm_virtual_early_alloc();
-	proc->arch.veinfo = mm_virtual_early_alloc();
-	proc->arch.vmcs = mm_physical_early_alloc();
-	proc->arch.vmxon_region = mm_physical_early_alloc();
+	mm_early_alloc(NULL, &proc->arch.hyper_stack, 0x1000, 0);
+	mm_early_alloc(NULL, &proc->arch.kernel_stack, 0x1000, 0);
+	mm_early_alloc(NULL, (void **)&proc->arch.veinfo, 0x1000, 0x1000);
+	mm_early_alloc(&proc->arch.vmcs, NULL, 0x1000, 0x1000);
+	mm_early_alloc(&proc->arch.vmxon_region, NULL, 0x1000, 0x1000);
 }
 
 void arch_processor_init(struct processor *proc)
