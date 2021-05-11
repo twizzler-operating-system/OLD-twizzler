@@ -47,10 +47,14 @@ void debug_elf_register_sections(Elf64_Shdr *_sections, size_t num, size_t entsi
 		size_t s;
 		if(sh->sh_type == SHT_SYMTAB)
 			s = SECTION_SYMTAB;
-		else if(i == stridx)
-			s = SECTION_STRSHTAB;
-		else
-			s = SECTION_STRTAB;
+		else if(sh->sh_type == SHT_STRTAB) {
+			if(i == stridx)
+				s = SECTION_STRSHTAB;
+			else
+				s = SECTION_STRTAB;
+		} else {
+			continue;
+		}
 		mm_early_alloc(NULL, &sections[s].addr, sh->sh_size, 0);
 		memcpy(sections[s].addr, (void *)sh->sh_addr, sh->sh_size);
 		sections[s].len = sh->sh_size;

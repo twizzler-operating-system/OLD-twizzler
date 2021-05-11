@@ -1,4 +1,3 @@
-#include <arena.h>
 #include <clksrc.h>
 #include <debug.h>
 #include <device.h>
@@ -38,16 +37,10 @@ struct object *get_system_object(void)
 	return system_bus; /* krc: move */
 }
 
-static struct arena post_init_call_arena;
 static struct init_call *post_init_call_head = NULL;
 
-void post_init_call_register(bool ac, void (*fn)(void *), void *data)
+void post_init_call_register(struct init_call *ic, bool ac, void (*fn)(void *), void *data)
 {
-	if(post_init_call_head == NULL) {
-		arena_create(&post_init_call_arena);
-	}
-
-	struct init_call *ic = arena_allocate(&post_init_call_arena, sizeof(struct init_call));
 	ic->fn = fn;
 	ic->data = data;
 	ic->allcpus = ac;
@@ -73,20 +66,16 @@ extern int kernel_init_array_end;
  */
 void kernel_init(void)
 {
-	page_init_bootstrap();
 	mm_init_phase_2();
 	uint64_t *init_arr = (uint64_t *)&kernel_init_array_start;
 	uint64_t *init_arr_stop = (uint64_t *)&kernel_init_array_end;
 	while(init_arr != init_arr_stop) {
-		// printk(":::: %p\n", *init_arr);
 		if(*init_arr) {
 			void (*fn)() = (void (*)()) * init_arr;
 			fn();
 		}
 		init_arr++;
 	}
-	// printk(":::: %p\n", *init_arr);
-	//_init();
 	processor_init_secondaries();
 }
 
@@ -218,7 +207,7 @@ void kernel_main(struct processor *proc)
 	processor_barrier(&kernel_main_barrier);
 
 	if(proc->flags & PROCESSOR_BSP) {
-		arena_destroy(&post_init_call_arena);
+		panic("todo: free these");
 		post_init_call_head = NULL;
 
 		// bench();

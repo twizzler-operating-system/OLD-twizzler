@@ -479,24 +479,15 @@ static uint64_t read_efer(void)
 
 static void __init_ept_root(void)
 {
-	if(_bootstrap_object_space.arch.ept_phys)
+	if(_bootstrap_object_space.arch.root.phys)
 		return;
 	/* identity-map the first GB of memory. That should be enough to get us going. */
-	uintptr_t pml4phys;
-	uint64_t *pml4;
-	mm_early_alloc(&pml4phys, (void **)&pml4, 0x1000, 0x1000);
-
-	uint64_t *pdpt;
-	mm_early_alloc(&pml4[0], (void **)&pdpt, 0x1000, 0x1000);
-
-	pml4[0] |= EPT_READ | EPT_WRITE | EPT_EXEC;
-	pdpt[0] |= EPT_IGNORE_PAT | EPT_MEMTYPE_WB | EPT_READ | EPT_WRITE | EPT_EXEC | PAGE_LARGE;
-
-	_bootstrap_object_space.arch.ept = pml4;
-	_bootstrap_object_space.arch.ept_phys = pml4phys;
-	mm_early_alloc(NULL, (void **)&_bootstrap_object_space.arch.pdpts, 0x1000, 0x1000);
-	mm_early_alloc(NULL, (void **)&_bootstrap_object_space.arch.counts, 0x1000, 0x1000);
-	_bootstrap_object_space.arch.pdpts[0] = pdpt;
+	table_map(&_bootstrap_object_space.arch.root,
+	  0,
+	  0,
+	  2,
+	  EPT_READ | EPT_WRITE | EPT_EXEC | EPT_MEMTYPE_WB | EPT_IGNORE_PAT,
+	  EPT_READ | EPT_WRITE | EPT_EXEC);
 }
 
 void vmexit_point(void);
@@ -641,20 +632,20 @@ static void vtx_setup_vcpu(struct processor *proc)
 		vmcs_writel(VMCS_VMFUNC_CONTROLS, 1 /* enable EPT-switching */);
 		uintptr_t el_phys;
 		mm_early_alloc(&el_phys, (void **)&proc->arch.eptp_list, 0x1000, 0x1000);
-		proc->arch.eptp_list[0] = _bootstrap_object_space.arch.ept_phys | (3 << 3) | 6;
+		proc->arch.eptp_list[0] = _bootstrap_object_space.arch.root.phys | (3 << 3) | 6;
 		vmcs_writel(VMCS_EPTP_LIST, el_phys);
 	}
 
 	/* TODO (minor): veinfo needs to be page-aligned, but we're over-allocating here */
 	if(support_virt_exception) {
 		vmcs_writel(VMCS_EPTP_INDEX, 0);
-		vmcs_writel(VMCS_VIRT_EXCEPTION_INFO_ADDR, mm_vtop(proc->arch.veinfo));
+		vmcs_writel(VMCS_VIRT_EXCEPTION_INFO_ADDR, proc->arch.veinfo_phys);
 	}
 
 	vmcs_writel(VMCS_HOST_RIP, (uintptr_t)vmexit_point);
 	vmcs_writel(VMCS_HOST_RSP, (uintptr_t)proc->arch.vcpu_state_regs);
 
-	vmcs_writel(VMCS_EPT_PTR, (uintptr_t)_bootstrap_object_space.arch.ept_phys | (3 << 3) | 6);
+	vmcs_writel(VMCS_EPT_PTR, (uintptr_t)_bootstrap_object_space.arch.root.phys | (3 << 3) | 6);
 	proc->arch.veinfo->lock = 0;
 }
 
@@ -744,7 +735,7 @@ void x86_64_switch_ept(uintptr_t root)
 void x86_64_secctx_switch(struct sctx *s)
 {
 	struct object_space *space = s ? &s->space : &_bootstrap_object_space;
-	x86_64_switch_ept(space->arch.ept_phys);
+	x86_64_switch_ept(space->arch.root.phys);
 }
 
 void x86_64_virtualization_fault(struct processor *proc)

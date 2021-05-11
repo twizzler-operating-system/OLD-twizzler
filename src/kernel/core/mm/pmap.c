@@ -1,4 +1,3 @@
-#include <arena.h>
 #include <memory.h>
 #include <object.h>
 #include <pmap.h>
@@ -18,8 +17,10 @@ struct pmap {
 
 static struct spinlock lock = SPINLOCK_INIT;
 
-static uintptr_t start = 0;
+#define PMAP_MAX 1024 * 1024 * 1024
 
+static uintptr_t start = KERNEL_VIRTUAL_PMAP_BASE;
+static uintptr_t oaddr_start = 0;
 static struct rbroot root = RBINIT;
 
 void pmap_collect_stats(struct memory_stats *stats)
@@ -42,47 +43,52 @@ static int __pmap_compar(struct pmap *a, struct pmap *b)
 	return __pmap_compar_key(a, b->phys | b->page.flags);
 }
 
-static void pmap_init(void)
-{
-}
-
 static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 {
-#if 0
+	if(oaddr_start == 0) {
+		oaddr_start = mm_objspace_reserve(PMAP_MAX);
+	}
 	struct pmap *pmap;
 	struct rbnode *node = rb_search(&root, phys, struct pmap, node, __pmap_compar_key);
 	if(!node) {
-		pmap = arena_allocate(&pmap_arena, sizeof(struct pmap));
+		pmap = kalloc(sizeof(struct pmap), 0);
 		pmap->phys = phys;
 		pmap->virt = start;
 		start += mm_page_size(0);
-		pmap->page.flags = cache_type;
-		pmap->page.addr = phys;
-		pmap->page.level = 0;
 		rb_insert(&root, pmap, struct pmap, node, __pmap_compar);
 
-		obj_cache_page(&pmap_object, pmap->virt, &pmap->page);
-
+		uintptr_t oaddr = oaddr_start;
+		oaddr_start += mm_page_size(0);
+		mm_map(
+		  pmap->virt, oaddr, mm_page_size(0), MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+		struct page page = {
+			.addr = phys,
+		};
+		mm_objspace_fill(oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
 	} else {
 		pmap = rb_entry(node, struct pmap, node);
 		if(remap) {
-			obj_cache_page(&pmap_object, start, &pmap->page);
+			uintptr_t oaddr = oaddr_start;
+			oaddr_start += mm_page_size(0);
+			mm_map(pmap->virt,
+			  oaddr,
+			  mm_page_size(0),
+			  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+			struct page page = {
+				.addr = phys,
+			};
+			mm_objspace_fill(oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+			pmap->virt = start;
 			start += mm_page_size(0);
 		}
 	}
 
 	return pmap;
-#endif
 	panic("A");
 }
 
 void *pmap_allocate(uintptr_t phys, size_t len, int cache_type)
 {
-	static bool pmap_inited = false;
-	if(!pmap_inited) {
-		pmap_inited = true;
-		pmap_init();
-	}
 	size_t off = phys % mm_page_size(0);
 	len += phys % mm_page_size(0);
 	phys = align_down(phys, mm_page_size(0));

@@ -67,7 +67,8 @@ static void _pf_dtor(void *_u, void *ptr)
 
 __initializer static void _init_objs(void)
 {
-	slabcache_init(&sc_pcief, "sc_pcief", sizeof(struct pcie_function), _pf_ctor, _pf_dtor, NULL);
+	slabcache_init(
+	  &sc_pcief, "sc_pcief", sizeof(struct pcie_function), NULL, _pf_ctor, NULL, _pf_dtor, NULL);
 }
 
 #include <lib/iter.h>
@@ -112,6 +113,7 @@ static void __alloc_bar(struct object *obj,
   uintptr_t addr)
 {
 	while(sz > 0) {
+		/*
 		struct page *pg = page_alloc_nophys();
 		pg->addr = addr;
 		pg->type = PAGE_TYPE_MMIO;
@@ -119,19 +121,22 @@ static void __alloc_bar(struct object *obj,
 		size_t amount = 0;
 		// printk("caching page %lx (sz=%lx, start=%lx)\n", addr, sz, start);
 		if(sz >= mm_page_size(1) && !(addr & (mm_page_size(1) - 1))) {
-			pg->level = 1;
-			amount = mm_page_size(1);
+		    pg->level = 1;
+		    amount = mm_page_size(1);
 		} else {
-			amount = mm_page_size(0);
+		    amount = mm_page_size(0);
 		}
+		*/
 		panic("A");
 		// obj_cache_page(obj, start, pg);
+		/*
 		if(sz < amount)
-			sz = 0;
+		    sz = 0;
 		else
-			sz -= amount;
+		    sz -= amount;
 		addr += amount;
 		start += amount;
+		*/
 	}
 }
 
@@ -298,11 +303,13 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 
 	uintptr_t addr = mm_page_size(1);
 	for(uintptr_t p = start_addr; p < end_addr; p += mm_page_size(1), addr += mm_page_size(1)) {
+		/*
 		struct page *pg = page_alloc_nophys();
 		pg->addr = p;
 		pg->type = PAGE_TYPE_MMIO;
 		pg->flags |= PAGE_CACHE_UC;
 		pg->level = 1;
+		*/
 		panic("A");
 		// obj_cache_page(obj, addr, pg);
 	}
@@ -347,5 +354,6 @@ __orderedinitializer(__orderedafter(ACPI_INITIALIZER_ORDER)) static void mcfg_in
 
 	printk("[pcie] found MCFG table (%p) with %ld entries\n", mcfg, mcfg_entries);
 
-	post_init_call_register(false, __pcie_init, NULL);
+	static struct init_call call;
+	post_init_call_register(&call, false, __pcie_init, NULL);
 }

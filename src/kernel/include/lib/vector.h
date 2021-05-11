@@ -28,7 +28,7 @@ static inline void vector_reserve(struct vector *vec, size_t len)
 {
 	if(vec->capacity >= len)
 		return;
-	vec->start = krealloc(vec->start, len * vec->entry_size);
+	vec->start = krealloc(vec->start, len * vec->entry_size, 0);
 	vec->capacity = len;
 }
 

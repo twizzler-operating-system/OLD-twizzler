@@ -6,7 +6,6 @@ list(APPEND KERNEL_SOURCES
 	arch/x86_64/hpet.c
 	arch/x86_64/idt.c
 	arch/x86_64/init.c
-	arch/x86_64/intel_iommu.c
 	arch/x86_64/interrupt.S
 	arch/x86_64/ioapic.c
 	arch/x86_64/kconf.c
@@ -14,10 +13,12 @@ list(APPEND KERNEL_SOURCES
 	arch/x86_64/memory.c
 	arch/x86_64/nfit.c
 	arch/x86_64/object.c
+	arch/x86_64/objspace.c
 	arch/x86_64/pit.c
 	arch/x86_64/processor.c
 	arch/x86_64/rdrand.c
 	arch/x86_64/start.S
+	arch/x86_64/table.c
 	arch/x86_64/thread.c
 	arch/x86_64/trampoline.S
 	arch/x86_64/virtmem.c

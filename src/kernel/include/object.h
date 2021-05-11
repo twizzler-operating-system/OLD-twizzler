@@ -265,7 +265,6 @@ void arch_object_destroy(struct object *obj);
 
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t phys, uintptr_t vaddr, uint32_t flags);
 bool arch_objspace_getmap(uintptr_t v, uintptr_t *p, int *level, uint64_t *flags);
-bool arch_objspace_map(uintptr_t v, uintptr_t p, int level, uint64_t flags);
 
 void obj_clone_cow(struct object *src, struct object *nobj);
 

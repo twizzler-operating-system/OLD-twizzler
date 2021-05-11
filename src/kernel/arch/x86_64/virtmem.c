@@ -3,16 +3,42 @@
 #include <processor.h>
 extern struct vm_context kernel_ctx;
 
-#define PML4_IDX(v) (((v) >> 39) & 0x1FF)
-#define PDPT_IDX(v) (((v) >> 30) & 0x1FF)
-#define PD_IDX(v) (((v) >> 21) & 0x1FF)
-#define PT_IDX(v) (((v) >> 12) & 0x1FF)
-#define PAGE_PRESENT (1ull << 0)
-#define PAGE_LARGE (1ull << 7)
+#define RECUR_FLAGS (VM_MAP_USER | VM_MAP_WRITE | PAGE_PRESENT)
+int arch_mm_map(struct vm_context *ctx,
+  uintptr_t virt,
+  uintptr_t phys,
+  size_t len,
+  uint64_t mapflags)
+{
+	if(!ctx)
+		ctx = &kernel_ctx;
+	printk("TODO: make this the primary interface and make it map at different levels\n");
+	uint64_t flags = PAGE_PRESENT;
+	flags |= (mapflags & MAP_GLOBAL) ? VM_MAP_GLOBAL : 0;
+	flags |= (mapflags & MAP_WRITE) ? VM_MAP_WRITE : 0;
+	flags |= (mapflags & MAP_EXEC) ? VM_MAP_EXEC : 0;
+	flags |= (mapflags & MAP_KERNEL) ? 0 : VM_MAP_USER;
 
-static uint64_t *kernel_virts_pdpt[256];
+	struct arch_vm_context *arch = &ctx->arch;
+	spinlock_acquire_save(&arch->root.lock);
+	size_t i = 0;
+	while(i < len) {
+		size_t rem = len - i;
+		int level = 0;
+		if(is_aligned(i, mm_page_size(2)) && rem >= mm_page_size(2)) {
+			level = 2;
+		} else if(is_aligned(i, mm_page_size(1)) && rem >= mm_page_size(1)) {
+			level = 1;
+		}
+		table_map(&arch->root, virt + i, phys + i, level, flags, RECUR_FLAGS);
+		i += mm_page_size(level);
+	}
+	spinlock_release_restore(&arch->root.lock);
+	return 0;
+}
 
-#define RECUR_ATTR_MASK (VM_MAP_EXEC | VM_MAP_USER | VM_MAP_WRITE | VM_MAP_ACCESSED | VM_MAP_DIRTY)
+#if 0
+#define mm_vtoo(p) get_phys((uintptr_t)p)
 
 static bool __do_vm_map(struct vm_context *ctx,
   uintptr_t virt,
@@ -30,8 +56,7 @@ static bool __do_vm_map(struct vm_context *ctx,
 
 	uint64_t **table = is_kernel ? ctx->arch.kernel_pdpts : ctx->arch.user_pdpts;
 	if(!ctx->arch.pml4[pml4_idx]) {
-		table[is_kernel ? pml4_idx / 2 : pml4_idx] =
-		  (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+		table[is_kernel ? pml4_idx / 2 : pml4_idx] = kheap_allocate_pages(0x1000, 0);
 		/* TODO: right flags? */
 		ctx->arch.pml4[pml4_idx] = mm_vtoo(table[is_kernel ? pml4_idx / 2 : pml4_idx])
 		                           | PAGE_PRESENT | VM_MAP_WRITE | VM_MAP_USER;
@@ -157,6 +182,7 @@ void arch_vm_unmap_object(struct vm_context *ctx, struct vmap *map)
 	}
 #endif
 }
+#endif
 
 #define PHYS_LOAD_ADDRESS (KERNEL_PHYSICAL_BASE + KERNEL_LOAD_OFFSET)
 #define PHYS_ADDR_DELTA (KERNEL_VIRTUAL_BASE + KERNEL_LOAD_OFFSET - PHYS_LOAD_ADDRESS)
@@ -168,7 +194,7 @@ void arch_mm_switch_context(struct vm_context *ctx)
 		ctx = &kernel_ctx;
 		inv = true;
 	}
-	uint64_t op = ctx->arch.pml4_phys;
+	uint64_t op = ctx->arch.root.phys;
 	// op |= ctx->arch.id;
 	// if(!inv)
 	//	op |= (1ul << 63);
@@ -182,53 +208,46 @@ void x86_64_vm_kernel_context_init(void)
 	if(!_init) {
 		_init = true;
 
-		uintptr_t pml4_phys;
-		uint64_t *pml4;
-		mm_early_alloc(&pml4_phys, (void **)&pml4, 0x1000, 0x1000);
+		struct arch_vm_context *arch = &kernel_ctx.arch;
+		table_realize(&arch->root);
 
-		size_t pml4_slot = PML4_IDX(KERNEL_VIRTUAL_BASE);
-		size_t pdpt_slot = PDPT_IDX(KERNEL_VIRTUAL_BASE);
+		int pml4_slot = PML4_IDX(KERNEL_VIRTUAL_BASE);
+		int pdpt_slot = PDPT_IDX(KERNEL_VIRTUAL_BASE);
 
-		uint64_t *pdpt;
-		mm_early_alloc(&pml4[pml4_slot], (void **)&pdpt, 0x1000, 0x1000);
-		pml4[pml4_slot] |= VM_MAP_WRITE | PAGE_PRESENT;
-		pdpt[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
-		kernel_virts_pdpt[pml4_slot / 2] = pdpt;
+		struct table_level *table = table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS);
+		table->table[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
 
 		pml4_slot = PML4_IDX(PHYSICAL_MAP_START);
 		pdpt_slot = PDPT_IDX(PHYSICAL_MAP_START);
 
-		if(!pml4[pml4_slot]) {
-			mm_early_alloc(&pml4[pml4_slot], (void **)&pdpt, 0x1000, 0x1000);
-			pml4[pml4_slot] |= VM_MAP_WRITE | PAGE_PRESENT;
-			kernel_virts_pdpt[pml4_slot / 2] = pdpt;
-		}
-		pdpt[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
-
-		kernel_ctx.arch.kernel_pdpts = kernel_virts_pdpt;
-		kernel_ctx.arch.pml4 = pml4;
-		kernel_ctx.arch.pml4_phys = pml4_phys;
+		table = table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS);
+		table->table[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
 	}
 
-	asm volatile("mov %0, %%cr3" ::"r"(kernel_ctx.arch.pml4_phys) : "memory");
+	asm volatile("mov %0, %%cr3" ::"r"(kernel_ctx.arch.root.phys) : "memory");
 }
 
 void arch_mm_context_destroy(struct vm_context *ctx)
 {
+	panic("A");
+#if 0
 	for(int i = 0; i < 256; i++) {
 		if(ctx->arch.user_pdpts[i]) {
-			mm_memory_dealloc(ctx->arch.user_pdpts[i]);
+			kheap_free_pages(ctx->arch.user_pdpts[i]);
 			ctx->arch.user_pdpts[i] = NULL;
 			ctx->arch.pml4[i] = 0;
 		}
 	}
+#endif
 }
 
 static _Atomic int context_id = 0;
 
 void arch_mm_context_init(struct vm_context *ctx)
 {
-	ctx->arch.pml4 = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+	panic("A");
+#if 0
+	ctx->arch.pml4 = kheap_allocate_pages(0x1000, 0);
 	ctx->arch.pml4_phys = mm_vtoo(ctx->arch.pml4);
 	for(int i = 0; i < 256; i++) {
 		ctx->arch.pml4[i] = 0;
@@ -238,6 +257,7 @@ void arch_mm_context_init(struct vm_context *ctx)
 	}
 
 	ctx->arch.kernel_pdpts = kernel_virts_pdpt;
-	ctx->arch.user_pdpts = (void *)mm_memory_alloc(256 * sizeof(void *), PM_TYPE_DRAM, true);
+	ctx->arch.user_pdpts = kheap_allocate_pages(256 * sizeof(void *), 0);
 	ctx->arch.id = ++context_id;
+#endif
 }

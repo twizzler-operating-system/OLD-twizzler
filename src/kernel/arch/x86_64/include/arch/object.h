@@ -1,5 +1,7 @@
 #pragma once
 
+#include <arch/memory.h>
+
 struct arch_object {
 	uintptr_t pt_root;
 	uint64_t *pd;
@@ -7,8 +9,5 @@ struct arch_object {
 };
 
 struct arch_object_space {
-	uintptr_t ept_phys;
-	uint64_t *ept;
-	uint64_t **pdpts;
-	size_t *counts;
+	struct table_level root;
 };

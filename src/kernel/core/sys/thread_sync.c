@@ -19,7 +19,7 @@ struct syncpoint {
 	struct rbnode node;
 };
 
-DECLARE_SLABCACHE(sc_syncpoint, sizeof(struct syncpoint), NULL, NULL, NULL);
+DECLARE_SLABCACHE(sc_syncpoint, sizeof(struct syncpoint), NULL, NULL, NULL, NULL, NULL);
 
 static int __sp_compar_key(struct syncpoint *a, size_t n)
 {
@@ -263,12 +263,12 @@ long thread_wake_object(struct object *obj, size_t offset, long arg)
 static void __thread_init_sync(size_t count)
 {
 	if(!current_thread->sleep_entries) {
-		current_thread->sleep_entries = kcalloc(count, sizeof(struct sleep_entry));
+		current_thread->sleep_entries = kcalloc(count, sizeof(struct sleep_entry), 0);
 		current_thread->sleep_count = count;
 	}
 	if(count > current_thread->sleep_count) {
 		current_thread->sleep_entries =
-		  krecalloc(current_thread->sleep_entries, count, sizeof(struct sleep_entry));
+		  krecalloc(current_thread->sleep_entries, count, sizeof(struct sleep_entry), 0);
 		current_thread->sleep_count = count;
 	}
 }

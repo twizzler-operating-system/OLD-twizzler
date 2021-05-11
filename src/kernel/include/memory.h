@@ -61,6 +61,7 @@ struct memregion {
 	enum memory_subtype subtype;
 	struct list entry;
 	size_t off;
+	struct spinlock lock;
 };
 
 void mm_init_phase_2(void);
@@ -75,9 +76,6 @@ void mm_init_region(struct memregion *reg,
   enum memory_type type,
   enum memory_subtype);
 
-#define mm_memory_alloc(l, t, c) __mm_memory_alloc(l, t, c, __FILE__, __LINE__)
-
-void *__mm_memory_alloc(size_t length, int type, bool clear, const char *, int);
 void mm_memory_dealloc(void *addr);
 void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align);
 void *mm_ptov(uintptr_t addr);
@@ -161,3 +159,80 @@ void vm_vmap_init(struct vmap *vmap, struct object *obj, size_t vslot, uint32_t 
 void kernel_fault_entry(uintptr_t ip, uintptr_t addr, int flags);
 
 extern bool mm_ready;
+
+/*
+ *
+ *
+ *
+ *
+ *
+ *
+ *
+ */
+
+#define MAP_WIRE 1
+#define MAP_GLOBAL 2
+#define MAP_KERNEL 4
+#define MAP_READ 8
+#define MAP_WRITE 0x10
+#define MAP_EXEC 0x20
+#define MAP_TABLE_PREALLOC 0x40
+#define MAP_REPLACE 0x80
+#define MAP_ZERO 0x100
+struct page;
+
+#define REGION_ALLOC_BOOTSTRAP 1
+uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags);
+
+void mm_objspace_fill(uintptr_t addr, struct page *pages, size_t count, int flags);
+uintptr_t mm_objspace_reserve(size_t len);
+
+void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags);
+
+void kheap_start_dynamic(void);
+void *kheap_map_pages(struct page *pages, size_t count);
+void *kheap_allocate_pages(size_t len, int flags);
+void kheap_free_pages(void *p);
+
+struct kheap_run {
+	void *start;
+	size_t nr_pages;
+	struct list entry;
+};
+uintptr_t kheap_run_get_objspace(struct kheap_run *run);
+
+void kheap_free(struct kheap_run *run);
+struct kheap_run *kheap_allocate(size_t len);
+int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page);
+
+struct omap {
+	struct object *obj;
+	uintptr_t addr;
+	struct rbnode objnode;
+	struct rbnode spacenode;
+};
+
+#include <arch/objspace.h>
+
+struct objspace_region {
+	struct arch_objspace_region arch;
+	uintptr_t addr;
+	struct list entry;
+};
+
+struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
+struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr);
+struct objspace_region *mm_objspace_allocate_region(void);
+void mm_objspace_free_region(struct objspace_region *region);
+
+#define mm_objspace_region_size arch_mm_objspace_region_size
+uintptr_t arch_mm_objspace_max_address(void);
+size_t arch_mm_objspace_region_size(void);
+
+int arch_mm_map(struct vm_context *ctx,
+  uintptr_t virt,
+  uintptr_t phys,
+  size_t len,
+  uint64_t mapflags);
+bool mm_is_ready(void);
+void kalloc_system_init(void);

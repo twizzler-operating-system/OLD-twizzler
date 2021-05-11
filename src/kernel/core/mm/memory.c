@@ -9,12 +9,6 @@
 #include <tmpmap.h>
 static DECLARE_LIST(physical_regions);
 
-static DECLARE_LIST(allocators);
-static struct mem_allocator _initial_allocator;
-
-#define MAX_ALLOCATORS 16
-static struct spinlock allocator_lock = SPINLOCK_INIT;
-
 static const char *memory_type_strings[] = {
 	[MEMORY_AVAILABLE] = "System RAM",
 	[MEMORY_RESERVED] = "Reserved",
@@ -45,12 +39,12 @@ void mm_register_region(struct memregion *reg)
 		/* registration of a region triggers this if the memory manager is fully ready. If it's not,
 		 * we need to hold off until we can create the page stacks. */
 		if(reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE) {
-			page_init(reg);
 			reg->ready = true;
 		}
 	}
 }
 
+#if 0
 uintptr_t mm_vtoo(void *addr)
 {
 	/* TODO: replace these functions with functions that get an object page, etc */
@@ -93,6 +87,7 @@ void *mm_ptov(uintptr_t addr)
 {
 	panic("UNIMP");
 }
+#endif
 
 void mm_init_region(struct memregion *reg,
   uintptr_t start,
@@ -125,6 +120,8 @@ struct page_stats mm_page_stats[MAX_PGLEVEL + 1];
 
 void mm_print_stats(void)
 {
+	printk("TODO print allocation stats\n");
+#if 0
 	printk("early allocation: %ld KB\n", mm_early_count / 1024);
 	printk("late  allocation: %ld KB\n", mm_late_count / 1024);
 	printk("page  allocation: %ld KB\n", mm_page_alloc_count / 1024);
@@ -134,8 +131,9 @@ void mm_print_stats(void)
 		struct mem_allocator *alloc = list_entry(e, struct mem_allocator, entry);
 		printk("allocator: avail = %lx; free = %lx\n", alloc->available_memory, alloc->free_memory);
 	}
-	mm_print_kalloc_stats();
-	page_print_stats();
+	// mm_print_kalloc_stats();
+	mm_page_print_stats();
+#endif
 }
 
 #include <device.h>
@@ -162,6 +160,7 @@ POST_INIT(__init_mem_object, NULL);
 
 void mm_update_stats(void)
 {
+#if 0
 	if(msh) {
 		pmap_collect_stats(&mm_stats);
 		tmpmap_collect_stats(&mm_stats);
@@ -188,15 +187,15 @@ void mm_update_stats(void)
 		mm_stats.memalloc_free = ma_free;
 
 		msh->stats = mm_stats;
-		int i = 0;
-		while(page_build_stats(&msh->page_stats[i], i) != -1)
-			i++;
-		msh->nr_page_groups = i;
 	}
+#endif
+	printk("TODO\n");
 }
 
 void mm_init_phase_2(void)
 {
+	mm_page_init();
+	kheap_start_dynamic();
 #if 0
 	obj_system_init();
 	slot_init_bootstrap(KOSLOT_INIT_ALLOC, KVSLOT_ALLOC_START);
@@ -221,8 +220,8 @@ void mm_init_phase_2(void)
 	}
 	slots_init();
 #endif
-	panic("A");
-
+	kalloc_system_init();
+	printk("[mm] memory management bootstrapping completed\n");
 	mm_ready = true;
 	// mm_print_stats();
 }
@@ -232,32 +231,42 @@ void *mm_early_ptov(uintptr_t phys)
 	return (void *)(phys += PHYSICAL_MAP_START);
 }
 
-void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align)
+uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags)
 {
-	if(!list_empty(&allocators)) {
-		panic("tried to early-alloc after bootstrap phase");
-	}
+	assert(len);
 	align = (align == 0) ? 8 : align;
 	foreach(e, list, &physical_regions) {
 		struct memregion *reg = list_entry(e, struct memregion, entry);
-		/* reg->ready indicates that the memory is ready for allocation -- early allocator won't
-		 * work.
-		 * */
-		if(reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE
-		   && reg->start < MEMORY_BOOTSTRAP_MAX && reg->length > 0 && reg->start > 0
-		   && !reg->ready) {
+		spinlock_acquire_save(&reg->lock);
+		bool is_bootstrap = reg->start < MEMORY_BOOTSTRAP_MAX;
+		bool has_space = reg->length > len && reg->start > 0;
+		bool is_allocable =
+		  reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE;
+		/* TODO: ensure no region has start = 0 */
+		if((is_bootstrap || !(flags & REGION_ALLOC_BOOTSTRAP)) && is_allocable && has_space) {
 			reg->start = align_up(reg->start, align);
 			uintptr_t alloc = reg->start;
 			reg->start += len;
 			reg->length -= len;
 			assert(alloc);
-			mm_early_count += len;
-			*phys = alloc;
-			*virt = mm_early_ptov(alloc);
-			return;
+			spinlock_release_restore(&reg->lock);
+			return alloc;
 		}
+		spinlock_release_restore(&reg->lock);
 	}
-	panic("out of early-alloc memory");
+	return 0;
+}
+
+void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align)
+{
+	uintptr_t alloc = mm_region_alloc_raw(len, align, REGION_ALLOC_BOOTSTRAP);
+	if(alloc == 0)
+		panic("out of early-alloc memory");
+	mm_early_count += len;
+	if(phys)
+		*phys = alloc;
+	if(virt)
+		*virt = mm_early_ptov(alloc);
 }
 
 #if 0
@@ -287,6 +296,7 @@ uintptr_t mm_physical_early_alloc(void)
 #endif
 
 #include <processor.h>
+#if 0
 void *__mm_memory_alloc(size_t length,
   int type,
   bool clear,
@@ -410,6 +420,7 @@ void mm_memory_dealloc(void *_addr)
 	spinlock_release_restore(&allocator_lock);
 	panic("invalid free");
 }
+#endif
 
 void kernel_fault_entry(uintptr_t ip, uintptr_t addr, int flags)
 {

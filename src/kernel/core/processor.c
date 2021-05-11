@@ -1,5 +1,6 @@
 #include <guard.h>
 #include <init.h>
+#include <kalloc.h>
 #include <memory.h>
 #include <processor.h>
 #include <slab.h>
@@ -47,7 +48,7 @@ void processor_register(bool bsp, unsigned int id)
 		proc->flags |= PROCESSOR_UP;
 	} else {
 		size_t percpu_length = (size_t)&kernel_data_percpu_length;
-		proc->percpu = (void *)mm_memory_alloc(percpu_length, PM_TYPE_DRAM, true);
+		proc->percpu = kalloc(percpu_length, 0);
 		memcpy(proc->percpu, &kernel_data_percpu_load, percpu_length);
 	}
 	proc->flags |= PROCESSOR_REGISTERED;

@@ -181,7 +181,7 @@ static void iommu_set_context_entry(struct iommu *im,
 {
 	struct iommu_rte *rt = im->root_table_virt;
 	if(!(rt[bus].lo & IOMMU_RTE_PRESENT)) {
-		im->table_pages[bus] = mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+		im->table_pages[bus] = kheap_allocate_pages(0x1000, 0);
 		rt[bus].lo = mm_vtop(im->table_pages[bus]) | IOMMU_RTE_PRESENT;
 		asm volatile("clflush %0" ::"m"(rt[bus]));
 	}
@@ -220,7 +220,7 @@ static void do_iommu_object_map_slot(struct object *obj, uint64_t flags)
 
 	uintptr_t *pml4 = ept_virt;
 	if(pml4[pml4_idx] == 0) {
-		pdpts[pml4_idx] = mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+		pdpts[pml4_idx] = kheap_allocate_pages(0x1000, 0);
 		pml4[pml4_idx] = mm_vtop(pdpts[pml4_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC;
 		asm volatile("clflush %0" ::"m"(pml4[pml4_idx]));
 	}
@@ -286,8 +286,7 @@ static void __iommu_fault_handler(int v __unused, struct interrupt_handler *h __
 						arch_object_map_page(o, p->idx, p->page, 0);
 						p->flags |= OBJPAGE_MAPPED;
 					}
-					arch_object_map_flush(
-					  o, p->idx * mm_page_size(p->page->level) /* TODO: this is brittle */);
+					arch_object_map_flush(o, p->idx * mm_page_size(0) /* TODO: this is brittle */);
 
 					panic("A");
 					// objpage_release(p, 0);
@@ -408,7 +407,7 @@ static int iommu_init(struct iommu *im)
 	uint64_t ecap = iommu_read64(im, IOMMU_REG_EXCAP);
 	im->cap = cap;
 
-	ept_virt = mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+	ept_virt = kheap_allocate_pages(0x1000, 0);
 	ept_phys = mm_vtop(ept_virt);
 
 	// printk(":: %lx %lx\n", cap, ecap);
@@ -439,7 +438,7 @@ static int iommu_init(struct iommu *im)
 	iommu_status_wait(im, IOMMU_GCMD_TE, false);
 
 	/* set the root table */
-	im->root_table_virt = mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+	im->root_table_virt = kheap_allocate_pages(0x1000, 0);
 	im->root_table = mm_vtop(im->root_table_virt);
 	iommu_write64(im, IOMMU_REG_RTAR, im->root_table | IOMMU_RTAR_TTM_LEGACY);
 
@@ -458,7 +457,7 @@ static int iommu_init(struct iommu *im)
 	iommu_write32(im, IOMMU_REG_ICEA, x86_64_msi_addr(0, X86_64_MSI_DM_PHYSICAL));
 	iommu_write32(im, IOMMU_REG_ICEUA, 0);
 
-	im->table_pages = mm_memory_alloc(sizeof(void *) * 512, PM_TYPE_DRAM, true);
+	im->table_pages = kheap_allocate_pages(sizeof(void *) * 512, 0);
 	im->init = true;
 	// uint32_t cmd = IOMMU_GCMD_TE;
 	// iommu_write32(im, IOMMU_REG_GCMD, cmd);
@@ -466,7 +465,7 @@ static int iommu_init(struct iommu *im)
 
 	/* enable queued invalidations */
 	im->qi_len = 0x1000;
-	im->qi_addr = mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+	im->qi_addr = kheap_allocate_pages(0x1000, 0);
 
 	uint64_t val = mm_vtop(im->qi_addr);
 

@@ -12,7 +12,7 @@
 
 static void __kso_device_ctor(struct object *obj)
 {
-	struct device *dev = obj->data = kalloc(sizeof(struct device));
+	struct device *dev = obj->data = kalloc(sizeof(struct device), 0);
 	dev->co = obj;
 	dev->flags = 0;
 }

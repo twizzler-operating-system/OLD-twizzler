@@ -38,6 +38,8 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 		((__y - 1) & ~(__sz - 1)) + __sz;                                                          \
 	})
 
+#define is_aligned(x, s) ({ (uintptr_t)(x) % (uintptr_t)(s) == 0; })
+
 #define __orderedbefore(x) (x - 1)
 #define __orderedafter(x) (x + 1)
 

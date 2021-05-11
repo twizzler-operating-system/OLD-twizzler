@@ -72,7 +72,9 @@ static inline void del_from_list(struct slab *s)
 
 static struct slab *new_slab(struct slabcache *c)
 {
-	struct slab *s = (void *)mm_memory_alloc(slab_size(c, c->sz), PM_TYPE_DRAM, true);
+	struct kheap_run *run = kheap_allocate(slab_size(c, c->sz));
+	struct slab *s = run->start;
+	s->run = run;
 	s->alloc = 0;
 	s->slabcache = c;
 	s->canary = SLAB_CANARY;
@@ -81,8 +83,8 @@ static struct slab *new_slab(struct slabcache *c)
 	for(unsigned int i = 0; i < obj_per_slab(c, c->sz); i++) {
 		s->alloc |= ((unsigned __int128)1ull << i);
 		char *obj = s->data + i * c->sz;
-		if(c->ctor) {
-			c->ctor(c->ptr, obj);
+		if(c->init) {
+			c->init(c->ptr, obj);
 		}
 	}
 	c->stats.total_slabs++;
@@ -151,6 +153,7 @@ void *slabcache_alloc(struct slabcache *c)
 	spinlock_release(&c->lock, fl);
 	c->stats.current_alloced++;
 	c->stats.total_alloced++;
+	c->ctor(c->ptr, ret);
 	return ret;
 }
 
@@ -162,6 +165,8 @@ void slabcache_free(struct slabcache *sc, void *obj)
 
 	struct slab *s = (struct slab *)((char *)obj - (sc->sz * mk->slot + sizeof(struct slab)));
 	mk->marker_magic = 0;
+
+	sc->dtor(sc->ptr, obj);
 
 	if(s->canary != SLAB_CANARY) {
 		panic("SC FREE CANARY MISMATCH: %lx: %p -> %p\n", s->canary, obj, s);
@@ -193,9 +198,9 @@ static void destroy_slab(struct slab *s)
 	panic("NI");
 	assert(num_set(s->alloc) == obj_per_slab(s->slabcache, s->slabcache->sz));
 	for(unsigned int i = 0; i < obj_per_slab(s->slabcache, s->slabcache->sz); i++) {
-		if(s->slabcache->dtor) {
+		if(s->slabcache->fini) {
 			char *obj = s->data + i * s->slabcache->sz;
-			s->slabcache->dtor(s->slabcache->ptr, obj);
+			s->slabcache->fini(s->slabcache->ptr, obj);
 		}
 	}
 }
@@ -242,8 +247,10 @@ void slabcache_all_print_stats(void)
 void slabcache_init(struct slabcache *c,
   const char *name,
   size_t sz,
+  void (*init)(void *, void *),
   void (*ctor)(void *, void *),
   void (*dtor)(void *, void *),
+  void (*fini)(void *, void *),
   void *ptr)
 {
 	c->ptr = ptr;
@@ -255,6 +262,8 @@ void slabcache_init(struct slabcache *c,
 
 	c->ctor = ctor;
 	c->dtor = dtor;
+	c->init = init;
+	c->fini = fini;
 	c->lock = SPINLOCK_INIT;
 	c->canary = SLAB_CANARY;
 

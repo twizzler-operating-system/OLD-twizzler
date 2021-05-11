@@ -86,7 +86,7 @@ __noinstrument unsigned int arch_processor_current_id(void)
 	/* TODO: is this right? */
 	// return x2apic_read(LAPIC_LDR);
 	return x2apic_read(LAPIC_ID);
-	//return 0;
+	// return 0;
 }
 
 __noinstrument static void _apic_set_counter(struct clksrc *c __unused, uint64_t val, bool per)
@@ -254,8 +254,9 @@ static void lapic_configure(int bsp)
 	 * LVT1: NMI
 	 * LVT0: extINT
 	 */
-	x2apic_write(LAPIC_LVT1, 0x400 | (bsp ? 0 : LAPIC_DISABLE));  // NMI
-	x2apic_write(LAPIC_LVT0, 0x700 | (bsp ? 0 : LAPIC_DISABLE) | LAPIC_DISABLE); // external interrupts
+	x2apic_write(LAPIC_LVT1, 0x400 | (bsp ? 0 : LAPIC_DISABLE)); // NMI
+	x2apic_write(
+	  LAPIC_LVT0, 0x700 | (bsp ? 0 : LAPIC_DISABLE) | LAPIC_DISABLE); // external interrupts
 	/* disable errors (can trigger while messing with masking) and performance
 	 * counter, but also set a non-zero vector */
 	x2apic_write(LAPIC_LVTE, 0xFF | LAPIC_DISABLE);
@@ -328,17 +329,12 @@ __attribute__((no_sanitize_undefined))
 static inline void
 write_bios_reset(uintptr_t addr)
 {
-	*((volatile uint32_t *)mm_ptov(BIOS_RESET_VECTOR)) = ((addr & 0xFF000) << 12);
+	*((volatile uint32_t *)mm_early_ptov(BIOS_RESET_VECTOR)) = ((addr & 0xFF000) << 12);
 }
 
 extern int trampoline_start, trampoline_end, rm_gdt, pmode_enter, rm_gdt_pointer;
 bool arch_processor_boot(struct processor *proc)
 {
-	// proc->arch.kernel_stack = (void *)mm_memory_alloc(KERNEL_STACK_SIZE, PM_TYPE_ANY, true);
-	// printk("Poking secondary CPU %d, proc->arch.kernel_stack = %p (proc=%p)\n",
-	//  proc->id,
-	//  proc->arch.kernel_stack,
-	//  proc);
 	*(void **)((void *)proc->arch.kernel_stack + KERNEL_STACK_SIZE - sizeof(void *)) = proc;
 
 	uintptr_t bootaddr_phys = 0x7000;
@@ -348,12 +344,12 @@ bool arch_processor_boot(struct processor *proc)
 	x86_64_cmos_write(CMOS_RESET_CODE, CMOS_RESET_JUMP);
 
 	size_t trampoline_size = (uintptr_t)&trampoline_end - (uintptr_t)&trampoline_start;
-	memcpy(mm_ptov(0x7000), &trampoline_start, trampoline_size);
-	memcpy(mm_ptov(RM_GDT_START + GDT_POINTER_SIZE), &rm_gdt, RM_GDT_SIZE);
-	memcpy(mm_ptov(RM_GDT_START), &rm_gdt_pointer, GDT_POINTER_SIZE);
-	memcpy(mm_ptov(0x7200), &pmode_enter, 0x100);
+	memcpy(mm_early_ptov(0x7000), &trampoline_start, trampoline_size);
+	memcpy(mm_early_ptov(RM_GDT_START + GDT_POINTER_SIZE), &rm_gdt, RM_GDT_SIZE);
+	memcpy(mm_early_ptov(RM_GDT_START), &rm_gdt_pointer, GDT_POINTER_SIZE);
+	memcpy(mm_early_ptov(0x7200), &pmode_enter, 0x100);
 
-	*((volatile uintptr_t *)mm_ptov(0x7300)) =
+	*((volatile uintptr_t *)mm_early_ptov(0x7300)) =
 	  (uintptr_t)proc->arch.kernel_stack + KERNEL_STACK_SIZE;
 	asm volatile("mfence" ::: "memory");
 	x2apic_write(LAPIC_ESR, 0);
@@ -373,7 +369,7 @@ bool arch_processor_boot(struct processor *proc)
 
 	int timeout;
 	for(timeout = 10000; timeout > 0; timeout--) {
-		if(*((volatile _Atomic uintptr_t *)mm_ptov(0x7300)) == 0)
+		if(*((volatile _Atomic uintptr_t *)mm_early_ptov(0x7300)) == 0)
 			break;
 		x86_64_early_wait_ns(10000);
 	}

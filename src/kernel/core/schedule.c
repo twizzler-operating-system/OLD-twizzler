@@ -138,7 +138,7 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 			if(pager_idle_task()) {
 				proc->flags |= PROCESSOR_HASWORK;
 			}
-			page_idle_zero();
+			mm_page_idle_zero();
 			rem_time = timer_check_timers();
 			spinlock_acquire(&proc->sched_lock);
 			if(!processor_has_threads(proc) && !(proc->flags & PROCESSOR_HASWORK)) {
@@ -190,13 +190,13 @@ static void _thread_ctor(void *_u __unused, void *ptr)
 	thr->state = THREADSTATE_INITING;
 	list_init(&thr->become_stack);
 	if(!thr->sctx_entries) {
-		thr->sctx_entries = kcalloc(MAX_SC, sizeof(struct thread_sctx_entry));
+		thr->sctx_entries = kcalloc(MAX_SC, sizeof(struct thread_sctx_entry), 0);
 	} else {
 		memset(thr->sctx_entries, 0, sizeof(struct thread_sctx_entry) * MAX_SC);
 	}
 }
 
-static DECLARE_SLABCACHE(_sc_thread, sizeof(struct thread), _thread_ctor, NULL, NULL);
+static DECLARE_SLABCACHE(_sc_thread, sizeof(struct thread), _thread_ctor, NULL, NULL, NULL, NULL);
 
 __noinstrument void thread_schedule_resume(void)
 {
@@ -482,7 +482,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 
 void thread_queue_fault(struct thread *thr, int fault, void *info, size_t infolen)
 {
-	void *ptr = kalloc(infolen);
+	void *ptr = kalloc(infolen, 0);
 	memcpy(ptr, info, infolen);
 	spinlock_acquire_save(&thr->lock);
 	if(thr->pending_fault_info) {

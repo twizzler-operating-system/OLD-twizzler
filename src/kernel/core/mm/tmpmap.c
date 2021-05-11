@@ -1,4 +1,3 @@
-#include <arena.h>
 #include <memory.h>
 #include <object.h>
 #include <pmap.h>

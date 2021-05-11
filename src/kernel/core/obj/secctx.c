@@ -13,18 +13,20 @@
 #define EPRINTK(...)
 static void _sc_ctor(void *_x __unused, void *ptr)
 {
+	panic("A");
 	struct sctx *sc = ptr;
-	object_space_init(&sc->space);
+	// object_space_init(&sc->space);
 }
 
 static void _sc_dtor(void *_x __unused, void *ptr)
 {
+	panic("A");
 	struct sctx *sc = ptr;
-	object_space_destroy(&sc->space);
+	// object_space_destroy(&sc->space);
 }
 
-static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_ctor, _sc_dtor, NULL);
-static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL);
+static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_ctor, NULL, _sc_dtor, NULL, NULL);
+static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL, NULL, NULL);
 
 struct sctx *secctx_alloc(struct object *obj)
 {
@@ -186,7 +188,7 @@ static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, s
 
 	/* note - base64 means the output data will be smaller than the input, so we could save space
 	 * here. */
-	unsigned char *keydata = kalloc(sz);
+	unsigned char *keydata = kalloc(sz, 0);
 	*kdout = sz;
 	int e;
 	if((e = base64_decode((const unsigned char *)k, sz, keydata, kdout)) != CRYPT_OK) {
@@ -456,7 +458,7 @@ static void __append_gatelist(struct scgates **gl, size_t *count, size_t *pos, s
 {
 	if(*pos == *count) {
 		*count = *count ? 1 : *count * 2;
-		*gl = krealloc(*gl, sizeof(**gl) * (*count));
+		*gl = krealloc(*gl, sizeof(**gl) * (*count), 0);
 	}
 
 	(*gl)[*pos] = *gate;

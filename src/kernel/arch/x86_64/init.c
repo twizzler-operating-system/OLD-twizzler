@@ -331,20 +331,20 @@ static void __late_init_framebuffer(void *a __unused)
 	uintptr_t addr = fbinfo.common.framebuffer_addr;
 	size_t start = mm_page_size(1);
 	while(sz > 0) {
-		struct page *pg = page_alloc_nophys();
-		pg->addr = addr;
-		pg->type = PAGE_TYPE_MMIO;
-		pg->flags |= PAGE_CACHE_WC;
-		pg->level = 1;
-		size_t amount = mm_page_size(1);
+		// struct page *pg = page_alloc_nophys();
+		// pg->addr = addr;
+		// pg->type = PAGE_TYPE_MMIO;
+		// pg->flags |= PAGE_CACHE_WC;
+		// pg->level = 1;
+		// size_t amount = mm_page_size(1);
 		panic("A");
 		// obj_cache_page(fb_obj, start, pg);
-		if(sz < amount)
-			sz = 0;
-		else
-			sz -= amount;
-		addr += amount;
-		start += amount;
+		// if(sz < amount)
+		//	sz = 0;
+		// else
+		//	sz -= amount;
+		// addr += amount;
+		// start += amount;
 	}
 
 	kso_attach(device_get_misc_bus(), fb_obj, DEVICE_ID_FRAMEBUFFER);
@@ -588,7 +588,7 @@ void x86_64_processor_post_vm_init(struct processor *proc)
 
 	if(proc->flags & PROCESSOR_BSP)
 		kernel_init();
-	proc->arch.kernel_stack = mm_memory_alloc(KERNEL_STACK_SIZE, PM_TYPE_DRAM, true);
+	proc->arch.kernel_stack = kheap_allocate_pages(KERNEL_STACK_SIZE, 0);
 	asm volatile("mov %%rax, %%rsp; call processor_perproc_init;" ::"a"(
 	               proc->arch.kernel_stack + KERNEL_STACK_SIZE),
 	             "D"(proc)
@@ -602,7 +602,7 @@ void arch_processor_early_init(struct processor *proc)
 	 * list, and then after init call some function that converts these to usable pages? */
 	mm_early_alloc(NULL, &proc->arch.hyper_stack, 0x1000, 0);
 	mm_early_alloc(NULL, &proc->arch.kernel_stack, 0x1000, 0);
-	mm_early_alloc(NULL, (void **)&proc->arch.veinfo, 0x1000, 0x1000);
+	mm_early_alloc(&proc->arch.veinfo_phys, (void **)&proc->arch.veinfo, 0x1000, 0x1000);
 	mm_early_alloc(&proc->arch.vmcs, NULL, 0x1000, 0x1000);
 	mm_early_alloc(&proc->arch.vmxon_region, NULL, 0x1000, 0x1000);
 }
@@ -635,11 +635,10 @@ void arch_thread_init(struct thread *thread,
 	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
 	if(xsave_region_size > 0x1000)
 		panic("NI - HUGE xsave region");
-	thread->arch.xsave_region = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+	panic("A");
+	// thread->arch.xsave_region = kheap_allocate_pages(0x1000, 0);
 }
 
 void arch_thread_destroy(struct thread *thread)
 {
-	/* TODO: maybe save this for the next thread? */
-	mm_memory_dealloc(thread->arch.xsave_region);
 }

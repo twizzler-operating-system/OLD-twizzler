@@ -220,6 +220,8 @@ done:
 
 long syscall_vmap(const void *restrict p, int cmd, long arg)
 {
+	panic("A");
+#if 0
 	switch(cmd) {
 		case TWZ_SYS_VMAP_WIRE:
 			(void)arg;
@@ -229,6 +231,7 @@ long syscall_vmap(const void *restrict p, int cmd, long arg)
 			return -EINVAL;
 	}
 	return 0;
+#endif
 }
 
 long syscall_kaction(size_t count, struct sys_kaction_args *args)
@@ -461,7 +464,9 @@ long syscall_ocreate(uint64_t kulo,
 #endif
 
 	if(srcid) {
-		struct derivation_info *di = kalloc(sizeof(*di));
+		panic("A");
+		/*
+		//struct derivation_info *di = kalloc(sizeof(*di));
 
 		//	printk("alloced derivation: %p\n", di);
 		//	spinlock_acquire_save(&so->lock);
@@ -472,6 +477,7 @@ long syscall_ocreate(uint64_t kulo,
 		spinlock_release_restore(&so->lock);
 
 		obj_put(so);
+		*/
 	}
 
 	obj_put(o);
@@ -509,6 +515,8 @@ long syscall_odelete(uint64_t olo, uint64_t ohi, uint64_t flags)
 
 long syscall_opin(uint64_t lo, uint64_t hi, uint64_t *addr, int flags)
 {
+	panic("A");
+#if 0
 	objid_t id = MKID(hi, lo);
 	struct object *o = obj_lookup(id, 0);
 	if(!o)
@@ -526,6 +534,7 @@ long syscall_opin(uint64_t lo, uint64_t hi, uint64_t *addr, int flags)
 	}
 	obj_put(o);
 	return 0;
+#endif
 }
 
 #include <device.h>

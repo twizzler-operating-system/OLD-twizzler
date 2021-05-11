@@ -1,6 +1,6 @@
 #include <object.h>
 #include <slab.h>
-static DECLARE_SLABCACHE(sc_objtie, sizeof(struct object_tie), NULL, NULL, NULL);
+static DECLARE_SLABCACHE(sc_objtie, sizeof(struct object_tie), NULL, NULL, NULL, NULL, NULL);
 
 static int __objtie_compar_key(struct object_tie *a, objid_t n)
 {

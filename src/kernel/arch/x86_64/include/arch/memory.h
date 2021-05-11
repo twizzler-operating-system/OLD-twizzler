@@ -2,12 +2,23 @@
 
 #include <debug.h>
 #include <machine/memory.h>
+#include <spinlock.h>
+
+struct kheap_run;
+struct table_level {
+	uintptr_t phys;  // physical address of this table
+	uint64_t *table; // virtual address of this table (physical addresses of subtables or PTEs)
+	struct table_level *parent;
+	struct table_level **children; // pointers to children (virtuals)
+	struct kheap_run *children_run;
+	struct kheap_run *table_run;
+	size_t count; // number of children
+	struct spinlock lock;
+	size_t parent_idx;
+};
 
 struct arch_vm_context {
-	uintptr_t pml4_phys;
-	uint64_t *pml4;
-	uint64_t **kernel_pdpts;
-	uint64_t **user_pdpts;
+	struct table_level root;
 	int id;
 };
 
@@ -20,6 +31,8 @@ struct arch_vm_context {
 #define VM_MAP_DEVICE (1ull << 4)
 /* x86 has a no-execute bit, so we'll need to fix this up in the mapping functions */
 #define VM_MAP_EXEC (1ull << 63)
+#define PAGE_PRESENT (1ull << 0)
+#define PAGE_LARGE (1ull << 7)
 
 #define VM_PHYS_MASK (0x7FFFFFFFFFFFF000)
 #define VM_ADDR_SIZE (1ul << 48)
@@ -43,3 +56,17 @@ __attribute__((const)) static inline int mm_page_max_level(size_t sz)
 }
 
 #define OM_ADDR_SIZE (1ul << 48)
+void table_map(struct table_level *root,
+  uintptr_t virt,
+  uintptr_t phys,
+  int level,
+  uint64_t flags,
+  uint64_t);
+void table_realize(struct table_level *table);
+struct table_level *table_get_next_level(struct table_level *table, int idx, uint64_t);
+void table_premap(struct table_level *table, uintptr_t virt, int level, uint64_t table_flags);
+
+#define PML4_IDX(v) (((v) >> 39) & 0x1FF)
+#define PDPT_IDX(v) (((v) >> 30) & 0x1FF)
+#define PD_IDX(v) (((v) >> 21) & 0x1FF)
+#define PT_IDX(v) (((v) >> 12) & 0x1FF)

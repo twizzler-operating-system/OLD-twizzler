@@ -19,8 +19,6 @@
 static _Atomic size_t obj_count = 0;
 static struct rbroot obj_tree = RBINIT;
 
-static struct slabcache sc_objs;
-
 static struct spinlock objlock = SPINLOCK_INIT;
 
 void obj_print_stats(void)
@@ -66,7 +64,6 @@ void obj_init(struct object *obj)
 	obj->sourced_from = NULL;
 	krc_init(&obj->refs);
 	krc_init_zero(&obj->mapcount);
-	arch_object_init(obj);
 	obj->ties_root = RBINIT;
 	obj->preg = NULL;
 	obj->idx_map = RBINIT;
@@ -82,9 +79,10 @@ static void _obj_dtor(void *_u, void *ptr)
 	assert(krc_iszero(&obj->mapcount));
 }
 
+static DECLARE_SLABCACHE(sc_objs, sizeof(struct object), _obj_ctor, NULL, _obj_dtor, NULL, NULL);
+
 void obj_system_init(void)
 {
-	slabcache_init(&sc_objs, "sc_objs", sizeof(struct object), _obj_ctor, _obj_dtor, NULL);
 	panic("A");
 	// obj_system_init_objpage();
 }
@@ -223,6 +221,7 @@ struct object *obj_lookup(uint128_t id, int flags)
 	return obj;
 }
 
+#if 0
 void obj_release_slot(struct object *obj)
 {
 	spinlock_acquire_save(&obj->lock);
@@ -277,6 +276,7 @@ struct slot *obj_alloc_slot(struct object *obj)
 	spinlock_release_restore(&obj->lock);
 	return obj->slot;
 }
+#endif
 
 #if 0
 static void _obj_release(void *_obj)

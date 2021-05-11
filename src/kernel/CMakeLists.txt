@@ -54,14 +54,15 @@ list(APPEND KERNEL_SOURCES
 	core/timer.c
 	core/ubsan.c
 	core/unwind.c
-	core/mm/dlmalloc.c
+	core/mm/kalloc.c
+	core/mm/kheap.c
+	core/mm/map.c
 	core/mm/memory.c
+	core/mm/objspace.c
 	core/mm/page.c
-	core/mm/pm_buddy.c
 	core/mm/pmap.c
 	core/mm/slab2.c
 	core/mm/tmpmap.c
-	core/mm/vmap.c
 	core/obj/device.c
 	core/obj/fault.c
 	core/obj/kso.c
@@ -74,7 +75,6 @@ list(APPEND KERNEL_SOURCES
 	core/obj/range.c
 	core/obj/rw.c
 	core/obj/secctx.c
-	core/obj/slots.c
 	core/obj/tie.c
 	core/sys/kconf.c
 	core/sys/object.c

@@ -151,6 +151,7 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 	return true;
 }
 
+#if 0
 struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
 {
 	ssize_t tl = oaddr / mm_page_size(MAX_PGLEVEL);
@@ -164,9 +165,12 @@ struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
 	}
 	return obj;
 }
+#endif
 
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
+	panic("objspace fault entry: %lx %lx %lx %x", ip, loaddr, vaddr, flags);
+#if 0
 	size_t idx = (loaddr % mm_page_size(MAX_PGLEVEL)) / mm_page_size(0);
 	if(idx == 0 && !VADDR_IS_KERNEL(vaddr)) {
 		struct fault_null_info info = twz_fault_build_null_info((void *)ip, (void *)vaddr);
@@ -255,97 +259,8 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 
 	rwlock_runlock(&rwres);
 
-#if 0
-	if(o->flags & OF_ALLOC) {
-		struct objpage p = { 0 };
-		p.page = page_alloc(PAGE_TYPE_VOLATILE,
-		  (current_thread && current_thread->page_alloc) ? PAGE_CRITICAL : 0,
-		  0); /* TODO: refcount, largepage */
-		p.idx = (loaddr % OBJ_MAXSIZE) / mm_page_size(p.page->level);
-		p.page->flags = PAGE_CACHE_WB;
-		//	printk("Y\n");
-		spinlock_acquire_save(&p.page->lock);
-		arch_object_map_page(o, &p);
-		spinlock_release_restore(&p.page->lock);
-	} else {
-		struct objpage *p = NULL;
-		enum obj_get_page_result gpr =
-		  obj_get_page(o, loaddr % OBJ_MAXSIZE, &p, OBJ_GET_PAGE_ALLOC | OBJ_GET_PAGE_PAGEROK);
-		switch(gpr) {
-			case GETPAGE_OK:
-				break;
-			case GETPAGE_PAGER:
-				if(p) {
-					objpage_release(p, 0);
-				}
-				goto done;
-			case GETPAGE_NOENT: {
-				panic("TODO: raise fault");
-			} break;
-		}
-		assert(p && p->page);
-
-		if(!(o->flags & OF_KERNEL)) {
-			spinlock_acquire_save(&p->lock);
-			//		spinlock_acquire_save(&o->lock);
-			//		spinlock_acquire_save(&p->page->lock);
-			if(p->page->cowcount <= 1 && (p->flags & OBJPAGE_COW)) {
-				p->flags &= ~(OBJPAGE_COW | OBJPAGE_MAPPED);
-				p->page->cowcount = 1;
-			}
-
-			if((p->flags & OBJPAGE_COW) && (flags & OBJSPACE_FAULT_WRITE)) {
-				uint32_t old_count = atomic_fetch_sub(&p->page->cowcount, 1);
-				if(old_count > 1) {
-					objpage_do_cow_write(p);
-				} else {
-					p->page->cowcount = 1;
-				}
-
-				p->flags &= ~(OBJPAGE_COW | OBJPAGE_MAPPED);
-				spinlock_release_restore(&p->lock);
-
-				spinlock_acquire_save(&o->lock);
-				arch_object_map_page(o, p);
-				spinlock_release_restore(&o->lock);
-				p->flags |= OBJPAGE_MAPPED;
-			} else {
-				spinlock_release_restore(&p->lock);
-				spinlock_acquire_save(&o->lock);
-				if((flags & OBJSPACE_FAULT_WRITE) && (p->flags & OBJPAGE_MAPPED)
-				   && !(p->flags & OBJPAGE_COW)) {
-					/* possibility that we're faulting after this page was COW'd, and then the COW
-					 * page was freed, and then we want to write to the original. In this case, the
-					 * object page might be marked as non-cow, non-write, mapped. TODO: we could
-					 * probably tag the page flags with this, somehow, but it's just as easy to
-					 * check the page tables */
-					uint64_t fl;
-					if(!arch_object_getmap(o, loaddr % OBJ_MAXSIZE, NULL, NULL, &fl)
-					   || !(fl & OBJSPACE_WRITE)) {
-						p->flags &= ~OBJPAGE_MAPPED;
-					}
-				}
-				if(!(p->flags & OBJPAGE_MAPPED)) {
-					arch_object_map_page(o, p);
-					p->flags |= OBJPAGE_MAPPED;
-				}
-				spinlock_release_restore(&o->lock);
-			}
-
-			//		spinlock_release_restore(&p->page->lock);
-			objpage_release(p, 0);
-			//		spinlock_release_restore(&o->lock);
-		} else {
-			spinlock_acquire_save(&o->lock);
-			if(!(p->flags & OBJPAGE_MAPPED)) {
-				arch_object_map_page(o, p);
-				p->flags |= OBJPAGE_MAPPED;
-			}
-			spinlock_release_restore(&o->lock);
-		}
-	}
-#endif
 done:
 	obj_put(o);
 	slot_release(slot);
+#endif
 }

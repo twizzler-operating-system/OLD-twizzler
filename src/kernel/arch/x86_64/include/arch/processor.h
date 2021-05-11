@@ -99,6 +99,7 @@ struct arch_processor {
 		uint16_t eptidx;
 		uint64_t ip;
 	} * veinfo;
+	uintptr_t veinfo_phys;
 	uintptr_t *eptp_list;
 	size_t mwait_info;
 	size_t vpid;
@@ -114,7 +115,7 @@ _Static_assert(offsetof(struct arch_processor, kernel_stack) == 16,
 __attribute__((const, always_inline)) static inline struct thread *__x86_64_get_current_thread(void)
 {
 	uint64_t tmp;
-	asm("movq %%gs:%c[curr], %0" : "=r"(tmp) : [ curr ] "i"(offsetof(struct arch_processor, curr)));
+	asm("movq %%gs:%c[curr], %0" : "=r"(tmp) : [curr] "i"(offsetof(struct arch_processor, curr)));
 	return (void *)tmp;
 }
 

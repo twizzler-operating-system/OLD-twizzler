@@ -8,6 +8,7 @@
 
 extern struct object_space _bootstrap_object_space;
 
+#if 0
 bool arch_object_getmap_slot_flags(struct object_space *space, struct slot *slot, uint64_t *flags)
 {
 	uint64_t ef = 0;
@@ -92,7 +93,7 @@ void arch_object_page_remap_cow(struct objpage *op)
 {
 	if(!op->page)
 		return;
-	uintptr_t virt = op->idx * mm_page_size(op->page->level);
+	uintptr_t virt = op->idx * mm_page_size(0);
 	int pd_idx = PD_IDX(virt);
 	int pt_idx = PT_IDX(virt);
 	/* map with ALL permissions; we'll restrict permissions at a higher level */
@@ -163,7 +164,7 @@ void arch_object_map_slot(struct object_space *space,
 	int pdpt_idx = PDPT_IDX(virt);
 
 	if(!space->arch.ept[pml4_idx]) {
-		space->arch.pdpts[pml4_idx] = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
+		space->arch.pdpts[pml4_idx] = kheap_allocate_pages(0x1000, 0);
 		space->arch.ept[pml4_idx] =
 		  mm_vtop(space->arch.pdpts[pml4_idx]) | EPT_READ | EPT_WRITE | EPT_EXEC;
 	}
@@ -358,3 +359,4 @@ void arch_object_destroy(struct object *obj)
 	obj->arch.pd = NULL;
 	obj->arch.pt_root = 0;
 }
+#endif
