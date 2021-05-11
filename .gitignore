@@ -1,2 +1,8 @@
 .lvimrc
 build
+html
+man
+src/html
+src/html.kernel
+src/man
+src/man9
