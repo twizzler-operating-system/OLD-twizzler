@@ -2,12 +2,11 @@
 #include <page.h>
 #include <spinlock.h>
 
-#define KHEAP_SIZE 1024 * 1024 * 1024
+#define KHEAP_SIZE 1024 * 1024 * 1024ul
 
 static _Atomic uintptr_t kheap_start = KERNEL_VIRTUAL_HEAP_BASE;
 
-#define KHEAP_MAP_FLAGS                                                                            \
-	MAP_WIRE | MAP_KERNEL | MAP_GLOBAL | MAP_TABLE_PREALLOC | MAP_READ | MAP_WRITE
+#define KHEAP_MAP_FLAGS MAP_WIRE | MAP_KERNEL | MAP_GLOBAL | MAP_READ | MAP_WRITE
 
 /* TODO: ensure that an allocation will always be able to allocate enough memory to make the
  * allocation work (that is, we may have to extend heap space or objspace mapping before we fully
@@ -33,6 +32,12 @@ static struct spinlock kheap_run_page_lock = SPINLOCK_INIT;
 uintptr_t kheap_run_get_objspace(struct kheap_run *run)
 {
 	return ((uintptr_t)run->start - kheap_start) + kheap_oaddr_start;
+}
+
+uintptr_t kheap_run_get_phys(struct kheap_run *run)
+{
+	uintptr_t oaddr = kheap_run_get_objspace(run);
+	return mm_objspace_get_phys(oaddr);
 }
 
 static void *kheap_reserve_static(size_t len)
@@ -98,8 +103,14 @@ void kheap_start_dynamic(void)
 
 	kheap_top = kheap_start;
 	kheap_end = kheap_top + KHEAP_SIZE;
-	kheap_oaddr_start = mm_objspace_reserve(KHEAP_SIZE);
+	kheap_oaddr_start = mm_objspace_reserve(KHEAP_SIZE * 2);
+	kheap_oaddr_start = align_up(kheap_oaddr_start, mm_page_size(2));
 	mm_map(kheap_top, kheap_oaddr_start, KHEAP_SIZE, KHEAP_MAP_FLAGS);
+
+	mm_objspace_fill(kheap_oaddr_start,
+	  NULL,
+	  KHEAP_SIZE / mm_page_size(0),
+	  KHEAP_MAP_FLAGS | MAP_REPLACE | MAP_TABLE_PREALLOC);
 
 	kheap_run_page = kheap_allocate_from_end();
 	kheap_run_page_lock = SPINLOCK_INIT;
@@ -144,13 +155,13 @@ struct kheap_run *kheap_allocate(size_t len)
 	len = align_up(len, mm_page_size(0));
 	size_t np = len / mm_page_size(0) - 1;
 	size_t smallest;
-	for(smallest = 0; smallest < nr_buckets && smallest < np; smallest++)
+	for(smallest = 0; smallest < nr_buckets && (1 << smallest) < np; smallest++)
 		;
 	if(smallest == nr_buckets)
 		panic("tried to allocate region of length %ld from kheap (maximum of %ld allocation size)",
 		  len,
 		  mm_objspace_region_size());
-	assert(smallest >= np);
+	assert((1 << smallest) >= np);
 
 	for(size_t i = smallest; i < nr_buckets; i++) {
 		struct kheap_run *run = kheap_take_from_bucket(i, true);
@@ -180,8 +191,6 @@ void kheap_free(struct kheap_run *run)
 
 void *kheap_allocate_pages(size_t len, int flags)
 {
-	if(!kheap_end)
-		return kheap_reserve_static(len);
 	panic("A");
 }
 

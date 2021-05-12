@@ -11,13 +11,14 @@ extern struct vm_context kernel_ctx;
 struct pmap {
 	uintptr_t phys;
 	uintptr_t virt;
+	uintptr_t oaddr;
 	struct rbnode node;
 	struct page page;
 };
 
 static struct spinlock lock = SPINLOCK_INIT;
 
-#define PMAP_MAX 1024 * 1024 * 1024
+#define PMAP_MAX 1024 * 1024 * 1024ul
 
 static uintptr_t start = KERNEL_VIRTUAL_PMAP_BASE;
 static uintptr_t oaddr_start = 0;
@@ -59,12 +60,18 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 
 		uintptr_t oaddr = oaddr_start;
 		oaddr_start += mm_page_size(0);
-		mm_map(
-		  pmap->virt, oaddr, mm_page_size(0), MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+		mm_map(pmap->virt,
+		  oaddr,
+		  mm_page_size(0),
+		  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
+		pmap->oaddr = oaddr;
 		struct page page = {
 			.addr = phys,
+			.flags = cache_type,
 		};
-		mm_objspace_fill(oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+		printk("TODO: dont ignore PAT type??\n");
+		mm_objspace_fill(
+		  oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 	} else {
 		pmap = rb_entry(node, struct pmap, node);
 		if(remap) {
@@ -73,18 +80,20 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 			mm_map(pmap->virt,
 			  oaddr,
 			  mm_page_size(0),
-			  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+			  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
+			pmap->oaddr = oaddr;
 			struct page page = {
 				.addr = phys,
+				.flags = cache_type,
 			};
-			mm_objspace_fill(oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE);
+			mm_objspace_fill(
+			  oaddr, &page, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 			pmap->virt = start;
 			start += mm_page_size(0);
 		}
 	}
 
 	return pmap;
-	panic("A");
 }
 
 void *pmap_allocate(uintptr_t phys, size_t len, int cache_type)
@@ -95,14 +104,24 @@ void *pmap_allocate(uintptr_t phys, size_t len, int cache_type)
 
 	spinlock_acquire_save(&lock);
 	uintptr_t virt = 0;
+	uintptr_t oaddr = 0;
 	for(size_t i = 0; i < len; i += mm_page_size(0)) {
-		struct pmap *pmap = pmap_get(phys, cache_type, len > mm_page_size(0));
+		struct pmap *pmap = pmap_get(phys + i, cache_type, len > mm_page_size(0));
 		assert(pmap != NULL);
 		if(!virt)
 			virt = pmap->virt;
+		if(!oaddr)
+			oaddr = pmap->oaddr;
 	}
 	spinlock_release_restore(&lock);
-	panic("A");
-	// printk("pmap alloc %lx:%lx -> %lx\n", phys, phys + len - 1, virt + off);
-	// return (void *)(virt + off + (uintptr_t)SLOT_TO_VADDR(KVSLOT_PMAP));
+#if 0
+	printk("[mm] pmap mapping [%lx - %lx] -> [%lx - %lx] -> [%lx - %lx]\n",
+	  virt,
+	  virt + len,
+	  oaddr,
+	  oaddr + len,
+	  phys,
+	  phys + len);
+#endif
+	return (void *)(virt + off);
 }

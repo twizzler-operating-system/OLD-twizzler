@@ -19,6 +19,7 @@ struct page {
 #define PAGE_ZERO 0x10
 void mm_page_print_stats(void);
 struct page *mm_page_alloc(int flags);
+uintptr_t mm_page_alloc_addr(int flags);
 void mm_page_zero(struct page *page);
 void mm_page_init(void);
 void mm_page_idle_zero(void);

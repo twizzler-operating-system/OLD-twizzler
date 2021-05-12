@@ -58,3 +58,8 @@ struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr)
 {
 	panic("A");
 }
+
+uintptr_t mm_objspace_get_phys(uintptr_t oaddr)
+{
+	return arch_mm_objspace_get_phys(oaddr);
+}

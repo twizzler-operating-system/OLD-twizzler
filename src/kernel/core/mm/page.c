@@ -5,6 +5,7 @@
 
 static DECLARE_LIST(page_list);
 static DECLARE_LIST(pagezero_list);
+static DECLARE_LIST(pagestruct_list);
 static struct spinlock lock = SPINLOCK_INIT;
 
 #define INITIAL_ALLOC_SIZE 4096
@@ -64,24 +65,42 @@ static struct page *fallback_page_alloc(void)
 	return page;
 }
 
-void mm_page_zero(struct page *page)
+static void mm_page_zero_addr(uintptr_t addr)
 {
-	if(page->addr < MEMORY_BOOTSTRAP_MAX) {
-		memset(mm_early_ptov(page->addr), 0, mm_page_size(0));
+	if(addr < MEMORY_BOOTSTRAP_MAX) {
+		memset(mm_early_ptov(addr), 0, mm_page_size(0));
 		return;
 	}
 	panic("A");
 }
 
-struct page *mm_page_alloc(int flags)
+void mm_page_zero(struct page *page)
 {
-	spinlock_acquire_save(&lock);
+	mm_page_zero_addr(page->addr);
+	page->flags |= PAGE_ZERO;
+}
+
+#define PAGE_ADDR 0x1000
+
+static inline struct page *RET(int flags, struct page *p)
+{
+	if(flags & PAGE_ADDR) {
+		uintptr_t addr = p->addr;
+		p->addr = 0;
+		p->flags = 0;
+		list_insert(&pagestruct_list, &p->entry);
+		return (void *)addr;
+	}
+	return p;
+}
+
+static struct page *__do_mm_page_alloc(int flags)
+{
 	/* if we're requesting a zero'd page, try getting from the zero list first */
 	if(flags & PAGE_ZERO) {
 		if(!list_empty(&pagezero_list)) {
 			struct page *ret = list_entry(list_pop(&pagezero_list), struct page, entry);
-			spinlock_release_restore(&lock);
-			return ret;
+			return RET(flags, ret);
 		}
 	}
 
@@ -90,6 +109,9 @@ struct page *mm_page_alloc(int flags)
 	 * available, we wouldn't be here. */
 	if(list_empty(&page_list)) {
 		if(list_empty(&pagezero_list)) {
+			if(flags & PAGE_ADDR) {
+				return (void *)mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
+			}
 			page = fallback_page_alloc();
 		} else {
 			page = list_entry(list_pop(&pagezero_list), struct page, entry);
@@ -100,11 +122,27 @@ struct page *mm_page_alloc(int flags)
 	spinlock_release_restore(&lock);
 	assert(page);
 
+	return RET(flags, page);
+}
+
+struct page *mm_page_alloc(int flags)
+{
+	spinlock_acquire_save(&lock);
+	struct page *page = __do_mm_page_alloc(flags);
+	spinlock_release_restore(&lock);
 	if((flags & PAGE_ZERO) && !(page->flags & PAGE_ZERO)) {
 		mm_page_zero(page);
 	}
-
 	return page;
+}
+
+uintptr_t mm_page_alloc_addr(int flags)
+{
+	void *p = __do_mm_page_alloc(flags | PAGE_ADDR);
+	if(flags & PAGE_ZERO) {
+		mm_page_zero_addr((uintptr_t)p);
+	}
+	return (uintptr_t)p;
 }
 
 void mm_page_print_stats(void)

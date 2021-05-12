@@ -588,7 +588,8 @@ void x86_64_processor_post_vm_init(struct processor *proc)
 
 	if(proc->flags & PROCESSOR_BSP)
 		kernel_init();
-	proc->arch.kernel_stack = kheap_allocate_pages(KERNEL_STACK_SIZE, 0);
+	struct kheap_run *run = kheap_allocate(KERNEL_STACK_SIZE);
+	proc->arch.kernel_stack = run->start;
 	asm volatile("mov %%rax, %%rsp; call processor_perproc_init;" ::"a"(
 	               proc->arch.kernel_stack + KERNEL_STACK_SIZE),
 	             "D"(proc)

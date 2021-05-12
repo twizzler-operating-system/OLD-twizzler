@@ -4,13 +4,18 @@
 
 #define RWLOCK_MAX_TRIES 100
 
+#define DEBUG_RWLOCK 0
+
 void rwlock_init(struct rwlock *rw)
 {
 	rw->readers = rw->writers = 0;
 }
 
-struct rwlock_result rwlock_rlock(struct rwlock *rw, int flags)
+struct rwlock_result __rwlock_rlock(struct rwlock *rw, int flags, const char *file, int line)
 {
+#if DEBUG_RWLOCK
+	printk("trying to get read lock %p: %s:%d\n", rw, file, line);
+#endif
 	register int set = arch_interrupt_set(0);
 	uint32_t tries = 0;
 	while(1) {
@@ -26,6 +31,8 @@ struct rwlock_result rwlock_rlock(struct rwlock *rw, int flags)
 			if(tries > RWLOCK_MAX_TRIES && (flags & RWLOCK_TRY)) {
 				goto timeout;
 			}
+			if(tries > 1000000)
+				panic("deadlock: %d %d", rw->readers, rw->writers);
 		}
 	}
 	struct rwlock_result res = {
@@ -34,6 +41,7 @@ struct rwlock_result rwlock_rlock(struct rwlock *rw, int flags)
 		.res = RWLOCK_GOT,
 		.write = 0,
 	};
+	assert(rw->readers > 0 && rw->writers >= 0);
 	return res;
 
 timeout:
@@ -46,8 +54,14 @@ timeout:
 	return res;
 }
 
-struct rwlock_result rwlock_upgrade(struct rwlock_result *rr, int flags)
+struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr,
+  int flags,
+  const char *file,
+  int line)
 {
+#if DEBUG_RWLOCK
+	printk("trying to upgrade lock %p: %s:%d\n", rr->lock, file, line);
+#endif
 	assert(!rr->write);
 	uint32_t tries = 0;
 	while(1) {
@@ -82,6 +96,7 @@ struct rwlock_result rwlock_upgrade(struct rwlock_result *rr, int flags)
 		.res = RWLOCK_GOT,
 		.write = 1,
 	};
+	assert(rr->lock->readers >= 0 && rr->lock->writers > 0);
 	return res;
 
 timeout:
@@ -94,8 +109,11 @@ timeout:
 	return res;
 }
 
-struct rwlock_result rwlock_downgrade(struct rwlock_result *rr)
+struct rwlock_result __rwlock_downgrade(struct rwlock_result *rr, const char *file, int line)
 {
+#if DEBUG_RWLOCK
+	printk("downgrade lock %p: %s:%d\n", rr->lock, file, line);
+#endif
 	assert(rr->write);
 	/* always succeeds */
 	atomic_fetch_add(&rr->lock->readers, 1);
@@ -106,11 +124,15 @@ struct rwlock_result rwlock_downgrade(struct rwlock_result *rr)
 		.res = RWLOCK_GOT,
 		.write = 0,
 	};
+	assert(rr->lock->readers > 0 && rr->lock->writers >= 0);
 	return res;
 }
 
-struct rwlock_result rwlock_wlock(struct rwlock *rw, int flags)
+struct rwlock_result __rwlock_wlock(struct rwlock *rw, int flags, const char *file, int line)
 {
+#if DEBUG_RWLOCK
+	printk("trying to get write lock %p: %s:%d\n", rw, file, line);
+#endif
 	register int set = arch_interrupt_set(0);
 	uint32_t tries = 0;
 	while(1) {
@@ -142,6 +164,7 @@ struct rwlock_result rwlock_wlock(struct rwlock *rw, int flags)
 		.res = RWLOCK_GOT,
 		.write = 1,
 	};
+	assert(rw->readers >= 0 && rw->writers > 0);
 	return res;
 
 timeout:
@@ -155,16 +178,24 @@ timeout:
 	return res;
 }
 
-void rwlock_wunlock(struct rwlock_result *rr)
+void __rwlock_wunlock(struct rwlock_result *rr, const char *file, int line)
 {
+#if DEBUG_RWLOCK
+	printk("wunlock lock %p: %s:%d\n", rr->lock, file, line);
+#endif
 	assert(rr->write);
-	atomic_fetch_sub(&rr->lock->readers, 1);
+	assert(rr->lock->writers > 0);
+	atomic_fetch_sub(&rr->lock->writers, 1);
 	arch_interrupt_set(rr->int_flag);
 }
 
-void rwlock_runlock(struct rwlock_result *rr)
+void __rwlock_runlock(struct rwlock_result *rr, const char *file, int line)
 {
+#if DEBUG_RWLOCK
+	printk("runlock lock %p: %s:%d\n", rr->lock, file, line);
+#endif
 	assert(!rr->write);
-	atomic_fetch_sub(&rr->lock->writers, 1);
+	assert(rr->lock->readers > 0);
+	atomic_fetch_sub(&rr->lock->readers, 1);
 	arch_interrupt_set(rr->int_flag);
 }

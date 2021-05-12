@@ -321,3 +321,7 @@ struct copy_args {
 };
 
 int object_copy_pages(struct object *dst, struct copy_args *args, size_t nr_args);
+int object_operate_on_locked_page(struct object *obj,
+  size_t page,
+  void (*fn)(struct object *obj, struct page *page, void *data),
+  void *data);

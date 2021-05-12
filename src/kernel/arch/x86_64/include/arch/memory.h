@@ -2,8 +2,9 @@
 
 #include <debug.h>
 #include <machine/memory.h>
-#include <spinlock.h>
+#include <rwlock.h>
 
+#define TABLE_RUN_ALLOCATED 1
 struct kheap_run;
 struct table_level {
 	uintptr_t phys;  // physical address of this table
@@ -13,8 +14,9 @@ struct table_level {
 	struct kheap_run *children_run;
 	struct kheap_run *table_run;
 	size_t count; // number of children
-	struct spinlock lock;
-	size_t parent_idx;
+	struct rwlock lock;
+	int parent_idx;
+	int flags;
 };
 
 struct arch_vm_context {
@@ -61,10 +63,16 @@ void table_map(struct table_level *root,
   uintptr_t phys,
   int level,
   uint64_t flags,
-  uint64_t);
-void table_realize(struct table_level *table);
-struct table_level *table_get_next_level(struct table_level *table, int idx, uint64_t);
-void table_premap(struct table_level *table, uintptr_t virt, int level, uint64_t table_flags);
+  uint64_t,
+  bool);
+void table_realize(struct table_level *table, bool);
+struct table_level *table_get_next_level(struct table_level *table,
+  int idx,
+  uint64_t,
+  bool,
+  struct rwlock_result *);
+void table_premap(struct table_level *table, uintptr_t virt, int level, uint64_t table_flags, bool);
+bool table_readmap(struct table_level *table, uintptr_t addr, uint64_t *entry, int *level);
 
 #define PML4_IDX(v) (((v) >> 39) & 0x1FF)
 #define PDPT_IDX(v) (((v) >> 30) & 0x1FF)

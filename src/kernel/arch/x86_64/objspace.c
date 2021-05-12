@@ -31,23 +31,32 @@ void arch_objspace_map(struct object_space *space,
 	flags |= EPT_MEMTYPE_WB | EPT_IGNORE_PAT;
 
 	struct arch_object_space *arch = &space->arch;
-	spinlock_acquire_save(&arch->root.lock);
 	printk("TODO: do cache type\n");
 	for(size_t i = 0; i < count; i++, virt += mm_page_size(0)) {
 		uintptr_t addr;
 		if(pages) {
 			addr = pages[i].addr;
 		} else if(mapflags & MAP_ZERO) {
-			struct page *page = mm_page_alloc(PAGE_ZERO);
-			addr = page->addr;
+			addr = mm_page_alloc_addr(PAGE_ZERO);
 			/* TODO: release this page struct for reuse? */
 		} else if(!(mapflags & MAP_TABLE_PREALLOC)) {
 			panic("invalid page mapping strategy");
 		}
 		if(mapflags & MAP_TABLE_PREALLOC)
-			table_premap(&arch->root, virt, 0, EPT_WRITE | EPT_READ | EPT_EXEC);
+			table_premap(&arch->root, virt, 0, EPT_WRITE | EPT_READ | EPT_EXEC, true);
 		else
-			table_map(&arch->root, virt, addr, 0, flags, EPT_WRITE | EPT_READ | EPT_EXEC);
+			table_map(&arch->root, virt, addr, 0, flags, EPT_WRITE | EPT_READ | EPT_EXEC, true);
 	}
-	spinlock_release_restore(&arch->root.lock);
+}
+
+uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
+{
+	struct object_space *space = &_bootstrap_object_space;
+	uint64_t entry;
+	int level;
+	struct arch_object_space *arch = &space->arch;
+	if(!table_readmap(&arch->root, oaddr, &entry, &level)) {
+		return (uintptr_t)-1;
+	}
+	return entry & EPT_PAGE_MASK;
 }

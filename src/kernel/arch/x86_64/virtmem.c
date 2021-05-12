@@ -20,7 +20,6 @@ int arch_mm_map(struct vm_context *ctx,
 	flags |= (mapflags & MAP_KERNEL) ? 0 : VM_MAP_USER;
 
 	struct arch_vm_context *arch = &ctx->arch;
-	spinlock_acquire_save(&arch->root.lock);
 	size_t i = 0;
 	while(i < len) {
 		size_t rem = len - i;
@@ -30,10 +29,9 @@ int arch_mm_map(struct vm_context *ctx,
 		} else if(is_aligned(i, mm_page_size(1)) && rem >= mm_page_size(1)) {
 			level = 1;
 		}
-		table_map(&arch->root, virt + i, phys + i, level, flags, RECUR_FLAGS);
+		table_map(&arch->root, virt + i, phys + i, level, flags, RECUR_FLAGS, false);
 		i += mm_page_size(level);
 	}
-	spinlock_release_restore(&arch->root.lock);
 	return 0;
 }
 
@@ -209,18 +207,21 @@ void x86_64_vm_kernel_context_init(void)
 		_init = true;
 
 		struct arch_vm_context *arch = &kernel_ctx.arch;
-		table_realize(&arch->root);
+		arch->root.lock = RWLOCK_INIT;
+		memset(&kernel_ctx, 0, sizeof(kernel_ctx));
+		table_realize(&arch->root, false);
 
 		int pml4_slot = PML4_IDX(KERNEL_VIRTUAL_BASE);
 		int pdpt_slot = PDPT_IDX(KERNEL_VIRTUAL_BASE);
 
-		struct table_level *table = table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS);
+		struct table_level *table =
+		  table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS, false, NULL);
 		table->table[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
 
 		pml4_slot = PML4_IDX(PHYSICAL_MAP_START);
 		pdpt_slot = PDPT_IDX(PHYSICAL_MAP_START);
 
-		table = table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS);
+		table = table_get_next_level(&arch->root, pml4_slot, RECUR_FLAGS, false, NULL);
 		table->table[pdpt_slot] = VM_MAP_WRITE | VM_MAP_GLOBAL | PAGE_LARGE | PAGE_PRESENT;
 	}
 

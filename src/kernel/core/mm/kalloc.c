@@ -6,7 +6,8 @@
 
 struct header {
 	uint32_t canary;
-	uint32_t size_class;
+	int32_t size_class;
+	struct kheap_run *run;
 };
 
 #define NR_CACHES 8
@@ -29,6 +30,7 @@ static int get_class(size_t len)
 
 void kalloc_system_init(void)
 {
+	printk("[mm] creating %d kalloc bins\n", NR_CACHES);
 	for(int i = 0; i < NR_CACHES; i++) {
 		slabcache_init(&caches[i], "kalloc", get_size(i), NULL, NULL, NULL, NULL, NULL);
 	}
@@ -38,6 +40,14 @@ void *kalloc(size_t len, int flags)
 {
 	len += sizeof(struct header);
 	int class = get_class(len);
+	if(class == -1) {
+		struct kheap_run *run = kheap_allocate(len);
+		struct header *hdr = run->start;
+		hdr->run = run;
+		hdr->size_class = -1;
+		hdr->canary = CANARY;
+		return (void *)(hdr + 1);
+	}
 	struct header *obj = slabcache_alloc(&caches[class]);
 	obj->canary = CANARY;
 	obj->size_class = class;
@@ -77,5 +87,9 @@ void kfree(void *p)
 {
 	struct header *hdr = (void *)((char *)p - sizeof(struct header));
 	assert(hdr->canary == CANARY);
-	slabcache_free(&caches[hdr->size_class], hdr);
+	if(hdr->size_class == -1) {
+		kheap_free(hdr->run);
+	} else {
+		slabcache_free(&caches[hdr->size_class], hdr);
+	}
 }

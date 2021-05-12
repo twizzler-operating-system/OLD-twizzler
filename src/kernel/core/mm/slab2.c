@@ -134,9 +134,9 @@ void *slabcache_alloc(struct slabcache *c)
 {
 	struct slab *s;
 	assert(c->canary == SLAB_CANARY);
-	__slab_second_init(c);
 	int new = 0;
 	bool fl = spinlock_acquire(&c->lock);
+	__slab_second_init(c);
 	if(!is_empty(c->partial)) {
 		s = c->partial.next;
 	} else if(!is_empty(c->empty)) {
@@ -153,7 +153,8 @@ void *slabcache_alloc(struct slabcache *c)
 	spinlock_release(&c->lock, fl);
 	c->stats.current_alloced++;
 	c->stats.total_alloced++;
-	c->ctor(c->ptr, ret);
+	if(c->ctor)
+		c->ctor(c->ptr, ret);
 	return ret;
 }
 
@@ -166,7 +167,8 @@ void slabcache_free(struct slabcache *sc, void *obj)
 	struct slab *s = (struct slab *)((char *)obj - (sc->sz * mk->slot + sizeof(struct slab)));
 	mk->marker_magic = 0;
 
-	sc->dtor(sc->ptr, obj);
+	if(sc->dtor)
+		sc->dtor(sc->ptr, obj);
 
 	if(s->canary != SLAB_CANARY) {
 		panic("SC FREE CANARY MISMATCH: %lx: %p -> %p\n", s->canary, obj, s);
@@ -200,7 +202,8 @@ static void destroy_slab(struct slab *s)
 	for(unsigned int i = 0; i < obj_per_slab(s->slabcache, s->slabcache->sz); i++) {
 		if(s->slabcache->fini) {
 			char *obj = s->data + i * s->slabcache->sz;
-			s->slabcache->fini(s->slabcache->ptr, obj);
+			if(s->slabcache->fini)
+				s->slabcache->fini(s->slabcache->ptr, obj);
 		}
 	}
 }

@@ -236,3 +236,6 @@ int arch_mm_map(struct vm_context *ctx,
   uint64_t mapflags);
 bool mm_is_ready(void);
 void kalloc_system_init(void);
+uintptr_t mm_objspace_get_phys(uintptr_t oaddr);
+uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr);
+uintptr_t kheap_run_get_phys(struct kheap_run *run);

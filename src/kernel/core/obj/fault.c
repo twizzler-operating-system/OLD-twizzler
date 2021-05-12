@@ -264,3 +264,12 @@ done:
 	slot_release(slot);
 #endif
 }
+
+int object_operate_on_locked_page(struct object *obj,
+  size_t page,
+  void (*fn)(struct object *obj, struct page *page, void *data),
+  void *data)
+{
+	printk("TODO: implement this\n");
+	return 0;
+}

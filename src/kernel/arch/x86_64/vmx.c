@@ -329,12 +329,12 @@ __noinstrument __attribute__((used)) static void x86_64_vmexit_handler(struct pr
 			x86_64_rdmsr(X86_MSR_GS_BASE, &x, &y);
 			printk("GS: %x %x\nPROC: %p", y, x, &proc->arch);
 			unsigned long gs = vmcs_readl(VMCS_GUEST_GS_BASE);
-			unsigned long iinfo = vmcs_readl(VMCS_VM_INSTRUCTION_INFO);
+			unsigned long _iinfo = vmcs_readl(VMCS_VM_INSTRUCTION_INFO);
 			panic("Unhandled VMEXIT: %ld %lx %lx %lx :: %lx %x %x",
 			  reason,
 			  qual,
 			  grip,
-			  iinfo,
+			  _iinfo,
 			  gs,
 			  x,
 			  y);
@@ -481,13 +481,15 @@ static void __init_ept_root(void)
 {
 	if(_bootstrap_object_space.arch.root.phys)
 		return;
+	_bootstrap_object_space.arch.root.lock = RWLOCK_INIT;
 	/* identity-map the first GB of memory. That should be enough to get us going. */
 	table_map(&_bootstrap_object_space.arch.root,
 	  0,
 	  0,
 	  2,
 	  EPT_READ | EPT_WRITE | EPT_EXEC | EPT_MEMTYPE_WB | EPT_IGNORE_PAT,
-	  EPT_READ | EPT_WRITE | EPT_EXEC);
+	  EPT_READ | EPT_WRITE | EPT_EXEC,
+	  true);
 }
 
 void vmexit_point(void);

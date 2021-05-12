@@ -1,7 +1,7 @@
 #pragma once
 
 struct rwlock {
-	_Atomic uint32_t readers, writers;
+	_Atomic int32_t readers, writers;
 };
 
 #define RWLOCK_INIT                                                                                \
@@ -21,10 +21,18 @@ struct rwlock_result {
 };
 #define RWLOCK_TRY 1
 
-struct rwlock_result rwlock_rlock(struct rwlock *rw, int flags);
-struct rwlock_result rwlock_upgrade(struct rwlock_result *rr, int flags);
-struct rwlock_result rwlock_downgrade(struct rwlock_result *rr);
-struct rwlock_result rwlock_wlock(struct rwlock *rw, int flags);
-void rwlock_wunlock(struct rwlock_result *rr);
-void rwlock_runlock(struct rwlock_result *rw);
+struct rwlock_result __rwlock_rlock(struct rwlock *rw, int flags, const char *, int);
+struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr, int flags, const char *, int);
+struct rwlock_result __rwlock_downgrade(struct rwlock_result *rr, const char *, int);
+struct rwlock_result __rwlock_wlock(struct rwlock *rw, int flags, const char *, int);
+
+#define rwlock_wlock(a, b) __rwlock_wlock(a, b, __FILE__, __LINE__)
+#define rwlock_rlock(a, b) __rwlock_rlock(a, b, __FILE__, __LINE__)
+#define rwlock_upgrade(a, b) __rwlock_upgrade(a, b, __FILE__, __LINE__)
+#define rwlock_downgrade(a) __rwlock_downgrade(a, __FILE__, __LINE__)
+#define rwlock_wunlock(a) __rwlock_wunlock(a, __FILE__, __LINE__)
+#define rwlock_runlock(a) __rwlock_runlock(a, __FILE__, __LINE__)
+
+void __rwlock_wunlock(struct rwlock_result *rr, const char *, int);
+void __rwlock_runlock(struct rwlock_result *rw, const char *, int);
 void rwlock_init(struct rwlock *);

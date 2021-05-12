@@ -76,7 +76,6 @@ bool __spinlock_acquire(struct spinlock *lock, const char *f __unused, int l __u
 		}
 		tries++;
 #if CONFIG_DEBUG_LOCKS
-		printk("%ld\n", tries);
 		if(tries >= 100000ul && f) {
 			panic("POTENTIAL DEADLOCK in cpu %ld trying to acquire %s:%d (held from %s:%d by "
 			      "cpu %ld) :: %d %d\n",
