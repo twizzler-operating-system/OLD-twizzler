@@ -239,3 +239,8 @@ void kalloc_system_init(void);
 uintptr_t mm_objspace_get_phys(uintptr_t oaddr);
 uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr);
 uintptr_t kheap_run_get_phys(struct kheap_run *run);
+void *tmpmap_map_pages(struct page *pages, size_t count);
+
+#define INVL_SELF 0
+#define INVL_ALL 1
+void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags);

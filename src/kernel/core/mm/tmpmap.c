@@ -1,17 +1,73 @@
 #include <memory.h>
 #include <object.h>
 #include <pmap.h>
+#include <processor.h>
 #include <slots.h>
 #include <spinlock.h>
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>
 
+#define TMPMAP_LEN mm_page_size(0) * 512
+
+static _Atomic uintptr_t tmpmap_start = KERNEL_VIRTUAL_TMPMAP_BASE;
+
+struct tmpmap {
+	uintptr_t virt;
+	uintptr_t oaddr;
+	size_t current;
+};
+
+static DECLARE_PER_CPU(struct tmpmap, tmpmap) = {};
+
 void tmpmap_collect_stats(struct memory_stats *stats)
 {
 }
 
-__initializer static void tmpmap_init(void)
+static void tmpmap_init(struct tmpmap *tmpmap)
 {
+	if(tmpmap->virt == 0) {
+		tmpmap->virt = atomic_fetch_add(&tmpmap_start, TMPMAP_LEN);
+		tmpmap->oaddr = mm_objspace_reserve(TMPMAP_LEN);
+		mm_map(tmpmap->virt,
+		  tmpmap->oaddr,
+		  TMPMAP_LEN,
+		  MAP_READ | MAP_WRITE | MAP_WIRE | MAP_KERNEL | MAP_GLOBAL | MAP_REPLACE);
+		mm_objspace_fill(tmpmap->oaddr,
+		  NULL,
+		  TMPMAP_LEN / mm_page_size(0),
+		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE
+		    | MAP_TABLE_PREALLOC);
+		tmpmap->current = 0;
+	}
+}
+
+static void tmpmap_reset(struct tmpmap *tmpmap)
+{
+	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
+	tmpmap->current = 0;
+}
+
+void *tmpmap_map_pages(struct page *pages, size_t count)
+{
+	struct tmpmap *tmpmap = per_cpu_get(tmpmap);
+	tmpmap_init(tmpmap);
+
+	const size_t max = TMPMAP_LEN / mm_page_size(0);
+	if(tmpmap->current + count > max) {
+		tmpmap_reset(tmpmap);
+	}
+
+	if(count > max) {
+		panic("cannot tmpmap %ld pages at the same time", count);
+	}
+
+	mm_objspace_fill(tmpmap->oaddr + tmpmap->current * mm_page_size(0),
+	  pages,
+	  count,
+	  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE);
+	void *ret = (void *)(tmpmap->virt + tmpmap->current * mm_page_size(0));
+	tmpmap->current += count;
+	return ret;
 }
 
 //#include <processor.h>

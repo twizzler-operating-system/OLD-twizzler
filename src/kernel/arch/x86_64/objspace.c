@@ -60,3 +60,8 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 	}
 	return entry & EPT_PAGE_MASK;
 }
+
+void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
+{
+	x86_64_invvpid(start, len);
+}

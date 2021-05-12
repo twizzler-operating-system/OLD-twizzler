@@ -189,8 +189,8 @@ static void vmx_handle_rootcall(struct processor *proc)
 {
 	long fn = proc->arch.vcpu_state_regs[REG_RDI];
 	long a0 = proc->arch.vcpu_state_regs[REG_RSI];
-	// long a1 = proc->vcpu_state_regs[REG_RDX];
-	// long a2 = proc->vcpu_state_regs[REG_RCX];
+	long a1 = proc->arch.vcpu_state_regs[REG_RDX];
+	long a2 = proc->arch.vcpu_state_regs[REG_RCX];
 
 	/* Make sure we only accept calls from kernel-mode.
 	 * Linux looks at the AR bytes instead of the selector DPL.
@@ -209,6 +209,14 @@ static void vmx_handle_rootcall(struct processor *proc)
 		case VMX_RC_SWITCHEPT:
 			vmcs_writel(VMCS_EPT_PTR, (uintptr_t)a0 | (3 << 3) | 6);
 			break;
+		case VMX_RC_INVVPID: {
+			uint32_t len = a2 >> 32;
+			for(uint32_t i = 0; i < len; i += mm_page_size(0)) {
+				__int128 desc = (((__int128)a1 + i) << 64) | (a2 & 0xffffffff);
+				asm volatile("invvpid (%%rcx), %%rax" ::"a"(a0), "c"(&desc));
+			}
+			break;
+		}
 		default:
 			panic("Unknown root call %ld", fn);
 	}
@@ -689,6 +697,19 @@ static long x86_64_rootcall(long fn, long a0, long a1, long a2)
 	long ret;
 	asm volatile("vmcall" : "=a"(ret) : "D"(fn), "S"(a0), "d"(a1), "c"(a2) : "memory");
 	return ret;
+}
+
+void x86_64_invvpid(uint64_t addr, uint64_t len)
+{
+	if(len == 0)
+		len = 1;
+	if(len <= 8 * mm_page_size(0)) {
+		x86_64_rootcall(
+		  VMX_RC_INVVPID, 0, addr, (uint64_t)current_processor->arch.vpid | (len << 32));
+	} else {
+		x86_64_rootcall(
+		  VMX_RC_INVVPID, 2, addr, (uint64_t)current_processor->arch.vpid | (len << 32));
+	}
 }
 
 struct spinlock eptp_lock = SPINLOCK_INIT;
