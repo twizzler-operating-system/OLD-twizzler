@@ -49,6 +49,28 @@ void arch_objspace_map(struct object_space *space,
 	}
 }
 
+void arch_objspace_region_map_page(struct objspace_region *region,
+  size_t idx,
+  struct page *page,
+  uint64_t flags)
+{
+	assert(idx < 512);
+	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
+	table_realize(&region->arch.table, true);
+
+	printk("TODO: cache type\n");
+	uint64_t mapflags = EPT_MEMTYPE_WB | EPT_IGNORE_PAT;
+	mapflags |= (flags & MAP_READ) ? EPT_READ : 0;
+	mapflags |= (flags & MAP_WRITE) ? EPT_WRITE : 0;
+	mapflags |= (flags & MAP_EXEC) ? EPT_EXEC : 0;
+
+	if(flags & PAGE_MAP_COW)
+		mapflags &= EPT_WRITE;
+
+	region->arch.table.table[idx] = mapflags | page->addr;
+	rwlock_wunlock(&res);
+}
+
 uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 {
 	struct object_space *space = &_bootstrap_object_space;

@@ -21,7 +21,10 @@ static inline void vector_set(struct vector *vec, size_t idx, void *p)
 {
 	if(idx >= vec->length)
 		return;
-	memcpy((char *)vec->start + idx * vec->entry_size, p, vec->entry_size);
+	if(p)
+		memcpy((char *)vec->start + idx * vec->entry_size, p, vec->entry_size);
+	else
+		memset((char *)vec->start + idx * vec->entry_size, 0, vec->entry_size);
 }
 
 static inline void vector_reserve(struct vector *vec, size_t len)
@@ -32,12 +35,14 @@ static inline void vector_reserve(struct vector *vec, size_t len)
 	vec->capacity = len;
 }
 
-static inline void vector_push(struct vector *vec, void *p)
+static inline size_t vector_push(struct vector *vec, void *p)
 {
 	if(vec->length == vec->capacity) {
 		vector_reserve(vec, vec->capacity ? vec->capacity * 2 : 4);
 	}
-	vector_set(vec, vec->length++, p);
+	size_t idx = vec->length++;
+	vector_set(vec, idx, p);
+	return idx;
 }
 
 static inline void vector_grow(struct vector *vec, void *item, size_t nr)
@@ -45,6 +50,14 @@ static inline void vector_grow(struct vector *vec, void *item, size_t nr)
 	vector_reserve(vec, vec->length + nr);
 	for(size_t i = 0; i < nr; i++)
 		vector_push(vec, item);
+}
+
+static inline size_t vector_set_grow(struct vector *vec, size_t idx, void *item)
+{
+	vector_grow(vec, NULL, idx - vec->length);
+	size_t _idx = vector_push(vec, item);
+	assert(idx == _idx);
+	return idx;
 }
 
 static inline void *vector_pop(struct vector *vec)

@@ -3,6 +3,7 @@
 #include <arch/memory.h>
 
 struct arch_objspace_region {
+	struct table_level table;
 };
 
 struct object_space;

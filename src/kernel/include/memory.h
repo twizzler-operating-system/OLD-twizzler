@@ -205,19 +205,19 @@ void kheap_free(struct kheap_run *run);
 struct kheap_run *kheap_allocate(size_t len);
 int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page);
 
-struct omap {
-	struct object *obj;
-	uintptr_t addr;
-	struct rbnode objnode;
-	struct rbnode spacenode;
-};
-
 #include <arch/objspace.h>
 
 struct objspace_region {
 	struct arch_objspace_region arch;
 	uintptr_t addr;
 	struct list entry;
+};
+
+struct omap {
+	struct object *obj;
+	struct objspace_region *region;
+	struct rbnode objnode;
+	struct rbnode spacenode;
 };
 
 struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
@@ -244,3 +244,7 @@ void *tmpmap_map_pages(struct page *pages, size_t count);
 #define INVL_SELF 0
 #define INVL_ALL 1
 void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags);
+void arch_objspace_region_map_page(struct objspace_region *,
+  size_t idx,
+  struct page *page,
+  uint64_t flags);

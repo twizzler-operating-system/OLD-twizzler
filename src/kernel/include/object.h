@@ -101,6 +101,7 @@ struct object {
 
 	struct slot *slot;
 
+	/* TODO: clean all this  up */
 	_Atomic uint64_t flags;
 
 	uint32_t cache_mode;
@@ -128,6 +129,8 @@ struct object {
 	struct list sleepers;
 
 	struct rbroot pagecache_root, pagecache_level1_root, tstable_root, page_requests_root;
+
+	struct rbroot range_tree;
 
 	struct rbnode slotnode, node;
 
@@ -320,8 +323,12 @@ struct copy_args {
 	size_t length;
 };
 
+#define OP_LP_ZERO_OK 1
+#define OP_LP_DO_COPY 2
 int object_copy_pages(struct object *dst, struct copy_args *args, size_t nr_args);
 int object_operate_on_locked_page(struct object *obj,
   size_t page,
-  void (*fn)(struct object *obj, struct page *page, void *data),
+  int flags,
+  void (*fn)(struct object *obj, size_t, struct page *page, void *data, uint64_t),
   void *data);
+void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags);

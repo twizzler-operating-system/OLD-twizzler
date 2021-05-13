@@ -65,6 +65,8 @@ void *kcalloc(size_t a, size_t b, int flags)
 
 void *krealloc(void *p, size_t len, int flags)
 {
+	if(!p)
+		return kalloc(len, flags);
 	struct header *hdr = (void *)((char *)p - sizeof(struct header));
 	assert(hdr->canary == CANARY);
 	size_t oldsz = get_size(hdr->size_class);

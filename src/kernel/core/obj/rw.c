@@ -12,9 +12,25 @@ struct io {
 	int dir;
 };
 
-static void do_io(struct object *obj, struct page *page, void *data)
+static void do_io(struct object *obj, size_t pagenr, struct page *page, void *data, uint64_t flags)
 {
 	struct io *io = data;
+	if(page) {
+		void *addr = tmpmap_map_pages(page, 1);
+		if(io->dir == READ) {
+			memcpy(io->ptr, (char *)addr + io->off, io->len);
+		} else if(io->dir == WRITE) {
+			memcpy((char *)addr + io->off, io->ptr, io->len);
+		} else {
+			panic("unknown IO direction");
+		}
+	} else {
+		if(io->dir == READ) {
+			memset(io->ptr, 0, io->len);
+		} else {
+			panic("got zero page when trying to write to object");
+		}
+	}
 }
 
 static void loop_io(struct object *obj, size_t start, size_t len, struct io *io)
@@ -29,7 +45,11 @@ static void loop_io(struct object *obj, size_t start, size_t len, struct io *io)
 
 		io->len = len;
 		io->off = offset;
-		object_operate_on_locked_page(obj, (start + i) / mm_page_size(0), do_io, io);
+		object_operate_on_locked_page(obj,
+		  (start + i) / mm_page_size(0),
+		  io->dir == READ ? OP_LP_ZERO_OK : OP_LP_DO_COPY,
+		  do_io,
+		  io);
 		/* TODO: what happens during failure */
 		io->ptr = (char *)io->ptr + thislen;
 		i += thislen;

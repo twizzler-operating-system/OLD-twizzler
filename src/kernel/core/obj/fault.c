@@ -151,6 +151,14 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 	return true;
 }
 
+void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags)
+{
+	struct omap *omap = mm_objspace_get_object_map(obj, pagenr);
+	assert(omap);
+	arch_objspace_region_map_page(
+	  omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags);
+}
+
 #if 0
 struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
 {
@@ -166,6 +174,18 @@ struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
 	return obj;
 }
 #endif
+
+static void __op_fault_callback(struct object *obj,
+  size_t pagenr,
+  struct page *page,
+  void *data __unused,
+  uint64_t cbfl)
+{
+	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
+	if(cbfl & PAGE_MAP_COW)
+		mapflags |= PAGE_MAP_COW;
+	object_map_page(obj, pagenr, page, mapflags);
+}
 
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
@@ -266,10 +286,53 @@ done:
 }
 
 int object_operate_on_locked_page(struct object *obj,
-  size_t page,
-  void (*fn)(struct object *obj, struct page *page, void *data),
+  size_t pagenr,
+  int flags,
+  void (*fn)(struct object *obj, size_t pagenr, struct page *page, void *data, uint64_t cb_fl),
   void *data)
 {
-	printk("TODO: implement this\n");
+	uint64_t cb_fl = 0;
+	struct rwlock_result rwres = rwlock_rlock(&obj->rwlock, 0);
+	struct range *range = object_find_range(obj, pagenr);
+	if(!range) {
+		if(flags & OP_LP_ZERO_OK) {
+			fn(obj, pagenr, NULL, data, cb_fl);
+			rwlock_runlock(&rwres);
+			return 0;
+		}
+		rwres = rwlock_upgrade(&rwres, 0);
+		size_t off;
+		struct pagevec *pv = object_new_pagevec(obj, pagenr, &off);
+		range = object_add_range(obj, pv, pagenr, pagevec_len(pv) - off, off);
+		rwres = rwlock_downgrade(&rwres);
+	}
+
+	size_t pvidx = range_pv_idx(range, pagenr);
+
+	struct page *page;
+	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
+
+	if(ret == GET_PAGE_BLOCK) {
+		printk("TODO: implement this\n");
+		/* TODO: return a "def resched" thing */
+	} else {
+		if(range->pv->refs > 1) {
+			if(flags & OP_LP_DO_COPY) {
+				rwres = rwlock_upgrade(&rwres, 0);
+				range = range_split(range, pagenr - range->start);
+				range_clone(range);
+				rwres = rwlock_downgrade(&rwres);
+
+				ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
+				assert(ret == 0);
+			} else {
+				cb_fl |= PAGE_MAP_COW;
+			}
+		}
+		fn(obj, pagenr, page, data, cb_fl);
+	}
+
+	rwlock_runlock(&rwres);
+
 	return 0;
 }

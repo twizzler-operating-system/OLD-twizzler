@@ -67,11 +67,17 @@ static struct page *fallback_page_alloc(void)
 
 static void mm_page_zero_addr(uintptr_t addr)
 {
+	/* we might get lucky here! */
 	if(addr < MEMORY_BOOTSTRAP_MAX) {
 		memset(mm_early_ptov(addr), 0, mm_page_size(0));
 		return;
 	}
-	panic("A");
+	struct page page = {
+		.addr = addr,
+		.flags = 0,
+	};
+	void *vaddr = tmpmap_map_pages(&page, 1);
+	memset(vaddr, 0, mm_page_size(0));
 }
 
 void mm_page_zero(struct page *page)
@@ -119,7 +125,6 @@ static struct page *__do_mm_page_alloc(int flags)
 	} else {
 		page = list_entry(list_pop(&page_list), struct page, entry);
 	}
-	spinlock_release_restore(&lock);
 	assert(page);
 
 	return RET(flags, page);

@@ -48,6 +48,7 @@ static void _obj_ctor(void *_u, void *ptr)
 	obj->tslock = SPINLOCK_INIT;
 	obj->pagecache_root = RBINIT;
 	obj->pagecache_level1_root = RBINIT;
+	obj->range_tree = RBINIT;
 	obj->tstable_root = RBINIT;
 	obj->page_requests_root = RBINIT;
 	obj->view.init = 0;
@@ -65,6 +66,7 @@ void obj_init(struct object *obj)
 	krc_init(&obj->refs);
 	krc_init_zero(&obj->mapcount);
 	obj->ties_root = RBINIT;
+	obj->range_tree = RBINIT;
 	obj->preg = NULL;
 	obj->idx_map = RBINIT;
 	list_init(&obj->derivations);
@@ -392,41 +394,42 @@ bool obj_get_pflags(struct object *obj, uint32_t *pf)
 
 objid_t obj_compute_id(struct object *obj)
 {
-	panic("A");
-	void *kaddr = NULL; // obj_get_kaddr(obj);
-	struct metainfo *mi = (void *)((char *)kaddr + (OBJ_MAXSIZE - OBJ_METAPAGE_SIZE));
-
-	typeof(mi->p_flags) p_flags = mi->p_flags;
-	typeof(mi->nonce) nonce = mi->nonce;
-	objid_t kuid = mi->kuid;
+	struct metainfo mi = {};
+	printk("COMPUTE ID\n");
+	obj_read_data(obj, OBJ_MAXSIZE - (OBJ_METAPAGE_SIZE + OBJ_NULLPAGE_SIZE), sizeof(mi), &mi);
 	atomic_thread_fence(memory_order_seq_cst);
 
 	_Alignas(16) blake2b_state S;
 	blake2b_init(&S, 32);
-	blake2b_update(&S, &nonce, sizeof(nonce));
-	blake2b_update(&S, &p_flags, sizeof(p_flags));
-	blake2b_update(&S, &kuid, sizeof(kuid));
+	blake2b_update(&S, &mi.nonce, sizeof(mi.nonce));
+	blake2b_update(&S, &mi.p_flags, sizeof(mi.p_flags));
+	blake2b_update(&S, &mi.kuid, sizeof(mi.kuid));
 	size_t tl = 0;
-	if(unlikely(p_flags & MIP_HASHDATA)) {
-		for(size_t s = 0; s < mi->sz; s += mm_page_size(0)) {
+	if(unlikely(mi.p_flags & MIP_HASHDATA)) {
+		for(size_t s = 0; s < mi.sz; s += mm_page_size(0)) {
 			size_t rem = mm_page_size(0);
-			if(s + mm_page_size(0) > mi->sz) {
-				rem = mi->sz - s;
+			if(s + mm_page_size(0) > mi.sz) {
+				rem = mi.sz - s;
 			}
 			assert(rem <= mm_page_size(0));
 
-			void *addr = (char *)kaddr + s + OBJ_NULLPAGE_SIZE;
-			blake2b_update(&S, addr, rem);
+			char buf[rem];
+			printk("A %lx %lx\n", s, mi.sz);
+			obj_read_data(obj, s, rem, buf);
+
+			blake2b_update(&S, buf, rem);
 			tl += rem;
 		}
-		size_t mdbottom = OBJ_METAPAGE_SIZE + sizeof(struct fotentry) * mi->fotentries;
+		size_t mdbottom = OBJ_METAPAGE_SIZE + sizeof(struct fotentry) * mi.fotentries;
 		size_t pos = OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + mdbottom);
 		size_t thispage = mm_page_size(0);
 		for(size_t s = pos; s < OBJ_MAXSIZE - OBJ_NULLPAGE_SIZE; s += thispage) {
+			printk("B\n");
 			size_t offset = pos % mm_page_size(0);
 			size_t len = mm_page_size(0) - offset;
-			void *addr = (char *)kaddr + s + OBJ_NULLPAGE_SIZE;
-			blake2b_update(&S, (char *)addr, len);
+			char buf[len];
+			obj_read_data(obj, s, len, buf);
+			blake2b_update(&S, buf, len);
 			tl += len;
 		}
 	}
