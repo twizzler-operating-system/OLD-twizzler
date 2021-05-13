@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Daniel Bittman <danielbittman1@gmail.com>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #include <ctype.h>
 #include <nstack/net.h>
 struct netaddr netaddr_from_ipv4_string(const char *str, uint16_t port)
