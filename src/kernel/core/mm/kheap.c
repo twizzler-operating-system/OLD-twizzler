@@ -153,7 +153,7 @@ struct kheap_run *kheap_allocate(size_t len)
 		panic("tried dynamic kheap allocation while bootstrapping memory management");
 	}
 	len = align_up(len, mm_page_size(0));
-	size_t np = len / mm_page_size(0) - 1;
+	size_t np = len / mm_page_size(0);
 	size_t smallest;
 	for(smallest = 0; smallest < nr_buckets && (1 << smallest) < np; smallest++)
 		;
@@ -167,9 +167,9 @@ struct kheap_run *kheap_allocate(size_t len)
 		struct kheap_run *run = kheap_take_from_bucket(i, true);
 		if(run) {
 			if(i > smallest) {
-				kheap_split_run(run, np + 1);
+				kheap_split_run(run, np);
 			}
-			assert(run->nr_pages >= np + 1);
+			assert(run->nr_pages >= np);
 			return run;
 		}
 	}
@@ -178,8 +178,8 @@ struct kheap_run *kheap_allocate(size_t len)
 	void *p = kheap_allocate_from_end();
 	run->start = p;
 	run->nr_pages = mm_objspace_region_size() / mm_page_size(0);
-	kheap_split_run(run, np + 1);
-	assert(run->nr_pages >= np + 1);
+	kheap_split_run(run, np);
+	assert(run->nr_pages >= np);
 	return run;
 }
 

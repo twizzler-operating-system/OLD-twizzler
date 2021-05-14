@@ -285,6 +285,30 @@ done:
 #endif
 }
 
+void object_insert_page(struct object *obj, size_t pagenr, struct page *page)
+{
+	struct rwlock_result rwres = rwlock_wlock(&obj->rwlock, 0);
+	struct range *range = object_find_range(obj, pagenr);
+	bool new_range = false;
+	if(!range) {
+		size_t off;
+		struct pagevec *pv = object_new_pagevec(obj, pagenr, &off);
+		range = object_add_range(obj, pv, pagenr, pagevec_len(pv) - off, off);
+	}
+
+	size_t pvidx = range_pv_idx(range, pagenr);
+
+	if(pvidx > PAGEVEC_MAX_IDX) {
+		size_t off;
+		struct pagevec *pv = object_new_pagevec(obj, pagenr, &off);
+		range = object_add_range(obj, pv, pagenr, pagevec_len(pv) - off, off);
+	}
+
+	pagevec_set_page(range->pv, pvidx, page);
+
+	rwlock_wunlock(&rwres);
+}
+
 int object_operate_on_locked_page(struct object *obj,
   size_t pagenr,
   int flags,

@@ -39,11 +39,19 @@ struct object *get_system_object(void)
 
 static struct init_call *post_init_call_head = NULL;
 
-void post_init_call_register(struct init_call *ic, bool ac, void (*fn)(void *), void *data)
+void post_init_call_register(struct init_call *ic,
+  bool ac,
+  void (*fn)(void *),
+  void *data,
+  const char *file,
+  int line)
 {
+	assert(fn);
 	ic->fn = fn;
 	ic->data = data;
 	ic->allcpus = ac;
+	ic->file = file;
+	ic->line = line;
 	ic->next = post_init_call_head;
 	post_init_call_head = ic;
 }
@@ -52,6 +60,7 @@ static void post_init_calls_execute(bool secondary)
 {
 	for(struct init_call *call = post_init_call_head; call != NULL; call = call->next) {
 		if(!secondary || call->allcpus) {
+			assert(call->fn);
 			call->fn(call->data);
 		}
 	}
@@ -194,9 +203,8 @@ void kernel_main(struct processor *proc)
 		obj_write_data(
 		  root, OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + OBJ_METAPAGE_SIZE), sizeof(mi), &mi);
 		struct object *so = get_system_object();
-		struct system_header *hdr = bus_get_busspecific(so);
-		hdr->pagesz = mm_page_size(0);
-		device_release_headers(so);
+		struct system_header hdr = { .pagesz = mm_page_size(0) };
+		device_rw_specific(so, WRITE, &hdr, BUS, sizeof(hdr));
 
 		obj_put(so);
 		printk("[kernel] sizeof struct page: %ld\n", sizeof(struct page));
@@ -207,13 +215,9 @@ void kernel_main(struct processor *proc)
 	processor_barrier(&kernel_main_barrier);
 
 	if(proc->flags & PROCESSOR_BSP) {
-		panic("todo: free these");
+		printk("todo: free these\n");
 		post_init_call_head = NULL;
 
-		// bench();
-		// if(kc_bsv_id == 0) {
-		//	panic("No bsv specified");
-		//}
 		if(kc_init_id == 0) {
 			panic("No init specified");
 		}
@@ -225,6 +229,7 @@ void kernel_main(struct processor *proc)
 
 		objid_t dataid;
 		int r;
+		printk("create data\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &dataid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
@@ -233,7 +238,9 @@ void kernel_main(struct processor *proc)
 		struct elf64_header elf;
 		/* this object is almost certainly not a KSO, so there's no point holding a reference to the
 		 * kaddr. */
+		printk("[init] reading init object\n");
 		obj_read_data(initobj, 0, sizeof(elf), &elf);
+		printk("::::: %x\n", *(uint32_t *)&elf);
 		if(memcmp("\x7F"
 		          "ELF",
 		     elf.e_ident,
@@ -289,12 +296,15 @@ void kernel_main(struct processor *proc)
 		objid_t bstckid;
 		objid_t bsvid;
 
+		printk("create thread\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bthrid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
+		printk("create stack\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bstckid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
+		printk("create view\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bsvid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);

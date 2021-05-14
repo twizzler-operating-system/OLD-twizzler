@@ -106,21 +106,13 @@ struct table_level *table_get_next_level(struct table_level *table,
 	if(table->children[idx]) {
 		struct table_level *next = table->children[idx];
 		if(need_realize(table)) {
-			if(lock_state)
-				*lock_state = rwlock_downgrade(lock_state);
 			table_realize(next, ospace);
-			if(lock_state)
-				*lock_state = rwlock_upgrade(lock_state, 0);
 		}
 		return next;
 	}
 	struct table_level *nt = allocate_table_level();
 	if(need_realize(nt)) {
-		if(lock_state)
-			*lock_state = rwlock_downgrade(lock_state);
 		table_realize(nt, ospace);
-		if(lock_state)
-			*lock_state = rwlock_upgrade(lock_state, 0);
 	}
 	table->children[idx] = nt;
 	table->table[idx] = nt->phys | flags;
@@ -192,14 +184,11 @@ void table_map(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
-	struct rwlock_result res = rwlock_rlock(&table->lock, 0);
-
 	table_realize(table, ospace);
-	res = rwlock_upgrade(&res, 0);
 
 	int i;
 	for(i = 0; i < (3 - level); i++) {
-		table = table_get_next_level(table, idxs[i], table_flags, ospace, &res);
+		table = table_get_next_level(table, idxs[i], table_flags, ospace, NULL);
 	}
 
 	int idx = idxs[i];
@@ -215,8 +204,6 @@ void table_map(struct table_level *table,
 	// printk(":: %lx: %lx %lx %lx\n", virt, phys, flags, table_flags);
 	table->table[idx] = phys | flags;
 	table->count++;
-
-	rwlock_wunlock(&res);
 }
 
 bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, int *level)
@@ -227,12 +214,9 @@ bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, i
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
-	struct rwlock_result res = rwlock_rlock(&table->lock, 0);
-
 	int i;
 	for(i = 0; i < 4; i++) {
 		if(!table->table) {
-			rwlock_runlock(&res);
 			return false;
 		}
 		if(table->children[idxs[i]])
@@ -242,11 +226,9 @@ bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, i
 				*entry = table->table[idxs[i]];
 			if(level)
 				*level = 3 - i;
-			rwlock_runlock(&res);
 			return true;
 		}
 	}
-	rwlock_runlock(&res);
 	return false;
 }
 
@@ -262,13 +244,10 @@ void table_premap(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
-	struct rwlock_result res = rwlock_rlock(&table->lock, 0);
 	table_realize(table, ospace);
-	res = rwlock_upgrade(&res, 0);
 
 	int i;
 	for(i = 0; i < (3 - level); i++) {
-		table = table_get_next_level(table, idxs[i], table_flags, ospace, &res);
+		table = table_get_next_level(table, idxs[i], table_flags, ospace, NULL);
 	}
-	rwlock_wunlock(&res);
 }

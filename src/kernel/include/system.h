@@ -68,5 +68,8 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 
 #define __noinstrument __attribute__((no_instrument_function))
 
+#define READ 0
+#define WRITE 1
+
 long strtol(char *str, char **end, int base);
 #endif

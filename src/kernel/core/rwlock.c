@@ -60,7 +60,12 @@ struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr,
   int line)
 {
 #if DEBUG_RWLOCK
-	printk("trying to upgrade lock %p: %s:%d\n", rr->lock, file, line);
+	printk("trying to upgrade lock %p: %d %d : %s:%d\n",
+	  rr->lock,
+	  rr->lock->readers,
+	  rr->lock->writers,
+	  file,
+	  line);
 #endif
 	assert(!rr->write);
 	uint32_t tries = 0;
@@ -74,6 +79,9 @@ struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr,
 				if(tries > RWLOCK_MAX_TRIES && (flags & RWLOCK_TRY)) {
 					goto timeout;
 				}
+				if(tries > 1000000)
+					panic(
+					  "deadlock: %d %d %s:%d", rr->lock->readers, rr->lock->writers, file, line);
 			}
 		} else {
 			/* we've blocked writers, now. Wait for all readers to drain after we release our read
@@ -86,6 +94,9 @@ struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr,
 				if(tries > RWLOCK_MAX_TRIES && (flags & RWLOCK_TRY)) {
 					goto timeout;
 				}
+				if(tries > 1000000)
+					panic(
+					  "deadlock: %d %d %s:%d", rr->lock->readers, rr->lock->writers, file, line);
 			}
 			break;
 		}

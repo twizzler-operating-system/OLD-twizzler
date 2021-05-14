@@ -36,6 +36,9 @@ void mm_page_init(void)
 
 static struct page *get_new_page_struct(void)
 {
+	if(!list_empty(&pagestruct_list)) {
+		return list_entry(list_pop(&pagestruct_list), struct page, entry);
+	}
 	if(next_page == max_pages) {
 		assert(align_up((uintptr_t)&allpages[max_pages], mm_page_size(0))
 		       == (uintptr_t)&allpages[max_pages]);
@@ -49,8 +52,10 @@ static struct page *get_new_page_struct(void)
 		for(size_t i = 0; i < INITIAL_NUM_PAGES; i++) {
 			pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
 		}
+		spinlock_release_restore(&lock);
 		mm_objspace_fill(
 		  oaddr, pg, INITIAL_NUM_PAGES, MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
+		spinlock_acquire_save(&lock);
 	}
 
 	return &allpages[next_page++];
@@ -62,6 +67,16 @@ static struct page *fallback_page_alloc(void)
 	struct page *page = get_new_page_struct();
 	page->flags = PAGE_CACHE_WB;
 	page->addr = addr;
+	return page;
+}
+
+struct page *mm_page_fake_create(uintptr_t phys, int flags)
+{
+	spinlock_acquire_save(&lock);
+	struct page *page = get_new_page_struct();
+	spinlock_release_restore(&lock);
+	page->addr = phys;
+	page->flags = flags | PAGE_FAKE;
 	return page;
 }
 
@@ -84,6 +99,20 @@ void mm_page_zero(struct page *page)
 {
 	mm_page_zero_addr(page->addr);
 	page->flags |= PAGE_ZERO;
+}
+
+void mm_page_write(struct page *page, void *data, size_t len)
+{
+	if(len > mm_page_size(0))
+		len = mm_page_size(0);
+	if(unlikely(len == 0))
+		return;
+	if(page->addr < MEMORY_BOOTSTRAP_MAX) {
+		memcpy(mm_early_ptov(page->addr), 0, len);
+		return;
+	}
+	void *vaddr = tmpmap_map_pages(page, 1);
+	memcpy(vaddr, data, len);
 }
 
 #define PAGE_ADDR 0x1000
@@ -143,7 +172,9 @@ struct page *mm_page_alloc(int flags)
 
 uintptr_t mm_page_alloc_addr(int flags)
 {
+	spinlock_acquire_save(&lock);
 	void *p = __do_mm_page_alloc(flags | PAGE_ADDR);
+	spinlock_release_restore(&lock);
 	if(flags & PAGE_ZERO) {
 		mm_page_zero_addr((uintptr_t)p);
 	}

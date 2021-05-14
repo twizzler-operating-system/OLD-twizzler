@@ -52,9 +52,18 @@ size_t pagevec_len(struct pagevec *pv)
 struct pagevec *object_new_pagevec(struct object *obj, size_t idx, size_t *off)
 {
 	struct pagevec *pv = slabcache_alloc(&sc_pagevec);
+	pagevec_append_page(pv, NULL);
 	/* TODO: merge with other ones? */
 	*off = 0;
 	return pv;
+}
+
+void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)
+{
+	struct page_entry ne = {
+		.page = page,
+	};
+	vector_set_grow(&pv->pages, idx, &ne);
 }
 
 int pagevec_get_page(struct pagevec *pv, size_t idx, struct page **page, int flags)

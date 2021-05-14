@@ -26,31 +26,30 @@ __initializer static void __device_init(void)
 	kso_register(KSO_DEVICE, &_kso_device);
 }
 
-struct bus_repr *bus_get_repr(struct object *obj)
+void device_rw_header(struct object *obj, int dir, void *ptr, int type)
 {
-	panic("A");
+	assert(type == DEVICE || type == BUS);
+	size_t len = type == DEVICE ? sizeof(struct device_repr) : sizeof(struct bus_repr);
+	if(dir == READ) {
+		obj_read_data(obj, 0, len, ptr);
+	} else if(dir == WRITE) {
+		obj_write_data(obj, 0, len, ptr);
+	} else {
+		panic("unknown IO direction");
+	}
 }
 
-void *bus_get_busspecific(struct object *obj)
+void device_rw_specific(struct object *obj, int dir, void *ptr, int type, size_t rwlen)
 {
-	struct bus_repr *repr = bus_get_repr(obj);
-	return (void *)(repr + 1);
-}
-
-struct device_repr *device_get_repr(struct object *obj)
-{
-	panic("A");
-}
-
-void *device_get_devspecific(struct object *obj)
-{
-	struct device_repr *repr = device_get_repr(obj);
-	return (void *)(repr + 1);
-}
-
-void device_release_headers(struct object *obj)
-{
-	panic("A");
+	assert(type == DEVICE || type == BUS);
+	size_t len = type == DEVICE ? sizeof(struct device_repr) : sizeof(struct bus_repr);
+	if(dir == READ) {
+		obj_read_data(obj, len, rwlen, ptr);
+	} else if(dir == WRITE) {
+		obj_write_data(obj, len, rwlen, ptr);
+	} else {
+		panic("unknown IO direction");
+	}
 }
 
 void device_signal_interrupt(struct object *obj, int inum, uint64_t val)
@@ -77,6 +76,9 @@ static int __device_alloc_interrupts(struct object *obj, size_t count)
 	if(count > MAX_DEVICE_INTERRUPTS)
 		return -EINVAL;
 
+	printk("TODO: alloc interrupts\n");
+	return 0;
+#if 0
 	int ret;
 	struct device_repr *repr = device_get_repr(obj);
 	struct device *data = obj->data;
@@ -105,6 +107,7 @@ static int __device_alloc_interrupts(struct object *obj, size_t count)
 out:
 	device_release_headers(obj);
 	return ret;
+#endif
 }
 
 static long __device_kaction(struct object *obj, long op, long arg)
@@ -133,10 +136,11 @@ struct object *device_register(uint32_t bustype, uint32_t devid)
 	struct device *data = obj->data;
 	data->uid = ((uint64_t)bustype << 32) | devid;
 
-	struct device_repr *repr = device_get_repr(obj);
-	repr->device_bustype = bustype;
-	repr->device_id = devid;
-	device_release_headers(obj);
+	struct device_repr repr = {
+		.device_bustype = bustype,
+		.device_id = devid,
+	};
+	device_rw_header(obj, WRITE, &repr, DEVICE);
 	return obj; /* krc: move */
 }
 
@@ -153,11 +157,12 @@ struct object *bus_register(uint32_t bustype, uint32_t busid, size_t bssz)
 	// obj->kaction = __device_kaction;
 	obj_kso_init(obj, KSO_DEVBUS);
 
-	struct bus_repr *repr = bus_get_repr(obj);
-	repr->bus_id = busid;
-	repr->bus_type = bustype;
-	repr->children = (void *)align_up(sizeof(struct bus_repr) + bssz + OBJ_NULLPAGE_SIZE, 16);
-	device_release_headers(obj);
+	struct bus_repr repr = {
+		.bus_id = busid,
+		.bus_type = bustype,
+		.children = (void *)align_up(sizeof(struct bus_repr) + bssz + OBJ_NULLPAGE_SIZE, 16),
+	};
+	device_rw_header(obj, WRITE, &repr, BUS);
 	return obj; /* krc: move */
 }
 

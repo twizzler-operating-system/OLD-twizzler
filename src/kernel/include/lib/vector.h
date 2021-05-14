@@ -54,9 +54,9 @@ static inline void vector_grow(struct vector *vec, void *item, size_t nr)
 
 static inline size_t vector_set_grow(struct vector *vec, size_t idx, void *item)
 {
-	vector_grow(vec, NULL, idx - vec->length);
-	size_t _idx = vector_push(vec, item);
-	assert(idx == _idx);
+	if(idx >= vec->length)
+		vector_grow(vec, NULL, (idx - vec->length) + 1);
+	vector_set(vec, idx, item);
 	return idx;
 }
 

@@ -305,6 +305,7 @@ struct range *range_split(struct range *, size_t);
 void range_clone(struct range *);
 int pagevec_get_page(struct pagevec *, size_t, struct page **, int flags);
 size_t pagevec_len(struct pagevec *);
+void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page);
 struct range *object_add_range(struct object *, struct pagevec *, size_t, size_t, size_t);
 struct pagevec *object_new_pagevec(struct object *, size_t, size_t *);
 struct range *object_find_range(struct object *, size_t);
@@ -332,3 +333,7 @@ int object_operate_on_locked_page(struct object *obj,
   void (*fn)(struct object *obj, size_t, struct page *page, void *data, uint64_t),
   void *data);
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags);
+void object_insert_page(struct object *obj, size_t pagenr, struct page *page);
+
+struct viewentry;
+void kso_view_write(struct object *obj, size_t idx, struct viewentry *ve);

@@ -189,8 +189,8 @@ static void load_object_data(struct object *obj, char *tardata, size_t tarlen)
 
 		// printk("Loading object " IDFMT "\r", IDPR(obj->id));
 		for(size_t i = idx; i < idx + len / mm_page_size(0); i++) {
-			panic("A");
-			// obj_cache_page(obj, i * mm_page_size(0), page_alloc(PAGE_TYPE_VOLATILE, 0, 0));
+			struct page *pg = mm_page_alloc(PAGE_ZERO);
+			object_insert_page(obj, i * mm_page_size(0), pg);
 		}
 		obj_write_data(obj, idx * mm_page_size(0) - OBJ_NULLPAGE_SIZE, len, data);
 		h = (struct ustar_header *)((char *)h + 512 + reclen);
@@ -317,38 +317,34 @@ static void __late_init_framebuffer(void *a __unused)
 	fb_obj = device_register(DEVICE_BT_MISC, DEVICE_ID_FRAMEBUFFER);
 	kso_setname(fb_obj, "VBE-compatible Framebuffer");
 
-	struct misc_framebuffer *mfb = device_get_devspecific(fb_obj);
-	mfb->height = fbinfo.common.framebuffer_height;
-	mfb->width = fbinfo.common.framebuffer_width;
-	mfb->pitch = fbinfo.common.framebuffer_pitch;
-	mfb->bpp = fbinfo.common.framebuffer_bpp;
-	mfb->type = fbinfo.common.framebuffer_height == MULTIBOOT_FRAMEBUFFER_TYPE_RGB
-	              ? MISC_FRAMEBUFFER_TYPE_GRAPHICAL
-	              : MISC_FRAMEBUFFER_TYPE_UNKNOWN;
-	mfb->offset = mm_page_size(1);
+	struct misc_framebuffer mfb = {
+		.height = fbinfo.common.framebuffer_height,
+		.width = fbinfo.common.framebuffer_width,
+		.pitch = fbinfo.common.framebuffer_pitch,
+		.bpp = fbinfo.common.framebuffer_bpp,
+		.type = fbinfo.common.framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB
+		          ? MISC_FRAMEBUFFER_TYPE_GRAPHICAL
+		          : MISC_FRAMEBUFFER_TYPE_UNKNOWN,
+		.offset = mm_page_size(1),
+	};
+	device_rw_specific(fb_obj, WRITE, &mfb, DEVICE, sizeof(mfb));
 
-	size_t sz = mfb->height * mfb->pitch;
+	size_t sz = mfb.height * mfb.pitch;
 	uintptr_t addr = fbinfo.common.framebuffer_addr;
 	size_t start = mm_page_size(1);
 	while(sz > 0) {
-		// struct page *pg = page_alloc_nophys();
-		// pg->addr = addr;
-		// pg->type = PAGE_TYPE_MMIO;
-		// pg->flags |= PAGE_CACHE_WC;
-		// pg->level = 1;
-		// size_t amount = mm_page_size(1);
-		panic("A");
-		// obj_cache_page(fb_obj, start, pg);
-		// if(sz < amount)
-		//	sz = 0;
-		// else
-		//	sz -= amount;
-		// addr += amount;
-		// start += amount;
+		struct page *pg = mm_page_fake_create(addr, PAGE_CACHE_WC);
+		object_insert_page(fb_obj, start / mm_page_size(0), pg);
+		size_t amount = mm_page_size(0);
+		if(sz < amount)
+			sz = 0;
+		else
+			sz -= amount;
+		addr += amount;
+		start += amount;
 	}
 
 	kso_attach(device_get_misc_bus(), fb_obj, DEVICE_ID_FRAMEBUFFER);
-	device_release_headers(fb_obj);
 }
 POST_INIT(__late_init_framebuffer, NULL);
 

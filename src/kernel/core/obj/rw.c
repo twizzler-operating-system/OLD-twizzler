@@ -2,9 +2,6 @@
 #include <page.h>
 #include <slots.h>
 
-#define READ 0
-#define WRITE 1
-
 struct io {
 	size_t len;
 	void *ptr;
@@ -17,6 +14,7 @@ static void do_io(struct object *obj, size_t pagenr, struct page *page, void *da
 	struct io *io = data;
 	if(page) {
 		void *addr = tmpmap_map_pages(page, 1);
+		printk("RW %ld %ld %d %d\n", pagenr, io->len, io->off, io->dir);
 		if(io->dir == READ) {
 			memcpy(io->ptr, (char *)addr + io->off, io->len);
 		} else if(io->dir == WRITE) {
@@ -43,7 +41,7 @@ static void loop_io(struct object *obj, size_t start, size_t len, struct io *io)
 		if((thislen + i) > len)
 			thislen = len - i;
 
-		io->len = len;
+		io->len = thislen;
 		io->off = offset;
 		object_operate_on_locked_page(obj,
 		  (start + i) / mm_page_size(0),

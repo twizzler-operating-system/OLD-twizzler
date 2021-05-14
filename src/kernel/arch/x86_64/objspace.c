@@ -24,18 +24,31 @@ void arch_objspace_map(struct object_space *space,
 {
 	if(!space)
 		space = &_bootstrap_object_space;
-	uint64_t flags = 0;
+	uint64_t flags = EPT_IGNORE_PAT;
 	flags |= (mapflags & MAP_WRITE) ? EPT_WRITE : 0;
 	flags |= (mapflags & MAP_READ) ? EPT_READ : 0;
 	flags |= (mapflags & MAP_EXEC) ? EPT_EXEC : 0;
-	flags |= EPT_MEMTYPE_WB | EPT_IGNORE_PAT;
 
 	struct arch_object_space *arch = &space->arch;
-	printk("TODO: do cache type\n");
 	for(size_t i = 0; i < count; i++, virt += mm_page_size(0)) {
 		uintptr_t addr;
+		uint64_t cf = EPT_MEMTYPE_WB;
 		if(pages) {
 			addr = pages[i].addr;
+			switch(PAGE_CACHE_TYPE(&pages[i])) {
+				case PAGE_CACHE_WB:
+				default:
+					break;
+				case PAGE_CACHE_UC:
+					cf = EPT_MEMTYPE_UC;
+					break;
+				case PAGE_CACHE_WT:
+					cf = EPT_MEMTYPE_WT;
+					break;
+				case PAGE_CACHE_WC:
+					cf = EPT_MEMTYPE_WC;
+					break;
+			}
 		} else if(mapflags & MAP_ZERO) {
 			addr = mm_page_alloc_addr(PAGE_ZERO);
 			/* TODO: release this page struct for reuse? */
@@ -45,7 +58,8 @@ void arch_objspace_map(struct object_space *space,
 		if(mapflags & MAP_TABLE_PREALLOC)
 			table_premap(&arch->root, virt, 0, EPT_WRITE | EPT_READ | EPT_EXEC, true);
 		else
-			table_map(&arch->root, virt, addr, 0, flags, EPT_WRITE | EPT_READ | EPT_EXEC, true);
+			table_map(
+			  &arch->root, virt, addr, 0, flags | cf, EPT_WRITE | EPT_READ | EPT_EXEC, true);
 	}
 }
 
@@ -86,4 +100,5 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
 {
 	x86_64_invvpid(start, len);
+	// asm("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
 }

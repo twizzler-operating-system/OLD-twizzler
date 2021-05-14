@@ -65,14 +65,15 @@ void kso_attach(struct object *parent, struct object *child, size_t loc)
 	};
 	switch(atomic_load(&parent->kso_type)) {
 		size_t off;
-		struct bus_repr *brepr;
+		struct bus_repr brepr;
 		case KSO_DEVBUS:
-			brepr = bus_get_repr(parent);
-			off = (size_t)brepr->children - OBJ_NULLPAGE_SIZE;
+			device_rw_header(parent, READ, &brepr, BUS);
+			off = (size_t)brepr.children - OBJ_NULLPAGE_SIZE;
 			obj_write_data(parent, off + loc * sizeof(kar), sizeof(kar), &kar);
-			if(brepr->max_children <= loc)
-				brepr->max_children = loc + 1;
-
+			if(brepr.max_children <= loc) {
+				brepr.max_children = loc + 1;
+				device_rw_header(parent, WRITE, &brepr, BUS);
+			}
 			break;
 		default:
 			panic("NI - kso_attach");
@@ -83,4 +84,10 @@ void kso_attach(struct object *parent, struct object *child, size_t loc)
 void kso_setname(struct object *obj, const char *name)
 {
 	obj_write_data(obj, offsetof(struct kso_hdr, name), strlen(name) + 1, (void *)name);
+}
+
+void kso_view_write(struct object *obj, size_t slot, struct viewentry *ve)
+{
+	obj_write_data(
+	  obj, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), ve);
 }

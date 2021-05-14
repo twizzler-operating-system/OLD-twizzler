@@ -200,7 +200,7 @@ struct object *obj_lookup(uint128_t id, int flags)
 		spinlock_release_restore(&obj->lock);
 	} else {
 		spinlock_release_restore(&objlock);
-		panic("A");
+		return NULL;
 #if 0
 		struct nv_region *reg = nv_region_lookup_object(id);
 		if(reg) {
@@ -395,9 +395,12 @@ bool obj_get_pflags(struct object *obj, uint32_t *pf)
 objid_t obj_compute_id(struct object *obj)
 {
 	struct metainfo mi = {};
-	printk("COMPUTE ID\n");
 	obj_read_data(obj, OBJ_MAXSIZE - (OBJ_METAPAGE_SIZE + OBJ_NULLPAGE_SIZE), sizeof(mi), &mi);
 	atomic_thread_fence(memory_order_seq_cst);
+
+	if(mi.magic != MI_MAGIC) {
+		panic("TODO remove this panic");
+	}
 
 	_Alignas(16) blake2b_state S;
 	blake2b_init(&S, 32);
@@ -406,15 +409,20 @@ objid_t obj_compute_id(struct object *obj)
 	blake2b_update(&S, &mi.kuid, sizeof(mi.kuid));
 	size_t tl = 0;
 	if(unlikely(mi.p_flags & MIP_HASHDATA)) {
-		for(size_t s = 0; s < mi.sz; s += mm_page_size(0)) {
+		size_t slen = mi.sz;
+		if(slen > OBJ_TOPDATA)
+			slen = OBJ_TOPDATA;
+		printk(":: slen %lx\n", slen);
+		if(slen > 0x30000000)
+			panic("wtf");
+		for(size_t s = 0; s < slen; s += mm_page_size(0)) {
 			size_t rem = mm_page_size(0);
-			if(s + mm_page_size(0) > mi.sz) {
-				rem = mi.sz - s;
+			if(s + mm_page_size(0) > slen) {
+				rem = slen - s;
 			}
 			assert(rem <= mm_page_size(0));
 
 			char buf[rem];
-			printk("A %lx %lx\n", s, mi.sz);
 			obj_read_data(obj, s, rem, buf);
 
 			blake2b_update(&S, buf, rem);
@@ -423,8 +431,8 @@ objid_t obj_compute_id(struct object *obj)
 		size_t mdbottom = OBJ_METAPAGE_SIZE + sizeof(struct fotentry) * mi.fotentries;
 		size_t pos = OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + mdbottom);
 		size_t thispage = mm_page_size(0);
+		printk(":: pos %lx\n", pos);
 		for(size_t s = pos; s < OBJ_MAXSIZE - OBJ_NULLPAGE_SIZE; s += thispage) {
-			printk("B\n");
 			size_t offset = pos % mm_page_size(0);
 			size_t len = mm_page_size(0) - offset;
 			char buf[len];
@@ -441,7 +449,6 @@ objid_t obj_compute_id(struct object *obj)
 	for(int i = 0; i < 16; i++) {
 		out[i] = tmp[i] ^ tmp[i + 16];
 	}
-
 	return *(objid_t *)out;
 }
 

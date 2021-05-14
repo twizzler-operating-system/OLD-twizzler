@@ -9,6 +9,8 @@ set(TWZ_SERIAL_DEBUG_STOPBITS "1" CACHE STRING "Kernel serial debug console stop
 set(TWZ_SERIAL_DEBUG_WORDSZ "8" CACHE STRING "Kernel serial debug console word size")
 option(TWZ_KERNEL_UBSAN "Enable UBSAN in the kernel")
 
+add_compile_options("-g")
+
 add_compile_options("-DCONFIG_SERIAL_DEBUG_BAUD=${TWZ_SERIAL_DEBUG_BAUD}")
 add_compile_options("-DCONFIG_SERIAL_DEBUG_STOPBITS=${TWZ_SERIAL_DEBUG_STOPBITS}")
 add_compile_options("-DCONFIG_SERIAL_DEBUG_WORDSZ=${TWZ_SERIAL_DEBUG_WORDSZ}")
@@ -22,9 +24,9 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 	add_compile_options("-DCONFIG_DEBUG=1")
 endif()
 
-if(TWZ_KERNEL_UBSAN)
+#if(TWZ_KERNEL_UBSAN)
 	add_compile_options("-fsanitize=undefined" "-DCONFIG_UBSAN")
-endif()
+	#endif()
 
 add_compile_options("-DCONFIG_ARCH=${TWIZZLER_PROCESSOR}")
 add_compile_options("-DCONFIG_MACHINE=${TWIZZLER_MACHINE}")

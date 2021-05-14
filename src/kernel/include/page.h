@@ -17,9 +17,12 @@ struct page {
 #define PAGE_CACHE_WC 3
 
 #define PAGE_ZERO 0x10
+#define PAGE_FAKE 0x20
 void mm_page_print_stats(void);
 struct page *mm_page_alloc(int flags);
 uintptr_t mm_page_alloc_addr(int flags);
 void mm_page_zero(struct page *page);
 void mm_page_init(void);
 void mm_page_idle_zero(void);
+struct page *mm_page_fake_create(uintptr_t phys, int flags);
+void mm_page_write(struct page *page, void *data, size_t len);

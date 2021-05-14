@@ -222,6 +222,8 @@ void processor_percpu_regions_init(void)
 #include <twz/sys/dev/system.h>
 static void __init_processor_objects(void *_a __unused)
 {
+	printk("TODO: processor reprs\n");
+#if 0
 	struct object *so = get_system_object();
 	size_t count = 0;
 	struct bus_repr *brepr = bus_get_repr(so);
@@ -241,12 +243,14 @@ static void __init_processor_objects(void *_a __unused)
 	struct system_header *hdr = bus_get_busspecific(so);
 	hdr->nrcpus = count;
 	device_release_headers(so);
+#endif
 }
 POST_INIT(__init_processor_objects, NULL);
 
 void processor_update_stats(void)
 {
-	// printk("processor_update_stats\n");
+	printk("TODO: processor stats\n");
+#if 0
 	for(int i = 0; i < PROCESSOR_MAX_CPUS; i++) {
 		if((processors[i].flags & PROCESSOR_UP)) {
 			struct object *d = processors[i].obj;
@@ -257,4 +261,5 @@ void processor_update_stats(void)
 			}
 		}
 	}
+#endif
 }

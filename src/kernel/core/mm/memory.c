@@ -144,6 +144,7 @@ static struct object *mem_object = NULL;
 static struct memory_stats_header *msh = NULL;
 static void __init_mem_object(void *_a __unused)
 {
+#if 0
 	struct object *so = get_system_object();
 	struct object *d = device_register(DEVICE_BT_SYSTEM, 1ul << 24);
 	char name[128];
@@ -155,6 +156,7 @@ static void __init_mem_object(void *_a __unused)
 	device_release_headers(so);
 	mem_object = d; /* krc: move */
 	msh = device_get_devspecific(mem_object);
+#endif
 }
 POST_INIT(__init_mem_object, NULL);
 

@@ -40,9 +40,11 @@ const char *debug_symbolize(void *addr)
 
 void debug_elf_register_sections(Elf64_Shdr *_sections, size_t num, size_t entsize, size_t stridx)
 {
-	printk("[debug] registering %ld ELF headers (stridx: %ld)\n", num, stridx);
+	char __sections[num * entsize];
+	memcpy(__sections, _sections, sizeof(__sections));
+	printk("[debug] registering %ld ELF headers (stridx: %ld) from %p\n", num, stridx, _sections);
 	for(size_t i = 0; i < num; i++) {
-		Elf64_Shdr *sh = (void *)((char *)_sections + entsize * i);
+		Elf64_Shdr *sh = (void *)(__sections + entsize * i);
 
 		size_t s;
 		if(sh->sh_type == SHT_SYMTAB)
