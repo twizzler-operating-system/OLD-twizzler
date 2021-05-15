@@ -4,7 +4,6 @@ struct vm_context kernel_ctx;
 
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags)
 {
-	printk("::::: %lx %lx %lx %x\n", addr, oaddr, len, flags);
 	if(flags & MAP_WIRE) {
 		assert(addr >= KERNEL_REGION_START);
 	}

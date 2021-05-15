@@ -240,8 +240,9 @@ uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags)
 	foreach(e, list, &physical_regions) {
 		struct memregion *reg = list_entry(e, struct memregion, entry);
 		spinlock_acquire_save(&reg->lock);
+		size_t extra = align_up(reg->start, align) - reg->start;
 		bool is_bootstrap = reg->start < MEMORY_BOOTSTRAP_MAX;
-		bool has_space = reg->length > len && reg->start > 0;
+		bool has_space = reg->length > (len + extra) && reg->start > 0;
 		bool is_allocable =
 		  reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE;
 		/* TODO: ensure no region has start = 0 */
@@ -249,7 +250,7 @@ uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags)
 			reg->start = align_up(reg->start, align);
 			uintptr_t alloc = reg->start;
 			reg->start += len;
-			reg->length -= len;
+			reg->length -= (len + extra);
 			assert(alloc);
 			spinlock_release_restore(&reg->lock);
 			return alloc;

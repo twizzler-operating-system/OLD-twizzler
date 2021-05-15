@@ -16,7 +16,7 @@ int arch_mm_map(struct vm_context *ctx,
 	uint64_t flags = PAGE_PRESENT;
 	flags |= (mapflags & MAP_GLOBAL) ? VM_MAP_GLOBAL : 0;
 	flags |= (mapflags & MAP_WRITE) ? VM_MAP_WRITE : 0;
-	flags |= (mapflags & MAP_EXEC) ? VM_MAP_EXEC : 0;
+	flags |= (mapflags & MAP_EXEC) ? 0 : VM_MAP_EXEC;
 	flags |= (mapflags & MAP_KERNEL) ? 0 : VM_MAP_USER;
 
 	struct arch_vm_context *arch = &ctx->arch;
@@ -24,9 +24,11 @@ int arch_mm_map(struct vm_context *ctx,
 	while(i < len) {
 		size_t rem = len - i;
 		int level = 0;
-		if(is_aligned(i, mm_page_size(2)) && rem >= mm_page_size(2)) {
+		if(is_aligned(virt + i, mm_page_size(2)) && is_aligned(phys + i, mm_page_size(2))
+		   && rem >= mm_page_size(2)) {
 			level = 2;
-		} else if(is_aligned(i, mm_page_size(1)) && rem >= mm_page_size(1)) {
+		} else if(is_aligned(virt + i, mm_page_size(1)) && is_aligned(phys + i, mm_page_size(1))
+		          && rem >= mm_page_size(1)) {
 			level = 1;
 		}
 		table_map(&arch->root, virt + i, phys + i, level, flags, RECUR_FLAGS, false);

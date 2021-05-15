@@ -49,6 +49,11 @@ void mm_objspace_fill(uintptr_t addr, struct page *pages, size_t count, int flag
 	arch_objspace_map(NULL, addr, pages, count, flags);
 }
 
+void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags)
+{
+	arch_objspace_unmap(addr, nrpages, flags);
+}
+
 struct omap *mm_objspace_get_object_map(struct object *obj, size_t page)
 {
 	panic("A");

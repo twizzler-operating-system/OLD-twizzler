@@ -105,15 +105,11 @@ struct table_level *table_get_next_level(struct table_level *table,
 {
 	if(table->children[idx]) {
 		struct table_level *next = table->children[idx];
-		if(need_realize(table)) {
-			table_realize(next, ospace);
-		}
+		table_realize(next, ospace);
 		return next;
 	}
 	struct table_level *nt = allocate_table_level();
-	if(need_realize(nt)) {
-		table_realize(nt, ospace);
-	}
+	table_realize(nt, ospace);
 	table->children[idx] = nt;
 	table->table[idx] = nt->phys | flags;
 	table->count++;
@@ -151,7 +147,7 @@ static void table_free_downward(struct table_level *table)
 	table_free_table_level(table);
 }
 
-static void table_remove_entry(struct table_level *table, size_t idx)
+static void table_remove_entry(struct table_level *table, size_t idx, bool free_tables)
 {
 	assert(table->count);
 	if(table->children[idx]) {
@@ -164,8 +160,8 @@ static void table_remove_entry(struct table_level *table, size_t idx)
 		table->count--;
 	}
 
-	if(table->count == 0 && table->parent) {
-		table_remove_entry(table->parent, table->parent_idx);
+	if(table->count == 0 && table->parent && free_tables) {
+		table_remove_entry(table->parent, table->parent_idx, free_tables);
 		table_free_table_level(table);
 	}
 }
@@ -202,8 +198,35 @@ void table_map(struct table_level *table,
 		flags |= PAGE_LARGE;
 	// printk("traversed %d\n", (3 - level));
 	// printk(":: %lx: %lx %lx %lx\n", virt, phys, flags, table_flags);
+	if(!table->table[idx])
+		table->count++;
+	// else
+	//	printk("replace: %lx\n", table->table[idx]);
 	table->table[idx] = phys | flags;
-	table->count++;
+}
+
+void table_unmap(struct table_level *table, uintptr_t virt, int flags)
+{
+	int pml4_idx = PML4_IDX(virt);
+	int pdpt_idx = PDPT_IDX(virt);
+	int pd_idx = PD_IDX(virt);
+	int pt_idx = PT_IDX(virt);
+	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
+	int i;
+	for(i = 0; i < 4; i++) {
+		if(!table->table) {
+			return;
+		}
+		if(table->children[idxs[i]])
+			table = table->children[idxs[i]];
+		else {
+			if(table->table[idxs[i]]) {
+				table_remove_entry(table, idxs[i], !(flags & MAP_TABLE_PREALLOC));
+			}
+
+			return;
+		}
+	}
 }
 
 bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, int *level)

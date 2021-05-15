@@ -210,11 +210,24 @@ static void vmx_handle_rootcall(struct processor *proc)
 			vmcs_writel(VMCS_EPT_PTR, (uintptr_t)a0 | (3 << 3) | 6);
 			break;
 		case VMX_RC_INVVPID: {
-			uint32_t len = a2 >> 32;
-			for(uint32_t i = 0; i < len; i += mm_page_size(0)) {
-				__int128 desc = (((__int128)a1 + i) << 64) | (a2 & 0xffffffff);
-				asm volatile("invvpid (%%rcx), %%rax" ::"a"(a0), "c"(&desc));
+			// printk("INVVPID type %ld\n", a0);
+			if(a0 == 0) {
+				uint32_t len = a2 >> 32;
+				for(uint32_t i = 0; i < len; i += mm_page_size(0)) {
+					__int128 desc = (((__int128)a1 + i) << 64) | (a2 & 0xffffffff);
+					asm volatile("invvpid (%%rcx), %%rax" ::"a"(a0), "c"(&desc));
+				}
+			} else {
+				//__int128 desc = (a2 & 0xffffffff);
+				__int128 desc = 1;
+				asm volatile("invvpid (%%rcx), %%rax" ::"a"(2), "c"(&desc) : "memory");
 			}
+
+			/* TODO: it'd be nice not to invalidate ALL mappings. But when we don't do this, we get
+			 * weird missing invalidation bugs that I haven't tracked down. */
+			uint64_t val = vmcs_readl(VMCS_EPT_PTR);
+			unsigned __int128 eptp = val;
+			asm volatile("invept %0, %%rax" ::"m"(eptp), "a"(2) : "memory");
 			break;
 		}
 		default:

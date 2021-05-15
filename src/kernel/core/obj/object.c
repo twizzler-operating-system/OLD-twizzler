@@ -412,9 +412,8 @@ objid_t obj_compute_id(struct object *obj)
 		size_t slen = mi.sz;
 		if(slen > OBJ_TOPDATA)
 			slen = OBJ_TOPDATA;
-		printk(":: slen %lx\n", slen);
 		if(slen > 0x30000000)
-			panic("wtf");
+			panic("A wtf: %lx", slen);
 		for(size_t s = 0; s < slen; s += mm_page_size(0)) {
 			size_t rem = mm_page_size(0);
 			if(s + mm_page_size(0) > slen) {

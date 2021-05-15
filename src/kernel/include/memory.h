@@ -248,5 +248,7 @@ void arch_objspace_region_map_page(struct objspace_region *,
   size_t idx,
   struct page *page,
   uint64_t flags);
+void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
+void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
 
 #define PAGEVEC_MAX_IDX 4096

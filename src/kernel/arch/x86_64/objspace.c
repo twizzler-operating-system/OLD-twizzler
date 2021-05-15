@@ -51,15 +51,25 @@ void arch_objspace_map(struct object_space *space,
 			}
 		} else if(mapflags & MAP_ZERO) {
 			addr = mm_page_alloc_addr(PAGE_ZERO);
-			/* TODO: release this page struct for reuse? */
 		} else if(!(mapflags & MAP_TABLE_PREALLOC)) {
 			panic("invalid page mapping strategy");
 		}
 		if(mapflags & MAP_TABLE_PREALLOC)
 			table_premap(&arch->root, virt, 0, EPT_WRITE | EPT_READ | EPT_EXEC, true);
-		else
+		else {
+			// printk("map %lx -> %lx\n", virt, addr);
 			table_map(
 			  &arch->root, virt, addr, 0, flags | cf, EPT_WRITE | EPT_READ | EPT_EXEC, true);
+		}
+	}
+}
+
+void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags)
+{
+	struct object_space *space = &_bootstrap_object_space;
+	struct arch_object_space *arch = &space->arch;
+	for(size_t i = 0; i < nrpages; i++) {
+		table_unmap(&arch->root, addr + i * mm_page_size(0), flags);
 	}
 }
 
@@ -100,5 +110,4 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
 {
 	x86_64_invvpid(start, len);
-	// asm("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
 }

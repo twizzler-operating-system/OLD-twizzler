@@ -7,7 +7,7 @@
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>
 
-#define TMPMAP_LEN mm_page_size(0) * 512
+#define TMPMAP_LEN mm_page_size(0) * 512 * 2
 
 static _Atomic uintptr_t tmpmap_start = KERNEL_VIRTUAL_TMPMAP_BASE;
 
@@ -28,6 +28,7 @@ static void tmpmap_init(struct tmpmap *tmpmap)
 	if(tmpmap->virt == 0) {
 		tmpmap->virt = atomic_fetch_add(&tmpmap_start, TMPMAP_LEN);
 		tmpmap->oaddr = mm_objspace_reserve(TMPMAP_LEN);
+		printk("mapping tmpmap: %lx -> %lx\n", tmpmap->virt, tmpmap->oaddr);
 		mm_map(tmpmap->virt,
 		  tmpmap->oaddr,
 		  TMPMAP_LEN,
@@ -43,8 +44,9 @@ static void tmpmap_init(struct tmpmap *tmpmap)
 
 static void tmpmap_reset(struct tmpmap *tmpmap)
 {
-	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
+	mm_objspace_unmap(tmpmap->oaddr, TMPMAP_LEN / mm_page_size(0), MAP_TABLE_PREALLOC);
 	tmpmap->current = 0;
+	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
 }
 
 void *tmpmap_map_pages(struct page *pages, size_t count)
@@ -53,8 +55,10 @@ void *tmpmap_map_pages(struct page *pages, size_t count)
 	tmpmap_init(tmpmap);
 
 	const size_t max = TMPMAP_LEN / mm_page_size(0);
+	bool reset = false;
 	if(tmpmap->current + count > max) {
 		tmpmap_reset(tmpmap);
+		reset = true;
 	}
 
 	if(count > max) {
@@ -65,6 +69,11 @@ void *tmpmap_map_pages(struct page *pages, size_t count)
 	  pages,
 	  count,
 	  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE);
+
+	if(reset) {
+		//	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
+	}
+
 	void *ret = (void *)(tmpmap->virt + tmpmap->current * mm_page_size(0));
 	tmpmap->current += count;
 	return ret;
