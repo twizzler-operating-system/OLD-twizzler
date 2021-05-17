@@ -1,5 +1,6 @@
 #include <kalloc.h>
 #include <object.h>
+#include <objspace.h>
 #include <page.h>
 #include <processor.h>
 #include <secctx.h>
@@ -13,19 +14,18 @@
 #define EPRINTK(...)
 static void _sc_ctor(void *_x __unused, void *ptr)
 {
-	panic("A");
 	struct sctx *sc = ptr;
-	// object_space_init(&sc->space);
+	sc->space = object_space_alloc();
 }
 
 static void _sc_dtor(void *_x __unused, void *ptr)
 {
-	panic("A");
 	struct sctx *sc = ptr;
-	// object_space_destroy(&sc->space);
+	object_space_free(sc->space);
+	sc->space = NULL;
 }
 
-static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_ctor, NULL, _sc_dtor, NULL, NULL);
+static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), NULL, _sc_ctor, _sc_dtor, NULL, NULL);
 static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL, NULL, NULL);
 
 struct sctx *secctx_alloc(struct object *obj)
@@ -170,7 +170,8 @@ static objid_t __verify_get_object_kuid(objid_t target)
 
 static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, size_t *kdout)
 {
-	struct key_hdr *hdr = obj_get_kbase(ko);
+	panic("A");
+	struct key_hdr *hdr = NULL; // obj_get_kbase(ko);
 	if(hdr->type != etype) {
 		EPRINTK("hdr->type != cap->etype\n");
 		obj_release_kaddr(ko);
@@ -831,15 +832,14 @@ int secctx_check_permissions(void *ip, struct object *to, uint32_t flags)
 
 static void __secctx_update_thrdrepr(struct thread *thr, int s, bool at)
 {
-	struct object *to = kso_get_obj(thr->throbj, thr);
 	struct kso_attachment k = {
 		.id = at && thr->sctx_entries[s].context->obj ? thr->sctx_entries[s].context->obj->id : 0,
 		.flags = 0,
 		.info = at ? thr->sctx_entries[s].attr : 0,
 		.type = KSO_SECCTX,
 	};
-	obj_write_data(to, offsetof(struct twzthread_repr, attached) + sizeof(k) * s, sizeof(k), &k);
-	obj_put(to);
+	obj_write_data(
+	  thr->reprobj, offsetof(struct twzthread_repr, attached) + sizeof(k) * s, sizeof(k), &k);
 }
 
 static bool secctx_thread_attach(struct sctx *s, struct thread *t)
@@ -995,7 +995,7 @@ static bool __secctx_detach(struct object *parent, struct object *child, int sys
 	if(parent->kso_type != KSO_THREAD || child->kso_type != KSO_SECCTX)
 		return false;
 	struct thread *thr = current_thread;
-	struct sctx *s = child->sctx.sc;
+	struct sctx *s = object_get_kso_data_checked(child, KSO_SECCTX);
 
 	bool ok = false;
 	spinlock_acquire_save(&thr->sc_lock);
@@ -1019,12 +1019,13 @@ static bool __secctx_attach(struct object *parent, struct object *child, int fla
 		return false;
 	/* TODO: actually get the thread object */
 	struct thread *thr = current_thread;
-	return secctx_thread_attach(child->sctx.sc, thr);
+	struct sctx *s = object_get_kso_data_checked(child, KSO_SECCTX);
+	return secctx_thread_attach(s, thr);
 }
 
 static void __secctx_ctor(struct object *o)
 {
-	o->sctx.sc = secctx_alloc(o);
+	o->kso_data = secctx_alloc(o);
 }
 
 static struct kso_calls __ksoc_sctx = {

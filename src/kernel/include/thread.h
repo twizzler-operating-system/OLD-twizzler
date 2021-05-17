@@ -70,7 +70,7 @@ struct thread {
 	struct sctx *active_sc;
 	struct thread_sctx_entry *sctx_entries;
 
-	struct kso_throbj *throbj;
+	struct object *reprobj;
 	int kso_attachment_num;
 
 	struct list rq_entry, all_entry;

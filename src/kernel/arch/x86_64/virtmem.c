@@ -246,9 +246,26 @@ void arch_mm_context_destroy(struct vm_context *ctx)
 
 static _Atomic int context_id = 0;
 
-void arch_mm_context_init(struct vm_context *ctx)
+void arch_vm_context_dtor(struct vm_context *ctx)
 {
-	panic("A");
+	for(int i = 0; i < 256; i++) {
+		if(ctx->arch.root.children[i]) {
+			table_free_downward(ctx->arch.root.children[i]);
+			ctx->arch.root.children[i] = 0;
+			ctx->arch.root.table[i] = 0;
+		}
+	}
+}
+
+void arch_vm_context_init(struct vm_context *ctx)
+{
+	/* copy table references over for kernel memory space */
+	table_realize(&ctx->arch.root, false);
+	for(int i = 256; i < 512; i++) {
+		ctx->arch.root.table[i] = kernel_ctx.arch.root.table[i];
+		ctx->arch.root.children[i] = kernel_ctx.arch.root.children[i];
+		ctx->arch.root.count++;
+	}
 #if 0
 	ctx->arch.pml4 = kheap_allocate_pages(0x1000, 0);
 	ctx->arch.pml4_phys = mm_vtoo(ctx->arch.pml4);

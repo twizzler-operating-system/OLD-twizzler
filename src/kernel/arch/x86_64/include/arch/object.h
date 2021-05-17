@@ -7,7 +7,3 @@ struct arch_object {
 	uint64_t *pd;
 	uint64_t **pts;
 };
-
-struct arch_object_space {
-	struct table_level root;
-};

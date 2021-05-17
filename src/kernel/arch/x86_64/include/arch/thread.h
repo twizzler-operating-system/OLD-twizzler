@@ -15,10 +15,11 @@ struct __attribute__((packed)) arch_become_frame {
 	uint64_t fs, gs;
 };
 
+struct kheap_run;
 struct arch_thread {
 	_Alignas(16) struct x86_64_syscall_frame syscall;
 	_Alignas(16) struct x86_64_exception_frame exception;
-	void *xsave_region;
+	struct kheap_run *xsave_run;
 	uint64_t fs, gs;
 	bool was_syscall;
 	bool fpu_init;

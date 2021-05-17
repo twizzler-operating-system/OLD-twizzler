@@ -33,19 +33,6 @@ struct kso_invl_args {
 	uint16_t result;
 };
 
-#define kso_get_obj_noref(ptr, type)                                                               \
-	({                                                                                             \
-		struct object *_o = container_of(ptr, struct object, type);                                \
-		_o;                                                                                        \
-	})
-
-#define kso_get_obj(ptr, type)                                                                     \
-	({                                                                                             \
-		struct object *_o = container_of(ptr, struct object, type);                                \
-		krc_get(&_o->refs);                                                                        \
-		_o;                                                                                        \
-	})
-
 struct object;
 struct thread;
 struct kso_calls {
@@ -58,7 +45,7 @@ struct kso_calls {
 };
 
 void kso_register(int t, struct kso_calls *);
-struct kso_calls *kso_lookup_calls(int t);
+// struct kso_calls *kso_lookup_calls(int t);
 void kso_detach_event(struct thread *thr, bool entry, int sysc);
 int kso_root_attach(struct object *obj, uint64_t flags, int type);
 void kso_root_detach(int idx);
@@ -107,15 +94,10 @@ struct object {
 	uint32_t cache_mode;
 	uint32_t cached_pflags;
 
-	/* KSO stuff: what type, some data needed by each type, and callbacks */
 	_Atomic enum kso_type kso_type;
-	union {
-		struct kso_view view;
-		struct kso_throbj thr;
-		struct kso_sctx sctx;
-		void *data;
-	};
+	void *kso_data;
 	struct kso_calls *kso_calls;
+
 	long (*kaction)(struct object *, long, long);
 
 	/* general object lock */
@@ -150,7 +132,21 @@ struct object {
 	struct nv_region *preg;
 };
 
-#define obj_get_kbase(obj) ({ (void *)((char *)obj_get_kaddr(obj) + OBJ_NULLPAGE_SIZE); })
+void object_init_kso_data(struct object *, enum kso_type);
+static inline void *object_get_kso_data_checked(struct object *obj, enum kso_type kt)
+{
+	if(obj->kso_type == kt)
+		return obj->kso_data;
+	if(obj->kso_type == KSO_NONE) {
+		spinlock_acquire_save(&obj->lock);
+		if(obj->kso_type == KSO_NONE) {
+			object_init_kso_data(obj, kt);
+		}
+		spinlock_release_restore(&obj->lock);
+		return obj->kso_data;
+	}
+	return NULL;
+}
 
 struct page;
 #define OBJPAGE_MAPPED 1
@@ -165,14 +161,7 @@ struct objpage {
 	struct object *obj; /* weak */
 };
 
-struct object_space {
-	struct arch_object_space arch;
-	struct krc refs;
-};
-
-void object_space_map_slot(struct object_space *space, struct slot *slot, uint64_t flags);
-void object_space_release_slot(struct slot *slot);
-
+struct object_space;
 struct object *obj_create(uint128_t id, enum kso_type);
 void obj_system_init(void);
 void obj_system_init_objpage(void);
@@ -241,14 +230,6 @@ bool arch_object_getmap(struct object *obj,
   int *level,
   uint64_t *flags);
 void arch_object_remap_cow(struct object *obj);
-
-void arch_object_space_init(struct object_space *space);
-void arch_object_space_destroy(struct object_space *space);
-bool arch_object_getmap_slot_flags(struct object_space *space, struct slot *, uint64_t *flags);
-void object_space_destroy(struct object_space *space);
-void object_space_init(struct object_space *space);
-void arch_object_init(struct object *obj);
-void arch_object_destroy(struct object *obj);
 
 #define OBJSPACE_FAULT_READ 1
 #define OBJSPACE_FAULT_WRITE 2

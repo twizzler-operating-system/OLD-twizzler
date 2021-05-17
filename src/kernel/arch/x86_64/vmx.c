@@ -2,6 +2,7 @@
 #include <arch/x86_64-vmx.h>
 #include <memory.h>
 #include <object.h>
+#include <objspace.h>
 #include <processor.h>
 #include <secctx.h>
 static uint32_t revision_id;
@@ -770,7 +771,7 @@ void x86_64_switch_ept(uintptr_t root)
 
 void x86_64_secctx_switch(struct sctx *s)
 {
-	struct object_space *space = s ? &s->space : &_bootstrap_object_space;
+	struct object_space *space = s ? s->space : &_bootstrap_object_space;
 	x86_64_switch_ept(space->arch.root.phys);
 }
 

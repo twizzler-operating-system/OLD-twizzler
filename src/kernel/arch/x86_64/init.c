@@ -632,10 +632,10 @@ void arch_thread_init(struct thread *thread,
 	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
 	if(xsave_region_size > 0x1000)
 		panic("NI - HUGE xsave region");
-	panic("A");
-	// thread->arch.xsave_region = kheap_allocate_pages(0x1000, 0);
+	thread->arch.xsave_run = kheap_allocate(xsave_region_size);
 }
 
 void arch_thread_destroy(struct thread *thread)
 {
+	panic("A");
 }

@@ -51,7 +51,6 @@ static void _obj_ctor(void *_u, void *ptr)
 	obj->range_tree = RBINIT;
 	obj->tstable_root = RBINIT;
 	obj->page_requests_root = RBINIT;
-	obj->view.init = 0;
 }
 
 void obj_init(struct object *obj)
@@ -96,10 +95,10 @@ void kso_register(int t, struct kso_calls *c)
 	_kso_calls[t] = c;
 }
 
-struct kso_calls *kso_lookup_calls(int t)
-{
-	return _kso_calls[t];
-}
+/*struct kso_calls *kso_lookup_calls(int t)
+  {
+    return _kso_calls[t];
+}*/
 
 void kso_detach_event(struct thread *thr, bool entry, int sysc)
 {
@@ -114,6 +113,14 @@ void obj_kso_init(struct object *obj, enum kso_type ksot)
 {
 	obj->kso_type = ksot;
 	obj->kso_calls = _kso_calls[ksot];
+	if(obj->kso_calls && obj->kso_calls->ctor) {
+		obj->kso_calls->ctor(obj);
+	}
+}
+
+void object_init_kso_data(struct object *obj, enum kso_type kt)
+{
+	obj->kso_calls = _kso_calls[kt];
 	if(obj->kso_calls && obj->kso_calls->ctor) {
 		obj->kso_calls->ctor(obj);
 	}
@@ -365,7 +372,7 @@ void obj_put(struct object *o)
 		spinlock_release_restore(&objlock);
 		// workqueue_insert(&current_processor->wq, &o->delete_task, _obj_release, o);
 		//_obj_release(o);
-		printk("TODO release object\n");
+		printk("TODO release object (AND free kso_data)\n");
 	}
 }
 

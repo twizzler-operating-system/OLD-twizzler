@@ -204,6 +204,24 @@ __noinstrument void thread_schedule_resume(void)
 	thread_schedule_resume_proc(current_processor);
 }
 
+static void __thr_ctor(struct object *obj)
+{
+	obj->kso_data = kalloc(sizeof(struct kso_throbj), 0);
+}
+
+static struct kso_calls _kso_thr = {
+	.ctor = __thr_ctor,
+	.dtor = NULL,
+	.attach = NULL,
+	.detach = NULL,
+	.invl = NULL,
+};
+
+__initializer static void _init_kso_view(void)
+{
+	kso_register(KSO_THREAD, &_kso_thr);
+}
+
 void thread_sleep(struct thread *t, int flags)
 {
 	(void)flags;
@@ -219,12 +237,11 @@ void thread_sleep(struct thread *t, int flags)
 	}
 	spinlock_release_restore(&t->processor->sched_lock);
 
-	struct object *obj = kso_get_obj(t->throbj, thr);
 	obj_write_data_atomic64(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
-	thread_wake_object(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE, INT_MAX);
-	obj_put(obj);
+	  t->reprobj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
+	thread_wake_object(t->reprobj,
+	  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
+	  INT_MAX);
 }
 
 void thread_wake(struct thread *t)
@@ -232,13 +249,12 @@ void thread_wake(struct thread *t)
 	spinlock_acquire_save(&t->processor->sched_lock);
 	int old = atomic_exchange(&t->state, THREADSTATE_RUNNING);
 	if(old == THREADSTATE_BLOCKED) {
-		struct object *obj = kso_get_obj(t->throbj, thr);
-		obj_write_data_atomic64(
-		  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
-		thread_wake_object(obj,
+		obj_write_data_atomic64(t->reprobj,
+		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]),
+		  THRD_SYNC_STATE_RUNNING);
+		thread_wake_object(t->reprobj,
 		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
 		  INT_MAX);
-		obj_put(obj);
 
 		list_insert(&t->processor->runqueue, &t->rq_entry);
 		t->processor->stats.running++;
@@ -257,7 +273,8 @@ static struct spinlock allthreads_lock = SPINLOCK_INIT;
 static void __thread_finish_cleanup2(void *_t)
 {
 	struct thread *t = _t;
-	vm_context_put(t->ctx);
+	vm_context_free(t->ctx);
+	panic("TODO: switch to kernel ctx");
 	t->ctx = NULL;
 	arch_thread_destroy(t);
 	thread_sync_uninit_thread(t);
@@ -308,12 +325,13 @@ void thread_exit(void)
 		current_thread->pending_fault_info = NULL;
 	}
 
-	struct object *obj = kso_get_obj(current_thread->throbj, thr);
-	obj_write_data_atomic64(obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);
-	thread_wake_object(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE, INT_MAX);
-	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
-	obj_put(obj);
+	obj_write_data_atomic64(
+	  current_thread->reprobj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);
+	thread_wake_object(current_thread->reprobj,
+	  offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE,
+	  INT_MAX);
+	obj_put(current_thread->reprobj);
+	current_thread->reprobj = NULL;
 
 	obj_put(current_thread->thrctrl);
 
@@ -432,7 +450,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 		__print_fault_info(NULL, fault, info);
 		panic("thread fault occurred before threading");
 	}
-	struct object *to = kso_get_obj(t->ctx->view, view);
+	struct object *to = t->ctx->viewobj;
 	if(!to) {
 		panic("No repr");
 	}
@@ -446,7 +464,6 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
 	__print_fault_info(t, fault, info);
 	if(handler) {
-		obj_put(to);
 		if(__failed_addr(fault, info) == handler) {
 			/* probably a double-fault. Just die */
 			__print_fault_info(t, fault, info);
@@ -456,7 +473,6 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 		arch_thread_raise_call(t, handler, fault, info, infolen);
 	} else {
 		obj_read_data(to, __VE_DBL_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
-		obj_put(to);
 		if(handler) {
 			if((void *)__failed_addr(fault, info) == handler) {
 				/* probably a double-fault. Just die */

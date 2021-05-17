@@ -31,7 +31,8 @@ long syscall_invalidate_kso(struct kso_invl_args *invl, size_t count)
 			if(ko.flags & KSOI_CURRENT) {
 				switch(ko.id) {
 					case KSO_CURRENT_VIEW:
-						o = kso_get_obj(current_thread->ctx->view, view);
+						o = current_thread->ctx->viewobj;
+						krc_get(&o->refs);
 						break;
 					default:
 						ko.result = -EINVAL;
@@ -264,8 +265,13 @@ long syscall_attach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 	objid_t paid = MKID(pahi, palo), chid = MKID(chhi, chlo);
 	uint16_t type = (ft & 0xffff);
 	uint32_t flags = (ft >> 32) & 0xffffffff;
-	struct object *parent =
-	  paid == 0 ? kso_get_obj(current_thread->throbj, thr) : obj_lookup(paid, 0);
+	struct object *parent;
+	if(paid == 0) {
+		krc_get(&current_thread->reprobj->refs);
+		parent = current_thread->reprobj;
+	} else {
+		parent = obj_lookup(paid, 0);
+	}
 	struct object *child = obj_lookup(chid, 0);
 
 	if(!parent || !child) {
@@ -322,8 +328,13 @@ long syscall_detach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 		return -EINVAL;
 
 	objid_t paid = MKID(pahi, palo), chid = MKID(chhi, chlo);
-	struct object *parent =
-	  paid == 0 ? kso_get_obj(current_thread->throbj, thr) : obj_lookup(paid, 0);
+	struct object *parent;
+	if(paid == 0) {
+		krc_get(&current_thread->reprobj->refs);
+		parent = current_thread->reprobj;
+	} else {
+		parent = obj_lookup(paid, 0);
+	}
 	struct object *child = chid == 0 ? NULL : obj_lookup(chid, 0);
 
 	if(!parent) {
@@ -361,11 +372,13 @@ long syscall_detach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 	if(child && child->kso_calls && child->kso_calls->detach) {
 		ret = child->kso_calls->detach(parent, child, sysc, flags) ? 0 : -EINVAL;
 	} else if(!child) {
+		/*
 		struct kso_calls *kc = kso_lookup_calls(type);
 		bool (*c)(struct object *, struct object *, int, int) = kc ? kc->detach : NULL;
 		if(c) {
-			ret = c(parent, child, sysc, flags) ? 0 : -EINVAL;
-		}
+		    ret = c(parent, child, sysc, flags) ? 0 : -EINVAL;
+		}*/
+		panic("A");
 	}
 
 	if(child)

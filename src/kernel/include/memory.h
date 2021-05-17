@@ -98,16 +98,15 @@ void mm_print_kalloc_stats(void);
 
 struct vm_context {
 	struct arch_vm_context arch;
-	struct kso_view *view;
+	struct object *viewobj;
 	struct rbroot root;
 	struct spinlock lock;
-	struct krc refs;
-	struct task free_task;
 	struct list entry;
 };
 
 void arch_mm_switch_context(struct vm_context *vm);
 void arch_mm_context_init(struct vm_context *ctx);
+void arch_vm_context_dtor(struct vm_context *ctx);
 void arch_mm_context_destroy(struct vm_context *ctx);
 
 #define VMAP_WIRE 1
@@ -239,6 +238,8 @@ void kalloc_system_init(void);
 uintptr_t mm_objspace_get_phys(uintptr_t oaddr);
 uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr);
 uintptr_t kheap_run_get_phys(struct kheap_run *run);
+
+#define TMPMAP_MAX_PAGES 1024
 void *tmpmap_map_pages(struct page *pages, size_t count);
 
 #define INVL_SELF 0
@@ -252,3 +253,5 @@ void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
 void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
 
 #define PAGEVEC_MAX_IDX 4096
+void arch_vm_context_init(struct vm_context *ctx);
+void vm_context_free(struct vm_context *ctx);

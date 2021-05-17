@@ -7,7 +7,30 @@
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>
 
-#define TMPMAP_LEN mm_page_size(0) * 512 * 2
+/* tmpmap -- support mapping any physical page into a virtual address so that we can access it.
+ * While _some_ physical memory is identity mapped in the system, not all of it is because of the
+ * limitations of the object space. On systems where object space is not limited by physical address
+ * width of the CPU, perhaps most tmpmap operations can be avoided. That optimization will be
+ * handled in the page system (mm/page.c).
+ *
+ * To reduce the number of invalidations, we reserve a reasonably large space for tmpmaps per cpu.
+ * Thus we never have to worry about cross-CPU invalidations at the expense of these temporary
+ * mappings being ephemeral and not sharable (which is fine, we have other mechanisms for that, see
+ * mm/pmap.c). Additionally, we consider the reserved region like a ring-buffer, trying to map pages
+ * to new addresses until we run out. When we run out of space, we unmap everything and invalidate.
+ * This means we don't have to flush the TLB everytime.
+ *
+ * Because we have a reserved max amount of space, we can't map more than TMPMAP_MAX_PAGES pages at
+ * once.
+ *
+ * To reduce overhead and bookkeeping, tmpmaps are not kept track of and previous maps can be
+ * potentially invalidated whenever tmpmap_map_pages is called. This means: 1) Any time this
+ * function is called, prior maps cannot be used. If you need to map multiple pages simultaneously,
+ * you must do it in one call to the function. 2) tmpmap_map_pages may not be called in interrupt
+ * context.
+ */
+
+#define TMPMAP_LEN mm_page_size(0) * TMPMAP_MAX_PAGES
 
 static _Atomic uintptr_t tmpmap_start = KERNEL_VIRTUAL_TMPMAP_BASE;
 
@@ -55,10 +78,8 @@ void *tmpmap_map_pages(struct page *pages, size_t count)
 	tmpmap_init(tmpmap);
 
 	const size_t max = TMPMAP_LEN / mm_page_size(0);
-	bool reset = false;
 	if(tmpmap->current + count > max) {
 		tmpmap_reset(tmpmap);
-		reset = true;
 	}
 
 	if(count > max) {
@@ -69,10 +90,6 @@ void *tmpmap_map_pages(struct page *pages, size_t count)
 	  pages,
 	  count,
 	  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE);
-
-	if(reset) {
-		//	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
-	}
 
 	void *ret = (void *)(tmpmap->virt + tmpmap->current * mm_page_size(0));
 	tmpmap->current += count;

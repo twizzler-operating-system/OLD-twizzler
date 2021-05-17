@@ -136,7 +136,7 @@ static void table_free_table_level(struct table_level *table)
 	}
 }
 
-static void table_free_downward(struct table_level *table)
+void table_free_downward(struct table_level *table)
 {
 	for(int i = 0; i < 512; i++) {
 		if(table->children[i]) {

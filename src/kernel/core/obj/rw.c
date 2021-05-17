@@ -9,11 +9,7 @@ struct io {
 	int dir;
 };
 
-__attribute__((no_sanitize("undefined"))) static void do_io(struct object *obj,
-  size_t pagenr,
-  struct page *page,
-  void *data,
-  uint64_t flags)
+static void do_io(struct object *obj, size_t pagenr, struct page *page, void *data, uint64_t flags)
 {
 	struct io *io = data;
 	assert(io->off + io->len <= mm_page_size(0));

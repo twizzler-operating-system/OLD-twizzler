@@ -73,16 +73,17 @@ long syscall_thread_spawn(uint64_t tidlo,
 			return r;
 		}
 	} else {
-		view = kso_get_obj(current_thread->ctx->view, view);
+		view = current_thread->ctx->viewobj;
+		krc_get(&view->refs);
 	}
 
 	obj_write_data(repr, offsetof(struct twzthread_repr, reprid), sizeof(objid_t), &tid);
 
 	struct thread *t = thread_create();
 	t->thrid = tid;
-	// printk("spawning thread %ld\n", t->id);
-	t->throbj = &repr->thr; /* krc: move */
-	repr->thr.thread = t;
+	t->reprobj = repr; /* krc: move */
+	struct kso_throbj *thr = object_get_kso_data_checked(repr, KSO_THREAD);
+	thr->thread = t;
 	vm_setview(t, view);
 
 	obj_put(view);
@@ -93,7 +94,27 @@ long syscall_thread_spawn(uint64_t tidlo,
 
 	t->thrctrl = obj_lookup(ctrlid, 0);
 
-	panic("A");
+	obj_write_data(t->thrctrl, offsetof(struct twzthread_ctrl_repr, reprid), sizeof(objid_t), &tid);
+	obj_write_data(
+	  t->thrctrl, offsetof(struct twzthread_ctrl_repr, ctrl_reprid), sizeof(objid_t), &ctrlid);
+
+	struct viewentry ve = {
+		.id = ctrlid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+	obj_write_data(t->thrctrl,
+	  offsetof(struct twzthread_ctrl_repr, fixed_points[TWZSLOT_TCTRL]),
+	  sizeof(struct viewentry),
+	  &ve);
+	struct viewentry ve2 = {
+		.id = tid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+	obj_write_data(t->thrctrl,
+	  offsetof(struct twzthread_ctrl_repr, fixed_points[TWZSLOT_THRD]),
+	  sizeof(struct viewentry),
+	  &ve2);
+
 #if 0
 	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
 	ctrl_repr->reprid = tid;
@@ -224,16 +245,15 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 	// long a = rdtsc();
 	//	long a_1, a2, a3;
 	if(ba.target_view) {
-		//	printk("become: switch to " IDFMT "\n", IDPR(ba.target_view));
-		struct object *obj = kso_get_obj(current_thread->ctx->view, view);
-		oldframe->view = obj;
+		oldframe->view = current_thread->ctx->viewobj;
+		krc_get(&oldframe->view->refs);
 		bool early_find = false;
 #if 1
 		for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 			if(current_thread->backup_views[i].id == ba.target_view) {
 				early_find = true;
-				target_view = kso_get_obj_noref(current_thread->backup_views[i].ctx->view, view);
-
+				target_view = current_thread->backup_views[i].ctx->viewobj;
+				panic("A");
 				current_thread->ctx = current_thread->backup_views[i].ctx; // TODO: cleanup
 				break;
 			}
@@ -308,7 +328,8 @@ long syscall_signal(uint64_t tidlo, uint64_t tidhi, long arg0, long arg1, long a
 		return -EINVAL;
 	}
 
-	struct thread *thread = repr->thr.thread;
+	struct kso_throbj *thr = object_get_kso_data_checked(repr, KSO_THREAD);
+	struct thread *thread = thr->thread;
 	struct fault_signal_info info = { { arg0, arg1, arg2, arg3 } };
 	/* TODO: locking */
 	thread_queue_fault(thread, FAULT_SIGNAL, &info, sizeof(info));

@@ -1,6 +1,7 @@
 #include <arch/x86_64-vmx.h>
 #include <memory.h>
 #include <object.h>
+#include <objspace.h>
 #include <page.h>
 #include <processor.h>
 
@@ -110,4 +111,26 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
 {
 	x86_64_invvpid(start, len);
+}
+
+void arch_object_space_init(struct object_space *space)
+{
+	table_realize(&space->arch.root, true);
+	for(int i = 0; i < 512; i++) {
+		space->arch.root.children[i] = _bootstrap_object_space.arch.root.children[i];
+		space->arch.root.table[i] = _bootstrap_object_space.arch.root.table[i];
+	}
+}
+
+void arch_object_space_fini(struct object_space *space)
+{
+	panic("A");
+	/*
+	for(int i = 0; i < 512; i++) {
+	    if(space->arch.root.children[i] && !_bootstrap_object_space.arch.root.children[i]) {
+	        table_free_downward(space->arch.root.children[i]);
+	        space->arch.root.children[i] = NULL;
+	    }
+	    space->arch.root.table[i] = 0;
+	}*/
 }

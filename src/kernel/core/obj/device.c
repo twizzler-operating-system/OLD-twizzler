@@ -12,7 +12,7 @@
 
 static void __kso_device_ctor(struct object *obj)
 {
-	struct device *dev = obj->data = kalloc(sizeof(struct device), 0);
+	struct device *dev = obj->kso_data = kalloc(sizeof(struct device), 0);
 	dev->co = obj;
 	dev->flags = 0;
 }
@@ -132,8 +132,7 @@ struct object *device_register(uint32_t bustype, uint32_t devid)
 	struct object *obj = obj_lookup(psid, OBJ_LOOKUP_HIDDEN);
 	assert(obj != NULL);
 	obj->kaction = __device_kaction;
-	obj_kso_init(obj, KSO_DEVICE);
-	struct device *data = obj->data;
+	struct device *data = object_get_kso_data_checked(obj, KSO_DEVICE);
 	data->uid = ((uint64_t)bustype << 32) | devid;
 
 	struct device_repr repr = {

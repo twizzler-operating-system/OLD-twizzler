@@ -74,6 +74,7 @@ struct table_level *table_get_next_level(struct table_level *table,
 void table_premap(struct table_level *table, uintptr_t virt, int level, uint64_t table_flags, bool);
 bool table_readmap(struct table_level *table, uintptr_t addr, uint64_t *entry, int *level);
 void table_unmap(struct table_level *table, uintptr_t virt, int flags);
+void table_free_downward(struct table_level *table);
 
 #define PML4_IDX(v) (((v) >> 39) & 0x1FF)
 #define PDPT_IDX(v) (((v) >> 30) & 0x1FF)
