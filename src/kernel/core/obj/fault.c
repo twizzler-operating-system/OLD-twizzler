@@ -191,7 +191,7 @@ static void __op_fault_callback(struct object *obj,
 
 static struct object *fault_get_object(uintptr_t vaddr)
 {
-	struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, vaddr / OBJ_MAXSIZE);
+	struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, vaddr);
 	return vmap ? vmap->omap->obj : NULL;
 }
 

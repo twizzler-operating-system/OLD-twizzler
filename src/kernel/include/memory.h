@@ -205,7 +205,7 @@ uintptr_t kheap_run_get_objspace(struct kheap_run *run);
 void kheap_free(struct kheap_run *run);
 struct kheap_run *kheap_allocate(size_t len);
 int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page);
-struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, size_t slotnr);
+struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, uintptr_t);
 
 #include <arch/objspace.h>
 

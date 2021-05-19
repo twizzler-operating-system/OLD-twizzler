@@ -103,7 +103,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
 	};
 	obj_write_data(t->thrctrl,
-	  offsetof(struct twzthread_ctrl_repr, fixed_points[TWZSLOT_TCTRL]),
+	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_TCTRL,
 	  sizeof(struct viewentry),
 	  &ve);
 	struct viewentry ve2 = {
@@ -111,7 +111,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
 	};
 	obj_write_data(t->thrctrl,
-	  offsetof(struct twzthread_ctrl_repr, fixed_points[TWZSLOT_THRD]),
+	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_THRD,
 	  sizeof(struct viewentry),
 	  &ve2);
 

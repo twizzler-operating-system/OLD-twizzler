@@ -132,7 +132,7 @@ static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t vefl
 {
 	struct vmap *vmap = slabcache_alloc(&sc_vmap);
 	vmap->omap = omap;
-	vmap->slot = addr / OBJ_MAXSIZE;
+	vmap->slot = addr / mm_objspace_region_size();
 	vmap->flags = veflags;
 	return vmap;
 }
@@ -173,9 +173,10 @@ static void raise_fault()
 	panic("A");
 }
 
-struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, size_t slotnr)
+struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, uintptr_t virt)
 {
-	struct rbnode *node = rb_search(&ctx->root, slotnr, struct vmap, node, vmap_compar_key);
+	struct rbnode *node =
+	  rb_search(&ctx->root, virt / mm_objspace_region_size(), struct vmap, node, vmap_compar_key);
 	return node ? rb_entry(node, struct vmap, node) : NULL;
 }
 
@@ -190,13 +191,28 @@ static void vm_context_add_vmap(struct vm_context *ctx, struct vmap *vmap)
 		flags |= MAP_WRITE;
 	if(vmap->flags & VE_EXEC)
 		flags |= MAP_EXEC;
-	arch_mm_map(
-	  ctx, vmap->slot * OBJ_MAXSIZE, vmap->omap->region->addr, mm_objspace_region_size(), flags);
+	arch_mm_map(ctx,
+	  vmap->slot * mm_objspace_region_size(),
+	  vmap->omap->region->addr,
+	  mm_objspace_region_size(),
+	  flags);
 }
 
 static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint32_t *veflags)
 {
 	struct viewentry ve;
+
+	obj_read_data(current_thread->thrctrl,
+	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * slot,
+	  sizeof(ve),
+	  &ve);
+
+	if(ve.flags & VE_VALID) {
+		*id = ve.id;
+		*veflags = ve.flags;
+		return true;
+	}
+
 	obj_read_data(
 	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
 	*id = ve.id;
