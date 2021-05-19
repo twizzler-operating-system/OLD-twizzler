@@ -96,6 +96,23 @@ void arch_objspace_region_map_page(struct objspace_region *region,
 	rwlock_wunlock(&res);
 }
 
+void arch_objspace_region_map(struct objspace_region *region)
+{
+	struct object_space *space = &_bootstrap_object_space;
+
+	struct table_level *table = &space->arch.root;
+	table_realize(table, true);
+
+	printk("mapping region %lx\n", region->addr);
+	int pml4_idx = PML4_IDX(region->addr);
+	int pdpt_idx = PDPT_IDX(region->addr);
+	int pd_idx = PD_IDX(region->addr);
+	table = table_get_next_level(table, pml4_idx, true, EPT_READ | EPT_WRITE | EPT_EXEC, NULL);
+	table = table_get_next_level(table, pdpt_idx, true, EPT_READ | EPT_WRITE | EPT_EXEC, NULL);
+	table_realize(&region->arch.table, true);
+	table->table[pd_idx] = region->arch.table.phys | EPT_READ | EPT_WRITE | EPT_EXEC;
+}
+
 uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 {
 	struct object_space *space = &_bootstrap_object_space;
@@ -116,6 +133,7 @@ void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
 void arch_object_space_init(struct object_space *space)
 {
 	table_realize(&space->arch.root, true);
+	printk("TODO: this is not correct\n");
 	for(int i = 0; i < 512; i++) {
 		space->arch.root.children[i] = _bootstrap_object_space.arch.root.children[i];
 		space->arch.root.table[i] = _bootstrap_object_space.arch.root.table[i];

@@ -1,3 +1,4 @@
+#include <lib/rb.h>
 #include <memory.h>
 #include <object.h>
 #include <processor.h>
@@ -37,6 +38,8 @@ static DECLARE_SLABCACHE(sc_vm_context,
   vm_context_dtor,
   vm_context_fini,
   NULL);
+
+static DECLARE_SLABCACHE(sc_vmap, sizeof(struct vmap), NULL, NULL, NULL, NULL, NULL);
 
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags)
 {
@@ -125,9 +128,117 @@ void vm_context_free(struct vm_context *ctx)
 	slabcache_free(&sc_vm_context, ctx);
 }
 
+static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t veflags)
+{
+	struct vmap *vmap = slabcache_alloc(&sc_vmap);
+	vmap->omap = omap;
+	vmap->slot = addr / OBJ_MAXSIZE;
+	vmap->flags = veflags;
+	return vmap;
+}
+
+static int vmap_compar_key(struct vmap *v, size_t slot)
+{
+	if(v->slot > slot)
+		return 1;
+	if(v->slot < slot)
+		return -1;
+	return 0;
+}
+
+static int vmap_compar(struct vmap *a, struct vmap *b)
+{
+	return vmap_compar_key(a, b->slot);
+}
+
+static inline bool flag_mismatch(int flags, uint32_t veflags)
+{
+	bool ok = true;
+	if((flags & FAULT_EXEC) && !(veflags & VE_EXEC))
+		ok = false;
+	if((flags & FAULT_WRITE) && !(veflags & VE_WRITE))
+		ok = false;
+	if(!(flags & FAULT_WRITE) && !(flags & FAULT_EXEC) && !(veflags & VE_READ))
+		ok = false;
+	return !ok;
+}
+
+static inline bool fault_is_perm(int flags)
+{
+	return flags & FAULT_ERROR_PERM;
+}
+
+static void raise_fault()
+{
+	panic("A");
+}
+
+struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, size_t slotnr)
+{
+	struct rbnode *node = rb_search(&ctx->root, slotnr, struct vmap, node, vmap_compar_key);
+	return node ? rb_entry(node, struct vmap, node) : NULL;
+}
+
+static void vm_context_add_vmap(struct vm_context *ctx, struct vmap *vmap)
+{
+	if(!rb_insert(&ctx->root, vmap, struct vmap, node, vmap_compar))
+		panic("overwritten vmap");
+	uint64_t flags = 0;
+	if(vmap->flags & VE_READ)
+		flags |= MAP_READ;
+	if(vmap->flags & VE_WRITE)
+		flags |= MAP_WRITE;
+	if(vmap->flags & VE_EXEC)
+		flags |= MAP_EXEC;
+	arch_mm_map(
+	  ctx, vmap->slot * OBJ_MAXSIZE, vmap->omap->region->addr, mm_objspace_region_size(), flags);
+}
+
+static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint32_t *veflags)
+{
+	struct viewentry ve;
+	obj_read_data(
+	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
+	*id = ve.id;
+	*veflags = ve.flags;
+	printk("reading view entry %ld: " IDFMT " %x\n", slot, IDPR(*id), *veflags);
+	return !!(ve.flags & VE_VALID);
+}
+
 void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 {
-	panic("A: %lx %lx %x", ip, addr, flags);
+	printk("A: %lx %lx %x\n", ip, addr, flags);
+
+	if(fault_is_perm(flags)) {
+		raise_fault();
+		return;
+	}
+
+	size_t off = addr % OBJ_MAXSIZE;
+	uint32_t veflags;
+	objid_t id;
+	size_t slot = addr / OBJ_MAXSIZE;
+	if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
+		raise_fault();
+		return;
+	}
+
+	if(flag_mismatch(flags, veflags)) {
+		raise_fault();
+		return;
+	}
+
+	struct object *obj = obj_lookup(id, 0);
+	if(!obj) {
+		printk("no obj\n");
+		raise_fault();
+		return;
+	}
+
+	struct omap *omap = mm_objspace_get_object_map(obj, off / mm_page_size(0));
+	struct vmap *vmap = vmap_create(addr, omap, veflags);
+
+	vm_context_add_vmap(current_thread->ctx, vmap);
 }
 
 struct object *vm_vaddr_lookup_obj(void *a, uint64_t *off)

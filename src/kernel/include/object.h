@@ -112,7 +112,7 @@ struct object {
 
 	struct rbroot pagecache_root, pagecache_level1_root, tstable_root, page_requests_root;
 
-	struct rbroot range_tree;
+	struct rbroot range_tree, omap_root;
 
 	struct rbnode slotnode, node;
 

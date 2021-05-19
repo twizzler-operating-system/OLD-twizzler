@@ -154,6 +154,7 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags)
 {
 	struct omap *omap = mm_objspace_get_object_map(obj, pagenr);
+	arch_objspace_region_map(omap->region);
 	assert(omap);
 	arch_objspace_region_map_page(
 	  omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags);
@@ -182,14 +183,36 @@ static void __op_fault_callback(struct object *obj,
   uint64_t cbfl)
 {
 	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
+	printk("cb: %ld\n", pagenr);
 	if(cbfl & PAGE_MAP_COW)
 		mapflags |= PAGE_MAP_COW;
 	object_map_page(obj, pagenr, page, mapflags);
 }
 
+static struct object *fault_get_object(uintptr_t vaddr)
+{
+	struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, vaddr / OBJ_MAXSIZE);
+	return vmap ? vmap->omap->obj : NULL;
+}
+
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
-	panic("objspace fault entry: %lx %lx %lx %x", ip, loaddr, vaddr, flags);
+	printk("objspace fault entry: %lx %lx %lx %x\n", ip, loaddr, vaddr, flags);
+
+	struct object *obj = fault_get_object(vaddr);
+	if(!obj) {
+		panic("userspace fault to object not mapped");
+	}
+
+	size_t pagenr = (vaddr % OBJ_MAXSIZE) / mm_page_size(0);
+	if(pagenr == 0) {
+		struct fault_null_info info = twz_fault_build_null_info((void *)ip, (void *)vaddr);
+		thread_raise_fault(current_thread, FAULT_NULL, &info, sizeof(info));
+		return;
+	}
+
+	object_operate_on_locked_page(obj, pagenr, 0, __op_fault_callback, NULL);
+
 #if 0
 	size_t idx = (loaddr % mm_page_size(MAX_PGLEVEL)) / mm_page_size(0);
 	if(idx == 0 && !VADDR_IS_KERNEL(vaddr)) {

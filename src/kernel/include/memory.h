@@ -111,7 +111,9 @@ void arch_mm_context_destroy(struct vm_context *ctx);
 
 #define VMAP_WIRE 1
 
+struct omap;
 struct vmap {
+	struct omap *omap;
 	struct object *obj;
 	size_t slot;
 	uint32_t flags;
@@ -203,6 +205,7 @@ uintptr_t kheap_run_get_objspace(struct kheap_run *run);
 void kheap_free(struct kheap_run *run);
 struct kheap_run *kheap_allocate(size_t len);
 int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page);
+struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, size_t slotnr);
 
 #include <arch/objspace.h>
 
@@ -215,6 +218,8 @@ struct objspace_region {
 struct omap {
 	struct object *obj;
 	struct objspace_region *region;
+	size_t regnr;
+	_Atomic size_t refs;
 	struct rbnode objnode;
 	struct rbnode spacenode;
 };
@@ -223,6 +228,7 @@ struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
 struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr);
 struct objspace_region *mm_objspace_allocate_region(void);
 void mm_objspace_free_region(struct objspace_region *region);
+void arch_objspace_region_map(struct objspace_region *region);
 
 #define mm_objspace_region_size arch_mm_objspace_region_size
 uintptr_t arch_mm_objspace_max_address(void);

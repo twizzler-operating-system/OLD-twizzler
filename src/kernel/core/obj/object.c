@@ -47,6 +47,7 @@ static void _obj_ctor(void *_u, void *ptr)
 	obj->lock = SPINLOCK_INIT;
 	obj->tslock = SPINLOCK_INIT;
 	obj->pagecache_root = RBINIT;
+	obj->omap_root = RBINIT;
 	obj->pagecache_level1_root = RBINIT;
 	obj->range_tree = RBINIT;
 	obj->tstable_root = RBINIT;
