@@ -19,7 +19,7 @@ extern struct object_space _bootstrap_object_space;
 
 void arch_objspace_map(struct object_space *space,
   uintptr_t virt,
-  struct page *pages,
+  struct page *pages[],
   size_t count,
   uint64_t mapflags)
 {
@@ -35,8 +35,8 @@ void arch_objspace_map(struct object_space *space,
 		uintptr_t addr;
 		uint64_t cf = EPT_MEMTYPE_WB;
 		if(pages) {
-			addr = pages[i].addr;
-			switch(PAGE_CACHE_TYPE(&pages[i])) {
+			addr = pages[i]->addr;
+			switch(PAGE_CACHE_TYPE(pages[i])) {
 				case PAGE_CACHE_WB:
 				default:
 					break;
@@ -90,9 +90,42 @@ void arch_objspace_region_map_page(struct objspace_region *region,
 	mapflags |= (flags & MAP_EXEC) ? EPT_EXEC : 0;
 
 	if(flags & PAGE_MAP_COW)
-		mapflags &= EPT_WRITE;
+		mapflags &= ~EPT_WRITE;
 
 	region->arch.table.table[idx] = mapflags | page->addr;
+	rwlock_wunlock(&res);
+}
+
+void arch_objspace_region_cow(struct objspace_region *region, size_t start, size_t len)
+{
+	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
+	if(region->arch.table.table == NULL) {
+		rwlock_wunlock(&res);
+		return;
+	}
+
+	for(size_t i = 0; i < len; i++) {
+		region->arch.table.table[i] &= ~EPT_WRITE;
+	}
+
+	rwlock_wunlock(&res);
+}
+
+void arch_objspace_region_unmap(struct objspace_region *region, size_t start, size_t len)
+{
+	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
+	if(region->arch.table.table == NULL) {
+		rwlock_wunlock(&res);
+		return;
+	}
+
+	for(size_t i = 0; i < len; i++) {
+		if(region->arch.table.table[i]) {
+			region->arch.table.count--;
+		}
+		region->arch.table.table[i] = 0;
+	}
+
 	rwlock_wunlock(&res);
 }
 

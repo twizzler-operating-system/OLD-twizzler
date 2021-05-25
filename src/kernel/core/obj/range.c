@@ -1,4 +1,5 @@
 #include <object.h>
+#include <page.h>
 #include <slab.h>
 
 static void __range_init(void *d __unused, void *obj)
@@ -31,6 +32,11 @@ struct range *object_find_range(struct object *obj, size_t page)
 	return rb_entry(node, struct range, node);
 }
 
+struct range *object_find_next_range(struct object *obj, size_t pagenr)
+{
+	panic("A");
+}
+
 struct range *object_add_range(struct object *obj,
   struct pagevec *pv,
   size_t start,
@@ -39,23 +45,69 @@ struct range *object_add_range(struct object *obj,
 {
 	struct range *r = slabcache_alloc(&sc_range);
 	r->pv = pv;
-	pv->refs++;
 	r->obj = obj;
 	r->pv_offset = off;
 	r->len = len;
 	r->start = start;
-	list_insert(&pv->ranges, &r->entry);
+	if(pv) {
+		pv->refs++;
+		list_insert(&pv->ranges, &r->entry);
+	}
 	rb_insert(&obj->range_tree, r, struct range, node, __range_compar);
 	return r;
 }
 
+void range_cut_half(struct range *range, size_t len)
+{
+	panic("A");
+}
+
+void range_toss(struct range *range)
+{
+	list_remove(&range->entry);
+	printk("TODO: clean up pv\n");
+}
+
 struct range *range_split(struct range *range, size_t rp)
 {
-	panic("");
+	printk("A split range %ld %ld %ld %ld\n", range->start, range->len, range->pv_offset, rp);
+	assert(rp < range->len);
+
+	if(rp != range->len - 1) {
+		/* new range for the last part */
+		object_add_range(range->obj,
+		  range->pv,
+		  range->start + rp + 1,
+		  range->len - (rp + 1),
+		  range->pv_offset + rp + 1);
+	}
+
+	if(rp > 0) {
+		struct range *newrange =
+		  object_add_range(range->obj, range->pv, range->start + rp, 1, range->pv_offset + rp);
+		range->len = rp;
+		return newrange;
+	} else {
+		range->len = 1;
+		return range;
+	}
 }
 
 void range_clone(struct range *range)
 {
+	struct pagevec *pv = pagevec_new();
+	for(size_t i = 0; i < range->len; i++) {
+		struct page *page;
+		int r = pagevec_get_page(range->pv, i + range->pv_offset, &page, 0);
+		assert(r == 0 && page); // TODO
+		                        /* TODO: we could map all the pages at once, too */
+		page = mm_page_clone(page);
+		pagevec_set_page(pv, i, page);
+	}
+	range_toss(range);
+	range->pv_offset = 0;
+	range->pv = pv;
+	list_insert(&pv->ranges, &range->entry);
 }
 
 size_t range_pv_idx(struct range *range, size_t idx)

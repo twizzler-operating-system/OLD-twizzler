@@ -1,5 +1,6 @@
 #include <memory.h>
 #include <page.h>
+#include <stdatomic.h>
 
 /* TODO: percpu? finer locking? */
 
@@ -27,11 +28,13 @@ void mm_page_init(void)
 	allpages = (void *)KERNEL_VIRTUAL_PAGES_BASE;
 	max_pages = INITIAL_NUM_PAGES;
 	struct page pg[INITIAL_NUM_PAGES];
+	struct page *pages[INITIAL_NUM_PAGES];
 	for(size_t i = 0; i < INITIAL_NUM_PAGES; i++) {
 		pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
+		pages[i] = &pg[i];
 	}
 	mm_objspace_fill(
-	  oaddr, pg, INITIAL_NUM_PAGES, MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
+	  oaddr, pages, INITIAL_NUM_PAGES, MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
 }
 
 static struct page *get_new_page_struct(void)
@@ -49,12 +52,16 @@ static struct page *get_new_page_struct(void)
 		  MAP_WIRE | MAP_KERNEL | MAP_GLOBAL | MAP_TABLE_PREALLOC | MAP_READ | MAP_WRITE);
 		max_pages += INITIAL_NUM_PAGES;
 		struct page pg[INITIAL_NUM_PAGES];
+		struct page *pages[INITIAL_NUM_PAGES];
 		for(size_t i = 0; i < INITIAL_NUM_PAGES; i++) {
 			pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
+			pages[i] = &pg[i];
 		}
 		spinlock_release_restore(&lock);
-		mm_objspace_fill(
-		  oaddr, pg, INITIAL_NUM_PAGES, MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
+		mm_objspace_fill(oaddr,
+		  pages,
+		  INITIAL_NUM_PAGES,
+		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
 		spinlock_acquire_save(&lock);
 	}
 
@@ -72,6 +79,9 @@ static struct page *fallback_page_alloc(void)
 
 struct page *mm_page_fake_create(uintptr_t phys, int flags)
 {
+	if(phys > 0xffff000000000000ul) {
+		panic("A what2");
+	}
 	spinlock_acquire_save(&lock);
 	struct page *page = get_new_page_struct();
 	spinlock_release_restore(&lock);
@@ -91,7 +101,8 @@ static void mm_page_zero_addr(uintptr_t addr)
 		.addr = addr,
 		.flags = 0,
 	};
-	void *vaddr = tmpmap_map_pages(&page, 1);
+	struct page *pages[] = { &page };
+	void *vaddr = tmpmap_map_pages(pages, 1);
 	memset(vaddr, 0, mm_page_size(0));
 }
 
@@ -111,8 +122,41 @@ void mm_page_write(struct page *page, void *data, size_t len)
 		memcpy(mm_early_ptov(page->addr), 0, len);
 		return;
 	}
-	void *vaddr = tmpmap_map_pages(page, 1);
+	struct page *pages[] = { page };
+	void *vaddr = tmpmap_map_pages(pages, 1);
 	memcpy(vaddr, data, len);
+}
+
+struct page *mm_page_clone(struct page *page)
+{
+	struct page *newpage = mm_page_alloc(0);
+	void *srcaddr = NULL;
+	void *dstaddr = NULL;
+	if(page->addr < MEMORY_BOOTSTRAP_MAX) {
+		srcaddr = mm_early_ptov(page->addr);
+	}
+	if(newpage->addr < MEMORY_BOOTSTRAP_MAX) {
+		dstaddr = mm_early_ptov(newpage->addr);
+	}
+
+	if(!srcaddr && !dstaddr) {
+		struct page *pages[] = { page, newpage };
+		void *addr = tmpmap_map_pages(pages, 2);
+		srcaddr = addr;
+		dstaddr = (char *)addr + mm_page_size(0);
+	} else if(!srcaddr) {
+		struct page *pages[] = { page };
+		void *addr = tmpmap_map_pages(pages, 1);
+		srcaddr = addr;
+	} else if(!dstaddr) {
+		struct page *pages[] = { newpage };
+		void *addr = tmpmap_map_pages(pages, 1);
+		dstaddr = addr;
+	}
+
+	memcpy(dstaddr, srcaddr, mm_page_size(0));
+	atomic_thread_fence(memory_order_seq_cst);
+	return newpage;
 }
 
 #define PAGE_ADDR 0x1000
@@ -166,6 +210,9 @@ struct page *mm_page_alloc(int flags)
 	spinlock_release_restore(&lock);
 	if((flags & PAGE_ZERO) && !(page->flags & PAGE_ZERO)) {
 		mm_page_zero(page);
+	}
+	if(page->addr > 0xffff000000000000ul) {
+		panic("A what");
 	}
 	return page;
 }

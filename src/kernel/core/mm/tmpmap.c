@@ -72,7 +72,7 @@ static void tmpmap_reset(struct tmpmap *tmpmap)
 	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
 }
 
-void *tmpmap_map_pages(struct page *pages, size_t count)
+void *tmpmap_map_pages(struct page *pages[], size_t count)
 {
 	struct tmpmap *tmpmap = per_cpu_get(tmpmap);
 	tmpmap_init(tmpmap);

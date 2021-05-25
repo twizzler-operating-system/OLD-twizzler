@@ -72,7 +72,7 @@ static void omap_fini(void *p __unused, void *obj)
 
 static DECLARE_SLABCACHE(sc_omap, sizeof(struct omap), omap_init, NULL, NULL, omap_fini, NULL);
 
-void mm_objspace_fill(uintptr_t addr, struct page *pages, size_t count, int flags)
+void mm_objspace_fill(uintptr_t addr, struct page *pages[], size_t count, int flags)
 {
 	arch_objspace_map(NULL, addr, pages, count, flags);
 }
@@ -82,7 +82,7 @@ void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags)
 	arch_objspace_unmap(addr, nrpages, flags);
 }
 
-static int omap_compar_key(struct omap *v, size_t slot)
+int omap_compar_key(struct omap *v, size_t slot)
 {
 	if(v->regnr > slot)
 		return 1;
@@ -91,7 +91,7 @@ static int omap_compar_key(struct omap *v, size_t slot)
 	return 0;
 }
 
-static int omap_compar(struct omap *a, struct omap *b)
+int omap_compar(struct omap *a, struct omap *b)
 {
 	return omap_compar_key(a, b->regnr);
 }

@@ -169,9 +169,15 @@ long syscall_ocopy(objid_t *destid,
 		return -ENOENT;
 	}
 
+	struct object_copy_spec spec = {
+		.src = src,
+		.start_src = soff / mm_page_size(0),
+		.start_dst = doff / mm_page_size(0),
+		.length = len / mm_page_size(0),
+	};
+	object_copy(dest, &spec, 1);
 	// int r = obj_copy_pages(dest, src, doff, soff, len);
-	int r = -ENOSYS;
-	panic("A");
+	int r = 0;
 
 	obj_put(dest);
 	if(src)

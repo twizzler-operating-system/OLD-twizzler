@@ -282,6 +282,8 @@ struct range {
 
 size_t range_pv_idx(struct range *, size_t);
 struct range *range_split(struct range *, size_t);
+void range_cut_half(struct range *range, size_t len);
+void range_toss(struct range *range);
 
 void range_clone(struct range *);
 int pagevec_get_page(struct pagevec *, size_t, struct page **, int flags);
@@ -292,9 +294,9 @@ struct pagevec *object_new_pagevec(struct object *, size_t, size_t *);
 struct range *object_find_range(struct object *, size_t);
 bool arch_object_map_page(struct object *obj, size_t, struct page *, int);
 
-struct pagevec *pagevec_new(void);
 void pagevec_append_page(struct pagevec *pv, struct page *page);
 void pagevec_combine(struct pagevec *a, struct pagevec *b);
+struct pagevec *pagevec_new(void);
 
 #define PAGE_MAP_COW 1
 
@@ -315,6 +317,16 @@ int object_operate_on_locked_page(struct object *obj,
   void *data);
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags);
 void object_insert_page(struct object *obj, size_t pagenr, struct page *page);
+struct range *object_find_next_range(struct object *obj, size_t pagenr);
+
+struct object_copy_spec {
+	struct object *src;
+	size_t start_src;
+	size_t start_dst;
+	size_t length;
+};
+
+void object_copy(struct object *dest, struct object_copy_spec *specs, size_t count);
 
 struct viewentry;
 void kso_view_write(struct object *obj, size_t idx, struct viewentry *ve);

@@ -1,7 +1,10 @@
+#include <lib/iter.h>
+#include <lib/list.h>
 #include <lib/rb.h>
 #include <memory.h>
 #include <object.h>
 #include <processor.h>
+#include <rwlock.h>
 #include <slab.h>
 #include <thread.h>
 
@@ -57,65 +60,6 @@ int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page)
 		return -1;
 	panic("A");
 	return 0;
-}
-
-static void __view_ctor(struct object *obj)
-{
-	struct kso_view *kv = obj->kso_data = kalloc(sizeof(struct kso_view), 0);
-	list_init(&kv->contexts);
-}
-
-static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
-{
-	panic("A");
-#if 0
-	spinlock_acquire_save(&obj->lock);
-
-	foreach(e, list, &obj->view.contexts) {
-		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
-		spinlock_acquire_save(&ctx->lock);
-
-		for(size_t slot = invl->offset / mm_page_size(MAX_PGLEVEL);
-		    slot <= (invl->offset + invl->length) / mm_page_size(MAX_PGLEVEL);
-		    slot++) {
-			struct rbnode *node = rb_search(&ctx->root, slot, struct vmap, node, vmap_compar_key);
-			if(node) {
-				struct vmap *map = rb_entry(node, struct vmap, node);
-#if CONFIG_DEBUG_OBJECT_SLOT
-				printk("UNMAP VIA INVAL: " IDFMT " mapcount %ld\n",
-				  IDPR(map->obj->id),
-				  map->obj->mapcount.count);
-#endif
-				if(map->obj != obj) {
-					vm_map_disestablish(ctx, map);
-				} else {
-					/* TODO: right now this is okay, but maybe we'll want to handle this case in the
-					 * future to be more general. Basically, if we invalidate the entry holding the
-					 * object defining the view we're invalidating in, we'd deadlock. But ... I
-					 * don't think this should ever happen. */
-					printk("[vm] warning - invalidating view entry of invalidation target\n");
-				}
-			}
-		}
-
-		spinlock_release_restore(&ctx->lock);
-	}
-	spinlock_release_restore(&obj->lock);
-	return true;
-#endif
-}
-
-static struct kso_calls _kso_view = {
-	.ctor = __view_ctor,
-	.dtor = NULL,
-	.attach = NULL,
-	.detach = NULL,
-	.invl = _vm_view_invl,
-};
-
-__initializer static void _init_kso_view(void)
-{
-	kso_register(KSO_VIEW, &_kso_view);
 }
 
 struct vm_context *vm_context_create(void)
@@ -223,14 +167,33 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 
 void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 {
+	/* TODO: ensure addr is user */
 	printk("A: %lx %lx %x\n", ip, addr, flags);
 
 	if(fault_is_perm(flags)) {
+		printk("perm fault\n");
+
+		uint32_t veflags;
+		objid_t id;
+		size_t slot = addr / OBJ_MAXSIZE;
+		if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
+			raise_fault();
+			return;
+		}
+		printk("==> " IDFMT " %x\n", IDPR(id), veflags);
+
 		raise_fault();
 		return;
 	}
 
 	size_t off = addr % OBJ_MAXSIZE;
+
+	if(off < OBJ_NULLPAGE_SIZE) {
+		printk("null fault\n");
+		raise_fault();
+		return;
+	}
+
 	uint32_t veflags;
 	objid_t id;
 	size_t slot = addr / OBJ_MAXSIZE;
@@ -240,6 +203,7 @@ void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 	}
 
 	if(flag_mismatch(flags, veflags)) {
+		printk("mismatch fault\n");
 		raise_fault();
 		return;
 	}
@@ -253,6 +217,8 @@ void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 
 	struct omap *omap = mm_objspace_get_object_map(obj, off / mm_page_size(0));
 	struct vmap *vmap = vmap_create(addr, omap, veflags);
+
+	printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
 
 	vm_context_add_vmap(current_thread->ctx, vmap);
 }
@@ -293,4 +259,103 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 		}
 	}
 	return true;
+}
+
+static void __view_ctor(struct object *obj)
+{
+	struct kso_view *kv = obj->kso_data = kalloc(sizeof(struct kso_view), 0);
+	list_init(&kv->contexts);
+}
+
+static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
+{
+	if(invl->length == 0)
+		return true;
+	struct rwlock_result res = rwlock_rlock(&obj->rwlock, 0);
+
+	struct kso_view *view = object_get_kso_data_checked(obj, KSO_VIEW);
+	if(!view)
+		return false;
+	printk("::::::::: %lx %x\n", invl->offset, invl->length);
+	foreach(e, list, &view->contexts) {
+		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
+		spinlock_acquire_save(&ctx->lock);
+		size_t slot_start = invl->offset / mm_objspace_region_size();
+		size_t slot_count = ((invl->length - 1) / mm_objspace_region_size()) + 1;
+		size_t slot_end = slot_start + slot_count;
+
+		struct rbnode *node;
+		for(; slot_start < slot_end; slot_start++) {
+			node = rb_search(&ctx->root, slot_start, struct vmap, node, vmap_compar_key);
+			printk("search slot %p %ld: %p\n", ctx, slot_start, node);
+			if(!node) {
+				continue;
+			}
+		}
+
+		struct rbnode *next;
+		for(; node && slot_start < slot_end; node = next) {
+			next = rb_next(node);
+			struct vmap *vmap = rb_entry(node, struct vmap, node);
+			if(vmap->slot < slot_end) {
+				printk("UNMAP VIA INAL %ld\n", vmap->slot);
+				panic("A");
+			} else {
+				next = NULL;
+			}
+		}
+
+		spinlock_release_restore(&ctx->lock);
+	}
+
+	rwlock_runlock(&res);
+	return true;
+#if 0
+	spinlock_acquire_save(&obj->lock);
+
+	foreach(e, list, &obj->view.contexts) {
+		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
+		spinlock_acquire_save(&ctx->lock);
+
+		for(size_t slot = invl->offset / mm_page_size(MAX_PGLEVEL);
+		    slot <= (invl->offset + invl->length) / mm_page_size(MAX_PGLEVEL);
+		    slot++) {
+			struct rbnode *node = rb_search(&ctx->root, slot, struct vmap, node, vmap_compar_key);
+			if(node) {
+				struct vmap *map = rb_entry(node, struct vmap, node);
+#if CONFIG_DEBUG_OBJECT_SLOT
+				printk("UNMAP VIA INVAL: " IDFMT " mapcount %ld\n",
+				  IDPR(map->obj->id),
+				  map->obj->mapcount.count);
+#endif
+				if(map->obj != obj) {
+					vm_map_disestablish(ctx, map);
+				} else {
+					/* TODO: right now this is okay, but maybe we'll want to handle this case in the
+					 * future to be more general. Basically, if we invalidate the entry holding the
+					 * object defining the view we're invalidating in, we'd deadlock. But ... I
+					 * don't think this should ever happen. */
+					printk("[vm] warning - invalidating view entry of invalidation target\n");
+				}
+			}
+		}
+
+		spinlock_release_restore(&ctx->lock);
+	}
+	spinlock_release_restore(&obj->lock);
+	return true;
+#endif
+}
+
+static struct kso_calls _kso_view = {
+	.ctor = __view_ctor,
+	.dtor = NULL,
+	.attach = NULL,
+	.detach = NULL,
+	.invl = _vm_view_invl,
+};
+
+__initializer static void _init_kso_view(void)
+{
+	kso_register(KSO_VIEW, &_kso_view);
 }

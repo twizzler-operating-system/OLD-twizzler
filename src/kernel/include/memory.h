@@ -185,7 +185,7 @@ struct page;
 #define REGION_ALLOC_BOOTSTRAP 1
 uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags);
 
-void mm_objspace_fill(uintptr_t addr, struct page *pages, size_t count, int flags);
+void mm_objspace_fill(uintptr_t addr, struct page *pages[], size_t count, int flags);
 uintptr_t mm_objspace_reserve(size_t len);
 
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags);
@@ -246,7 +246,7 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr);
 uintptr_t kheap_run_get_phys(struct kheap_run *run);
 
 #define TMPMAP_MAX_PAGES 1024
-void *tmpmap_map_pages(struct page *pages, size_t count);
+void *tmpmap_map_pages(struct page *pages[], size_t count);
 
 #define INVL_SELF 0
 #define INVL_ALL 1

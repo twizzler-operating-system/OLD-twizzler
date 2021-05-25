@@ -58,6 +58,11 @@ struct pagevec *object_new_pagevec(struct object *obj, size_t idx, size_t *off)
 	return pv;
 }
 
+struct pagevec *pagevec_new(void)
+{
+	return slabcache_alloc(&sc_pagevec);
+}
+
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)
 {
 	struct page_entry ne = {

@@ -14,7 +14,7 @@ static void do_io(struct object *obj, size_t pagenr, struct page *page, void *da
 	struct io *io = data;
 	assert(io->off + io->len <= mm_page_size(0));
 	if(page) {
-		void *addr = tmpmap_map_pages(page, 1);
+		void *addr = tmpmap_map_pages(&page, 1);
 #if 0
 		printk("RW %ld %ld %d %d %x :: %lx :%p\n",
 		  pagenr,

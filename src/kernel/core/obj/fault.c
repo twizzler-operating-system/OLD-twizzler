@@ -183,7 +183,7 @@ static void __op_fault_callback(struct object *obj,
   uint64_t cbfl)
 {
 	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
-	printk("cb: %ld\n", pagenr);
+	// printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
 	if(cbfl & PAGE_MAP_COW)
 		mapflags |= PAGE_MAP_COW;
 	object_map_page(obj, pagenr, page, mapflags);
@@ -211,7 +211,11 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 		return;
 	}
 
-	object_operate_on_locked_page(obj, pagenr, 0, __op_fault_callback, NULL);
+	int opflags = 0;
+	if(flags & OBJSPACE_FAULT_WRITE) {
+		opflags |= OP_LP_DO_COPY;
+	}
+	object_operate_on_locked_page(obj, pagenr, opflags, __op_fault_callback, NULL);
 
 #if 0
 	size_t idx = (loaddr % mm_page_size(MAX_PGLEVEL)) / mm_page_size(0);
@@ -355,6 +359,7 @@ int object_operate_on_locked_page(struct object *obj,
 	}
 
 	size_t pvidx = range_pv_idx(range, pagenr);
+	// printk("op %p : %ld %ld\n", range, range->start, pvidx);
 
 	struct page *page;
 	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
@@ -364,6 +369,7 @@ int object_operate_on_locked_page(struct object *obj,
 		/* TODO: return a "def resched" thing */
 	} else {
 		if(range->pv->refs > 1) {
+			printk("COPY ON WRITE\n");
 			if(flags & OP_LP_DO_COPY) {
 				rwres = rwlock_upgrade(&rwres, 0);
 				range = range_split(range, pagenr - range->start);

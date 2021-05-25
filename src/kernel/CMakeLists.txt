@@ -68,6 +68,7 @@ list(APPEND KERNEL_SOURCES
 	core/obj/device.c
 	core/obj/fault.c
 	core/obj/kso.c
+	core/obj/objcopy.c
 	core/obj/object.c
 	core/obj/objpage.c
 	core/obj/objmap.c

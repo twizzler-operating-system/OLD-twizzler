@@ -153,10 +153,10 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 extern long (*syscall_table[])();
 __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 {
-	// long num = frame->rax;
+	long num = frame->rax;
 	// long xx = krdtsc();
-#if CONFIG_PRINT_SYSCALLS
-	long long a = krdtsc();
+#if CONFIG_PRINT_SYSCALLS || 1
+	// long long a = krdtsc();
 #endif
 	current_thread->arch.was_syscall = true;
 	arch_interrupt_set(true);
@@ -179,8 +179,9 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		frame->rax = -EINVAL;
 	}
 
-#if CONFIG_PRINT_SYSCALLS
-	long long b = krdtsc();
+#if CONFIG_PRINT_SYSCALLS || 1
+	// long long b = krdtsc();
+	long long b = 0, a = 0;
 	if(frame->rax != SYS_DEBUG_PRINT)
 		printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
 		  current_thread->id,
