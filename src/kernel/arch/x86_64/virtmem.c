@@ -1,7 +1,6 @@
 #include <arch/x86_64.h>
 #include <memory.h>
 #include <processor.h>
-extern struct vm_context kernel_ctx;
 
 #define RECUR_FLAGS (VM_MAP_USER | VM_MAP_WRITE | PAGE_PRESENT)
 int arch_mm_map(struct vm_context *ctx,
@@ -35,6 +34,24 @@ int arch_mm_map(struct vm_context *ctx,
 		i += mm_page_size(level);
 	}
 	return 0;
+}
+
+void arch_mm_unmap(struct vm_context *ctx, uintptr_t virt, size_t len)
+{
+	struct arch_vm_context *arch = &ctx->arch;
+	size_t i = 0;
+	while(i < len) {
+		size_t rem = len - i;
+		int level = 0;
+		if(is_aligned(virt + i, mm_page_size(2)) && rem >= mm_page_size(2)) {
+			level = 2;
+		} else if(is_aligned(virt + i, mm_page_size(1)) && rem >= mm_page_size(1)) {
+			level = 1;
+		}
+
+		table_unmap(&arch->root, virt + i, 0);
+		i += mm_page_size(level);
+	}
 }
 
 #if 0

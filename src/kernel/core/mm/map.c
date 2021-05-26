@@ -142,6 +142,12 @@ static void vm_context_add_vmap(struct vm_context *ctx, struct vmap *vmap)
 	  flags);
 }
 
+static void vm_context_remove_vmap(struct vm_context *ctx, struct vmap *vmap)
+{
+	rb_delete(&vmap->node, &ctx->root);
+	arch_mm_unmap(ctx, vmap->slot * mm_objspace_region_size(), mm_objspace_region_size());
+}
+
 static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint32_t *veflags)
 {
 	struct viewentry ve;
@@ -288,8 +294,8 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 		for(; slot_start < slot_end; slot_start++) {
 			node = rb_search(&ctx->root, slot_start, struct vmap, node, vmap_compar_key);
 			printk("search slot %p %ld: %p\n", ctx, slot_start, node);
-			if(!node) {
-				continue;
+			if(node) {
+				break;
 			}
 		}
 
@@ -299,7 +305,9 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 			struct vmap *vmap = rb_entry(node, struct vmap, node);
 			if(vmap->slot < slot_end) {
 				printk("UNMAP VIA INAL %ld\n", vmap->slot);
-				panic("A");
+				vm_context_remove_vmap(ctx, vmap);
+				printk("TODO: arch-dep\n");
+				asm volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
 			} else {
 				next = NULL;
 			}

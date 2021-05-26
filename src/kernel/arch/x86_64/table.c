@@ -141,6 +141,10 @@ void table_free_downward(struct table_level *table)
 	for(int i = 0; i < 512; i++) {
 		if(table->children[i]) {
 			table_free_downward(table->children[i]);
+			table->count--;
+		} else if(table->table[i]) {
+			table->table[i] = 0;
+			table->count--;
 		}
 	}
 	assert(table->count == 0);

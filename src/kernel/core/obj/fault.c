@@ -183,7 +183,7 @@ static void __op_fault_callback(struct object *obj,
   uint64_t cbfl)
 {
 	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
-	// printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
+	printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
 	if(cbfl & PAGE_MAP_COW)
 		mapflags |= PAGE_MAP_COW;
 	object_map_page(obj, pagenr, page, mapflags);
@@ -200,6 +200,7 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 	printk("objspace fault entry: %lx %lx %lx %x\n", ip, loaddr, vaddr, flags);
 
 	struct object *obj = fault_get_object(vaddr);
+	printk("fault object: " IDFMT "\n", IDPR(obj->id));
 	if(!obj) {
 		panic("userspace fault to object not mapped");
 	}

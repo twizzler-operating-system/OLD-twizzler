@@ -194,6 +194,7 @@ void kheap_start_dynamic(void);
 void *kheap_map_pages(struct page *pages, size_t count);
 void *kheap_allocate_pages(size_t len, int flags);
 void kheap_free_pages(void *p);
+void arch_mm_unmap(struct vm_context *ctx, uintptr_t virt, size_t len);
 
 struct kheap_run {
 	void *start;
@@ -261,3 +262,5 @@ void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
 #define PAGEVEC_MAX_IDX 4096
 void arch_vm_context_init(struct vm_context *ctx);
 void vm_context_free(struct vm_context *ctx);
+
+extern struct vm_context kernel_ctx;

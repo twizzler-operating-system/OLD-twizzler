@@ -34,7 +34,23 @@ struct range *object_find_range(struct object *obj, size_t page)
 
 struct range *object_find_next_range(struct object *obj, size_t pagenr)
 {
-	panic("A");
+	struct rbnode *_node = obj->range_tree.node;
+	struct rbnode *_res = NULL;
+	struct range *best = NULL;
+	while(_node) {
+		struct range *range = rb_entry(_node, struct range, node);
+
+		if(range->start > pagenr) {
+			_node = _node->right;
+		} else if(range->start <= pagenr && pagenr < range->start + range->len) {
+			return range;
+		} else {
+			if(!best || range->start < best->start)
+				best = range;
+			_node = _node->left;
+		}
+	}
+	return best;
 }
 
 struct range *object_add_range(struct object *obj,

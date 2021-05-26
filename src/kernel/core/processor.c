@@ -249,7 +249,7 @@ POST_INIT(__init_processor_objects, NULL);
 
 void processor_update_stats(void)
 {
-	printk("TODO: processor stats\n");
+	/* TODO A */
 #if 0
 	for(int i = 0; i < PROCESSOR_MAX_CPUS; i++) {
 		if((processors[i].flags & PROCESSOR_UP)) {

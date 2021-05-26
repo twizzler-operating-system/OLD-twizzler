@@ -1,5 +1,4 @@
 #include <stdlib.h>
-#include <twz/gate.h>
 #include <twz/obj.h>
 #include <twz/sys/obj.h>
 #include <twz/sys/view.h>

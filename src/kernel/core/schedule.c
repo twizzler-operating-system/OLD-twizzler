@@ -200,7 +200,6 @@ static DECLARE_SLABCACHE(_sc_thread, sizeof(struct thread), _thread_ctor, NULL, 
 
 __noinstrument void thread_schedule_resume(void)
 {
-	assert(current_thread != NULL);
 	thread_schedule_resume_proc(current_processor);
 }
 
@@ -335,8 +334,21 @@ void thread_exit(void)
 
 	obj_put(current_thread->thrctrl);
 
-	workqueue_insert(
-	  &current_processor->wq, &current_thread->free_task, __thread_finish_cleanup, current_thread);
+	struct thread *th = current_thread;
+	arch_processor_reset_current_thread(current_processor);
+
+	vm_context_free(th->ctx);
+	th->ctx = NULL;
+	arch_thread_destroy(th);
+	thread_sync_uninit_thread(th);
+	void *back = th->sctx_entries;
+	memset(th, 0, sizeof(*th));
+	th->sctx_entries = back;
+	_thread_ctor(NULL, th);
+	slabcache_free(&_sc_thread, th);
+
+	// workqueue_insert(
+	// &current_processor->wq, &current_thread->free_task, __thread_finish_cleanup, current_thread);
 }
 
 void thread_print_all_threads(void)

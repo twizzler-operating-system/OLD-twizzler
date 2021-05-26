@@ -259,6 +259,14 @@ static int __internal_load_elf_object(twzobj *view,
 				twix_log("oc: %d\n", r);
 				return r;
 			}
+
+			debug_printf("TODO: remove this check\n");
+			if(memcmp(memstart, filestart, len)) {
+				debug_printf("FAILURE!!!!e\n");
+				for(;;)
+					;
+			}
+
 			memset(memstart + phdr->p_filesz, 0, zerolen);
 
 			struct metainfo *mi = twz_object_meta(to);
@@ -762,6 +770,17 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 					      twz_object_guid(fobj), 0, adj, 0, (len + 0xfff) & ~0xfff, 0))) {
 						return r;
 					}
+
+					debug_printf("TODO: remove this check\n");
+					void *ob = twz_object_base(fobj);
+					for(size_t i = 0; i < len; i++) {
+						if(((char *)ob + adj)[i] != 0) {
+							debug_printf("FAILURE!!!!!23\n");
+							for(;;)
+								;
+						}
+					}
+
 					return (long)SLOT_TO_VADDR(slot) + adj;
 				} else {
 					return -ENOTSUP;
@@ -769,6 +788,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			}
 		}
 
+		debug_printf("CREATING NEW OBJECT!\n");
 		if((r = twz_object_new(&newobj,
 		      NULL,
 		      NULL,
@@ -777,6 +797,9 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 		        | TWZ_OC_TIED_VIEW))) {
 			return r;
 		}
+
+		debug_printf(
+		  "    ==> " IDFMT " ;; %p\n", IDPR(twz_object_guid(&newobj)), twz_object_base(&newobj));
 
 		//	twix_log("mmap create object " IDFMT " --> %lx\n", IDPR(twz_object_guid(&newobj)),
 		// slot);
@@ -789,6 +812,29 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 		      0))) {
 			twix_log("ocopy failed: %d\n", r);
 			return r;
+		}
+
+		debug_printf("TODO: remove this check\n");
+		char *nb = twz_object_base(&newobj);
+		char *ob = twz_object_base(fobj);
+		ob += off;
+		if(memcmp(nb, ob, len)) {
+			for(size_t i = 0; i < len; i++) {
+				/*if(((char *)ob)[i] != ((char *)nb)[i])
+				debug_printf("-- %ld: %x %x\n",i,
+				        ((char *)ob)[i],
+				        ((char *)nb)[i]);*/
+			}
+
+			debug_printf("FAILURE!!!! %p %p %lx %lx :: " IDFMT " <<== " IDFMT "\n",
+			  ob,
+			  nb,
+			  off + OBJ_NULLPAGE_SIZE,
+			  len,
+			  IDPR(twz_object_guid(&newobj)),
+			  IDPR(twz_object_guid(fobj)));
+			for(;;)
+				;
 		}
 
 		struct metainfo *mi = twz_object_meta(&newobj);

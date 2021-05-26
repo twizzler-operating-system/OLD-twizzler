@@ -235,5 +235,5 @@ void mm_page_print_stats(void)
 
 void mm_page_idle_zero(void)
 {
-	printk("TODO: page idle\n");
+	/* TODO A */
 }

@@ -97,9 +97,31 @@ void obj_write_data(struct object *obj, size_t start, size_t len, void *ptr)
 	/* TODO: what happens during failure */
 }
 
+struct atomic_op {
+	size_t pgoff;
+	uint64_t value;
+};
+
+static void do_atomic(struct object *obj __unused,
+  size_t pagenr __unused,
+  struct page *page,
+  void *data,
+  uint64_t flags __unused)
+{
+	struct atomic_op *op = data;
+	void *addr = tmpmap_map_pages(&page, 1);
+	_Atomic uint64_t *ptr = (_Atomic uint64_t *)((char *)addr + op->pgoff);
+	atomic_store(ptr, op->value);
+}
+
 void obj_write_data_atomic64(struct object *obj, size_t off, uint64_t val)
 {
 	off += OBJ_NULLPAGE_SIZE;
 	assert(off < OBJ_MAXSIZE && off + 8 <= OBJ_MAXSIZE);
-	panic("A");
+
+	struct atomic_op atom = {
+		.pgoff = off % mm_page_size(0),
+		.value = val,
+	};
+	object_operate_on_locked_page(obj, off / mm_page_size(0), OP_LP_DO_COPY, do_atomic, &atom);
 }

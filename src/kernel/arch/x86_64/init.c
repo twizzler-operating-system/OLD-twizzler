@@ -637,5 +637,5 @@ void arch_thread_init(struct thread *thread,
 
 void arch_thread_destroy(struct thread *thread)
 {
-	panic("A");
+	printk("TODO: thread destroy\n");
 }

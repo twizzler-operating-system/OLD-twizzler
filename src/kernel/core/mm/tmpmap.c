@@ -74,6 +74,8 @@ static void tmpmap_reset(struct tmpmap *tmpmap)
 
 void *tmpmap_map_pages(struct page *pages[], size_t count)
 {
+	/* TODO: if we are mapping only a single page, we can do the "is bootstrap" possible
+	 * optimization */
 	struct tmpmap *tmpmap = per_cpu_get(tmpmap);
 	tmpmap_init(tmpmap);
 

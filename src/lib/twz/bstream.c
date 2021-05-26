@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <string.h>
 #include <twz/alloc.h>
-#include <twz/gate.h>
+#include <twz/meta.h>
 #include <twz/name.h>
 #include <twz/obj.h>
 #include <twz/obj/bstream.h>

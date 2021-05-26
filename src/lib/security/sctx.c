@@ -15,14 +15,16 @@
 
 #include <twz/sys/sys.h>
 
-void *__twz_secapi_nextstack = NULL;
-void *__twz_secapi_nextstack_backup = NULL;
+__attribute__((visibility("protected"))) void *__twz_secapi_nextstack = NULL;
+__attribute__((used)) static void *__twz_secapi_nextstack_backup = NULL;
 
 __asm__(".global libtwzsec_gate_return;\n"
         "libtwzsec_gate_return:\n"
-        "movabs __twz_secapi_nextstack_backup, %rax\n"
+        "lea __twz_secapi_nextstack_backup(%rip), %r12\n"
+        "movq (%r12), %rax\n"
         "mfence\n"
-        "movabs %rax, __twz_secapi_nextstack\n"
+        "lea __twz_secapi_nextstack(%rip), %r12\n"
+        "movq %rax, (%r12)\n"
         "mfence\n"
         "movq %rdi, %rsi\n"
         "xorq %rdx, %rdx\n"

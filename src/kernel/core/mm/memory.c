@@ -162,6 +162,7 @@ POST_INIT(__init_mem_object, NULL);
 
 void mm_update_stats(void)
 {
+	/* TODO A */
 #if 0
 	if(msh) {
 		pmap_collect_stats(&mm_stats);
@@ -191,7 +192,6 @@ void mm_update_stats(void)
 		msh->stats = mm_stats;
 	}
 #endif
-	printk("TODO\n");
 }
 
 void mm_init_phase_2(void)
