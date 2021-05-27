@@ -418,26 +418,31 @@ long syscall_ocreate(uint64_t kulo,
 	if(ksot >= KSO_MAX) {
 		return -EINVAL;
 	}
-	struct object *o, *so = NULL;
+	struct object *o;
 	if(srcid && (flags & TWZ_SYS_OC_PERSIST_)) {
 		return -ENOTSUP;
 	}
+	struct object *srcobj = NULL;
 	if(srcid) {
-		panic("A");
-#if 0
-		so = obj_lookup(srcid, 0);
-		if(!so) {
+		srcobj = obj_lookup(srcid, 0);
+		if(!srcobj) {
 			return -ENOENT;
 		}
-		if((r = obj_check_permission(so, SCP_READ))) {
-			obj_put(so);
+		if((r = obj_check_permission(srcobj, SCP_READ))) {
+			obj_put(srcobj);
 			return r;
 		}
-		spinlock_acquire_save(&so->lock);
-		o = obj_create_clone(0, so, ksot);
-#endif
-	} else {
-		o = obj_create(0, ksot);
+	}
+	o = obj_create(0, ksot);
+
+	if(srcid) {
+		struct object_copy_spec spec = {
+			.src = srcobj,
+			.start_src = 1,
+			.start_dst = 1,
+			.length = (OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + OBJ_METAPAGE_SIZE)) / mm_page_size(0),
+		};
+		object_copy(o, &spec, 1);
 	}
 
 #if 0
@@ -475,7 +480,7 @@ long syscall_ocreate(uint64_t kulo,
 	}
 #endif
 
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 1
 	if(srcid)
 		printk("CREATE OBJECT: " IDFMT " from srcobj " IDFMT "\n", IDPR(id), IDPR(srcid));
 	else
@@ -483,20 +488,7 @@ long syscall_ocreate(uint64_t kulo,
 #endif
 
 	if(srcid) {
-		panic("A");
-		/*
-		//struct derivation_info *di = kalloc(sizeof(*di));
-
-		//	printk("alloced derivation: %p\n", di);
-		//	spinlock_acquire_save(&so->lock);
-		krc_get(&so->refs);
-		o->sourced_from = so;
-		di->id = id;
-		list_insert(&so->derivations, &di->entry);
-		spinlock_release_restore(&so->lock);
-
-		obj_put(so);
-		*/
+		obj_put(srcobj);
 	}
 
 	obj_put(o);

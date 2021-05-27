@@ -373,7 +373,8 @@ void obj_put(struct object *o)
 		spinlock_release_restore(&objlock);
 		// workqueue_insert(&current_processor->wq, &o->delete_task, _obj_release, o);
 		//_obj_release(o);
-		printk("TODO release object (AND free kso_data)\n");
+		/* TODO: A release and free object pages, maps, and kso_data */
+		// printk("TODO release object (AND free kso_data)\n");
 	}
 }
 

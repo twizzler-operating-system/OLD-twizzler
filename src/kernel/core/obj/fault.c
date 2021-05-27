@@ -183,7 +183,7 @@ static void __op_fault_callback(struct object *obj,
   uint64_t cbfl)
 {
 	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
-	printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
+	// printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
 	if(cbfl & PAGE_MAP_COW)
 		mapflags |= PAGE_MAP_COW;
 	object_map_page(obj, pagenr, page, mapflags);
@@ -370,8 +370,8 @@ int object_operate_on_locked_page(struct object *obj,
 		/* TODO: return a "def resched" thing */
 	} else {
 		if(range->pv->refs > 1) {
-			printk("COPY ON WRITE\n");
 			if(flags & OP_LP_DO_COPY) {
+				printk("COPY ON WRITE\n");
 				rwres = rwlock_upgrade(&rwres, 0);
 				range = range_split(range, pagenr - range->start);
 				range_clone(range);

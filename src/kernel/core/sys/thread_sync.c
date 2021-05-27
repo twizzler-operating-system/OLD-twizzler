@@ -207,13 +207,9 @@ static long thread_sync_single_norestore(int operation,
 	uint64_t off;
 	// long long a, b, c, d, e, f;
 	// a = krdtsc();
-	if(!vm_vaddr_lookup(addr, &id, &off)) {
-		return -EFAULT;
-	}
-	// b = krdtsc();
-	struct object *obj = obj_lookup(id, 0);
+	struct object *obj = vm_vaddr_lookup_obj(addr, &off);
 	if(!obj) {
-		return -ENOENT;
+		return -EFAULT;
 	}
 	// c = krdtsc();
 	struct syncpoint *sp = sp_lookup(obj, off, operation == THREAD_SYNC_SLEEP);
@@ -239,14 +235,10 @@ static long thread_sync_single_norestore(int operation,
 
 static long thread_sync_sleep_wakeup(long *addr, int idx)
 {
-	objid_t id;
 	uint64_t off;
-	if(!vm_vaddr_lookup(addr, &id, &off)) {
-		return -EFAULT;
-	}
-	struct object *obj = obj_lookup(id, 0);
+	struct object *obj = vm_vaddr_lookup_obj(addr, &off);
 	if(!obj) {
-		return -ENOENT;
+		return -EFAULT;
 	}
 	struct syncpoint *sp = sp_lookup(obj, off, true);
 	obj_put(obj);
@@ -291,14 +283,10 @@ long thread_sleep_on_object(struct object *obj, size_t offset, long arg, bool do
 
 long thread_sync_single(int operation, long *addr, long arg, bool bits32)
 {
-	objid_t id;
 	uint64_t off;
-	if(!vm_vaddr_lookup(addr, &id, &off)) {
-		return -EFAULT;
-	}
-	struct object *obj = obj_lookup(id, 0);
+	struct object *obj = vm_vaddr_lookup_obj(addr, &off);
 	if(!obj) {
-		return -ENOENT;
+		return -EFAULT;
 	}
 	struct syncpoint *sp = sp_lookup(obj, off, operation == THREAD_SYNC_SLEEP);
 	obj_put(obj);

@@ -11,7 +11,6 @@ int arch_mm_map(struct vm_context *ctx,
 {
 	if(!ctx)
 		ctx = &kernel_ctx;
-	printk("TODO: make this the primary interface and make it map at different levels\n");
 	uint64_t flags = PAGE_PRESENT;
 	flags |= (mapflags & MAP_GLOBAL) ? VM_MAP_GLOBAL : 0;
 	flags |= (mapflags & MAP_WRITE) ? VM_MAP_WRITE : 0;

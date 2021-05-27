@@ -17,6 +17,7 @@ static size_t cow_range(struct object *dest,
 	}
 	assert(len > 0);
 
+#if 0
 	printk("  cow range %ld %ld %ld --> %ld ((%ld %ld))\n",
 	  srcrange->start,
 	  len,
@@ -24,17 +25,20 @@ static size_t cow_range(struct object *dest,
 	  dstpg,
 	  srcrange->len,
 	  srcoff);
+#endif
 
 	struct range *dstrange = object_find_range(dest, dstpg);
 	if(!dstrange) {
 		/* make new range */
-		printk("      new dstrange!\n");
+		// printk("      new dstrange!\n");
 		dstrange = object_add_range(dest, NULL, dstpg, len, srcrange->pv_offset + srcoff);
 	} else {
+#if 0
 		printk("      existing dstrange: %ld %ld %ld\n",
 		  dstrange->start,
 		  dstrange->len,
 		  dstrange->pv_offset);
+#endif
 		if(len >= dstrange->len) {
 			len = dstrange->len;
 		} else {
@@ -176,7 +180,9 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 
 			struct range *srcrange = object_find_range(spec->src, srcpg);
 			if(!srcrange) {
-				printk("TODO: do the 'next range' opt\n");
+				/* TODO: verify */
+				/* TODO: A */
+				// printk("TODO: do the 'next range' opt\n");
 				j++;
 				continue;
 				srcrange = object_find_next_range(spec->src, srcpg);

@@ -82,12 +82,26 @@ void arch_objspace_region_map_page(struct objspace_region *region,
 	assert(idx < 512);
 	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
 	table_realize(&region->arch.table, true);
-
-	printk("TODO: cache type\n");
-	uint64_t mapflags = EPT_MEMTYPE_WB | EPT_IGNORE_PAT;
+	/* TODO: do we want to ignore PAT? */
+	uint64_t mapflags = EPT_IGNORE_PAT;
 	mapflags |= (flags & MAP_READ) ? EPT_READ : 0;
 	mapflags |= (flags & MAP_WRITE) ? EPT_WRITE : 0;
 	mapflags |= (flags & MAP_EXEC) ? EPT_EXEC : 0;
+
+	switch(PAGE_CACHE_TYPE(page)) {
+		case PAGE_CACHE_WB:
+			flags |= EPT_MEMTYPE_WB;
+			break;
+		case PAGE_CACHE_UC:
+			flags |= EPT_MEMTYPE_UC;
+			break;
+		case PAGE_CACHE_WT:
+			flags |= EPT_MEMTYPE_WT;
+			break;
+		case PAGE_CACHE_WC:
+			flags |= EPT_MEMTYPE_WC;
+			break;
+	}
 
 	if(flags & PAGE_MAP_COW)
 		mapflags &= ~EPT_WRITE;
@@ -105,7 +119,7 @@ void arch_objspace_region_cow(struct objspace_region *region, size_t start, size
 	}
 
 	for(size_t i = 0; i < len; i++) {
-		region->arch.table.table[i] &= ~EPT_WRITE;
+		region->arch.table.table[i + start] &= ~EPT_WRITE;
 	}
 
 	rwlock_wunlock(&res);
@@ -136,7 +150,7 @@ void arch_objspace_region_map(struct objspace_region *region)
 	struct table_level *table = &space->arch.root;
 	table_realize(table, true);
 
-	printk("mapping region %lx\n", region->addr);
+	// printk("mapping region %lx\n", region->addr);
 	int pml4_idx = PML4_IDX(region->addr);
 	int pdpt_idx = PDPT_IDX(region->addr);
 	int pd_idx = PD_IDX(region->addr);

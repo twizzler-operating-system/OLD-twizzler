@@ -114,7 +114,6 @@ void arch_mm_context_destroy(struct vm_context *ctx);
 struct omap;
 struct vmap {
 	struct omap *omap;
-	struct object *obj;
 	size_t slot;
 	uint32_t flags;
 	int status;

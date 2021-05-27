@@ -224,19 +224,46 @@ void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 	struct omap *omap = mm_objspace_get_object_map(obj, off / mm_page_size(0));
 	struct vmap *vmap = vmap_create(addr, omap, veflags);
 
-	printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
+	// printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
 
 	vm_context_add_vmap(current_thread->ctx, vmap);
+	obj_put(obj);
 }
 
 struct object *vm_vaddr_lookup_obj(void *a, uint64_t *off)
 {
-	panic("A");
-}
+	spinlock_acquire_save(&current_thread->ctx->lock);
 
-bool vm_vaddr_lookup(void *a, objid_t *id, uint64_t *off)
-{
-	panic("A");
+	uintptr_t addr = (uintptr_t)a;
+	struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, addr);
+
+	if(!vmap) {
+		uint32_t veflags;
+		objid_t id;
+		size_t slot = addr / OBJ_MAXSIZE;
+		if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
+			spinlock_release_restore(&current_thread->ctx->lock);
+			return NULL;
+		}
+		struct object *obj = obj_lookup(id, 0);
+		if(!obj) {
+			spinlock_release_restore(&current_thread->ctx->lock);
+			return NULL;
+		}
+
+		struct omap *omap = mm_objspace_get_object_map(obj, (addr % OBJ_MAXSIZE) / mm_page_size(0));
+		vmap = vmap_create(addr, omap, veflags);
+		// printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
+		vm_context_add_vmap(current_thread->ctx, vmap);
+	}
+
+	krc_get(&vmap->omap->obj->refs);
+	struct object *obj = vmap->omap->obj;
+	if(off)
+		*off = addr % OBJ_MAXSIZE;
+
+	spinlock_release_restore(&current_thread->ctx->lock);
+	return obj;
 }
 
 bool vm_setview(struct thread *t, struct object *viewobj)

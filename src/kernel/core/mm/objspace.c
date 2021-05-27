@@ -99,7 +99,6 @@ int omap_compar(struct omap *a, struct omap *b)
 struct omap *mm_objspace_get_object_map(struct object *obj, size_t page)
 {
 	size_t regnr = page / (mm_objspace_region_size() / mm_page_size(0));
-	printk(":::::: %ld : %ld\n", page, regnr);
 	spinlock_acquire_save(&obj->lock);
 
 	struct rbnode *node = rb_search(&obj->omap_root, regnr, struct omap, objnode, omap_compar_key);
