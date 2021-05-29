@@ -479,7 +479,7 @@ static void __lookup_perms(struct sctx *sc,
 {
 	/* TODO: A*/
 	if(p)
-		*p = SCP_EXEC | SCP_READ | SCP_WRITE;
+		*p = SCP_EXEC | SCP_READ | SCP_WRITE | SCP_USE | SCP_DEL;
 	if(ingate)
 		*ingate = true;
 	return;

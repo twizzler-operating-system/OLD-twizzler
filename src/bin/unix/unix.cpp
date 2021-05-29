@@ -263,6 +263,7 @@ std::mutex handlers_lock;
 extern "C" {
 DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qid, objid_t *bid)
 {
+	debug_printf("HELLO FROM SAPI!\n");
 	(void)flags;
 	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
@@ -289,6 +290,7 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 #include <twz/name.h>
 int main()
 {
+	debug_printf("\n\n\n\nUNIX STARTED\n");
 	twzobj api_obj;
 	int r = twz_object_new(&api_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {
@@ -304,6 +306,7 @@ int main()
 	mkdir("/dev", 0644);
 	twz_name_dfl_assign(twz_object_guid(&api_obj), "/dev/unix");
 
+	debug_printf("Got through init... " IDFMT "\n", IDPR(twz_object_guid(&api_obj)));
 	for(;;) {
 		sleep(100);
 	}

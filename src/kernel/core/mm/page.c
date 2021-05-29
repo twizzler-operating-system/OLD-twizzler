@@ -43,6 +43,7 @@ static struct page *get_new_page_struct(void)
 		return list_entry(list_pop(&pagestruct_list), struct page, entry);
 	}
 	if(next_page == max_pages) {
+		printk("new page page\n");
 		assert(align_up((uintptr_t)&allpages[max_pages], mm_page_size(0))
 		       == (uintptr_t)&allpages[max_pages]);
 		uintptr_t oaddr = mm_objspace_reserve(INITIAL_NUM_PAGES * sizeof(struct page));
@@ -63,6 +64,7 @@ static struct page *get_new_page_struct(void)
 		  INITIAL_NUM_PAGES,
 		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
 		spinlock_acquire_save(&lock);
+		printk("done: new page page (%p %lx)\n", &allpages[next_page], oaddr);
 	}
 
 	return &allpages[next_page++];
@@ -189,13 +191,17 @@ static struct page *__do_mm_page_alloc(int flags)
 	if(list_empty(&page_list)) {
 		if(list_empty(&pagezero_list)) {
 			if(flags & PAGE_ADDR) {
+				printk("A\n");
 				return (void *)mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
 			}
+			printk("B\n");
 			page = fallback_page_alloc();
 		} else {
+			printk("C\n");
 			page = list_entry(list_pop(&pagezero_list), struct page, entry);
 		}
 	} else {
+		printk("D\n");
 		page = list_entry(list_pop(&page_list), struct page, entry);
 	}
 	assert(page);

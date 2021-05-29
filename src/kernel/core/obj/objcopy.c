@@ -165,6 +165,10 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 	for(size_t i = 0; i < count; i++) {
 		struct object_copy_spec *spec = &specs[i];
 
+		if(!spec->src) {
+			panic("A");
+		}
+
 		printk("doing copy: %ld %ld %ld :: " IDFMT " <= " IDFMT "\n",
 		  spec->start_src,
 		  spec->start_dst,

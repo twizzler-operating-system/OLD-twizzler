@@ -197,13 +197,22 @@ static struct object *fault_get_object(uintptr_t vaddr)
 
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
-	printk("objspace fault entry: %lx %lx %lx %x\n", ip, loaddr, vaddr, flags);
+	printk("objspace fault entry th %ld: %lx %lx %lx %x\n",
+	  current_thread->id,
+	  ip,
+	  loaddr,
+	  vaddr,
+	  flags);
+
+	if(vaddr >= KERNEL_REGION_START) {
+		panic("object space fault to kernel memory");
+	}
 
 	struct object *obj = fault_get_object(vaddr);
-	printk("fault object: " IDFMT "\n", IDPR(obj->id));
 	if(!obj) {
-		panic("userspace fault to object not mapped");
+		panic("A :userspace fault to object not mapped");
 	}
+	printk("fault object: " IDFMT "\n", IDPR(obj->id));
 
 	size_t pagenr = (vaddr % OBJ_MAXSIZE) / mm_page_size(0);
 	if(pagenr == 0) {

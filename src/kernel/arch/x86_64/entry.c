@@ -179,16 +179,16 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		frame->rax = -EINVAL;
 	}
 
-#if CONFIG_PRINT_SYSCALLS
+#if CONFIG_PRINT_SYSCALLS || 1
 	// long long b = krdtsc();
 	long long b = 0, a = 0;
-	if(frame->rax != SYS_DEBUG_PRINT)
-		printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
-		  current_thread->id,
-		  num,
-		  frame->rcx,
-		  frame->rax,
-		  b - a);
+	// if(num != SYS_DEBUG_PRINT)
+	printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
+	  current_thread->id,
+	  num,
+	  frame->rcx,
+	  frame->rax,
+	  b - a);
 #endif
 	// long long xxy = krdtsc();
 	// if(num == SYS_BECOME)

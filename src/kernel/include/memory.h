@@ -263,3 +263,4 @@ void arch_vm_context_init(struct vm_context *ctx);
 void vm_context_free(struct vm_context *ctx);
 
 extern struct vm_context kernel_ctx;
+void arch_mm_print_ctx(struct vm_context *ctx);

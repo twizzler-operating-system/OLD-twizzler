@@ -319,6 +319,10 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 					obj_print_stats();
 					slabcache_all_print_stats();
 					thread_print_all_threads();
+					if(current_thread) {
+						printk("current thread info (%ld) \nVM_CONTEXT\n", current_thread->id);
+						arch_mm_print_ctx(current_thread->ctx);
+					}
 				}
 				long tmp = c;
 				device_signal_sync(ser_obj, 0, tmp);

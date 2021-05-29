@@ -304,6 +304,7 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 	if((r = secctx_check_permissions_hint(
 	      (void *)ba.target_rip, target_view, SCP_USE, ba.sctx_hint))) {
 		__syscall_become_return(0, NULL);
+		printk("RETURN HERE %d\n", r);
 		return r;
 	}
 

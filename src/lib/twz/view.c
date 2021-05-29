@@ -37,10 +37,13 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	}
 	atomic_store(&ves[slot].flags, flags | VE_VALID);
 
+	debug_printf(
+	  "mapping " IDFMT " --> %p (%x) (old = %x)\n", IDPR(target), SLOT_TO_VADDR(slot), flags, old);
 	if((old & VE_VALID)) {
+		debug_printf("invalidating %p\n", obj);
 		struct sys_invalidate_op op = {
 			.offset = (long)SLOT_TO_VADDR(slot),
-			.length = 1,
+			.length = OBJ_MAXSIZE,
 			.flags = KSOI_VALID | KSOI_CURRENT,
 			.id = KSO_CURRENT_VIEW,
 		};

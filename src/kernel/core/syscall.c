@@ -35,7 +35,7 @@ static long syscall_debug_print(const char *data, size_t len)
 	char buf[len + 1];
 	strncpy(buf, data, len);
 	// printk("[us:%ld]: %s\n", current_thread ? current_thread->id : 0, data);
-	printk("%s", data);
+	printk("(%ld) %s", current_thread->id, data);
 
 	return len;
 }

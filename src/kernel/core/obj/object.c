@@ -121,6 +121,7 @@ void obj_kso_init(struct object *obj, enum kso_type ksot)
 
 void object_init_kso_data(struct object *obj, enum kso_type kt)
 {
+	obj->kso_type = kt;
 	obj->kso_calls = _kso_calls[kt];
 	if(obj->kso_calls && obj->kso_calls->ctor) {
 		obj->kso_calls->ctor(obj);

@@ -34,7 +34,6 @@ static void table_level_init(__unused void *_p, void *obj)
 {
 	struct table_level *tl = obj;
 	tl->lock = RWLOCK_INIT;
-	tl->flags |= TABLE_RUN_ALLOCATED;
 }
 
 static void table_level_ctor(__unused void *_p, void *obj)
@@ -43,6 +42,7 @@ static void table_level_ctor(__unused void *_p, void *obj)
 	tl->parent = NULL;
 	tl->parent_idx = -1;
 	tl->count = 0;
+	tl->flags = TABLE_RUN_ALLOCATED;
 }
 
 static void table_level_fini(__unused void *_p, void *obj)
@@ -147,6 +147,7 @@ void table_free_downward(struct table_level *table)
 			table->count--;
 		}
 	}
+	printk(":::: %ld\n", table->count);
 	assert(table->count == 0);
 	table_free_table_level(table);
 }
@@ -157,6 +158,7 @@ static void table_remove_entry(struct table_level *table, size_t idx, bool free_
 	if(table->children[idx]) {
 		table_free_downward(table->children[idx]);
 		table->children[idx] = NULL;
+		table->table[idx] = 0;
 		table->count--;
 	} else if(table->table[idx]) {
 		assert(table->table[idx] & PAGE_PRESENT);
@@ -166,7 +168,7 @@ static void table_remove_entry(struct table_level *table, size_t idx, bool free_
 
 	if(table->count == 0 && table->parent && free_tables) {
 		table_remove_entry(table->parent, table->parent_idx, free_tables);
-		table_free_table_level(table);
+		// table_free_table_level(table);
 	}
 }
 
@@ -276,5 +278,28 @@ void table_premap(struct table_level *table,
 	int i;
 	for(i = 0; i < (3 - level); i++) {
 		table = table_get_next_level(table, idxs[i], table_flags, ospace, NULL);
+	}
+}
+
+void table_print_recur(struct table_level *table, int level, int indent, uintptr_t off)
+{
+	if(!table->table)
+		return;
+	assert(level >= 0);
+	for(int i = 0; i < 512; i++) {
+		uintptr_t co = off + ((level < 3) ? mm_page_size(level) : mm_page_size(2) * 512) * i;
+		size_t len = level < 3 ? mm_page_size(level) : mm_page_size(2) * 512;
+		if(table->table[i]) {
+			printk("%*s%lx - %lx", indent, "", co, co + len);
+			if(!table->children || !table->children[i]) {
+				printk(":: %lx\n", table->table[i]);
+			} else {
+				printk("\n");
+			}
+		}
+
+		if(table->children && table->children[i]) {
+			table_print_recur(table->children[i], level - 1, indent + 2, co);
+		}
 	}
 }

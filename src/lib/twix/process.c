@@ -260,12 +260,14 @@ static int __internal_load_elf_object(twzobj *view,
 				return r;
 			}
 
+#if 0
 			debug_printf("TODO: remove this check\n");
 			if(memcmp(memstart, filestart, len)) {
 				debug_printf("FAILURE!!!!e\n");
 				for(;;)
 					;
 			}
+#endif
 
 			memset(memstart + phdr->p_filesz, 0, zerolen);
 
@@ -742,6 +744,11 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 	struct metainfo *mi = twz_object_meta(fobj);
 	if(mi->flags & MIF_SZ) {
 		if(len > mi->sz) {
+			debug_printf("mmap truncating size: %lx %lx :: " IDFMT " " IDFMT "\n",
+			  len,
+			  mi->sz,
+			  IDPR(mi->nonce),
+			  IDPR(twz_object_guid(fobj)));
 			len = mi->sz;
 		}
 	}
@@ -771,6 +778,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 						return r;
 					}
 
+#if 1
 					debug_printf("TODO: remove this check\n");
 					void *ob = twz_object_base(fobj);
 					for(size_t i = 0; i < len; i++) {
@@ -780,6 +788,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 								;
 						}
 					}
+#endif
 
 					return (long)SLOT_TO_VADDR(slot) + adj;
 				} else {
@@ -788,7 +797,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			}
 		}
 
-		debug_printf("CREATING NEW OBJECT!\n");
+		// debug_printf("CREATING NEW OBJECT!\n");
 		if((r = twz_object_new(&newobj,
 		      NULL,
 		      NULL,
@@ -798,8 +807,9 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			return r;
 		}
 
-		debug_printf(
-		  "    ==> " IDFMT " ;; %p\n", IDPR(twz_object_guid(&newobj)), twz_object_base(&newobj));
+		//	debug_printf(
+		//	  "    ==> " IDFMT " ;; %p\n", IDPR(twz_object_guid(&newobj)),
+		// twz_object_base(&newobj));
 
 		//	twix_log("mmap create object " IDFMT " --> %lx\n", IDPR(twz_object_guid(&newobj)),
 		// slot);
@@ -813,7 +823,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			twix_log("ocopy failed: %d\n", r);
 			return r;
 		}
-
+#if 0
 		debug_printf("TODO: remove this check\n");
 		char *nb = twz_object_base(&newobj);
 		char *ob = twz_object_base(fobj);
@@ -836,6 +846,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			for(;;)
 				;
 		}
+#endif
 
 		struct metainfo *mi = twz_object_meta(&newobj);
 		mi->flags |= MIF_SZ;
@@ -869,7 +880,7 @@ static __inline__ unsigned long long rdtsc(void)
 
 long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t off)
 {
-	// twix_log("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
+	debug_printf("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
 	if(fd >= 0 || (fd == -1 && addr)) {
 		//	size_t s = rdtsc();
 		long ret = __internal_mmap_object(addr, len, prot, flags, fd, off);

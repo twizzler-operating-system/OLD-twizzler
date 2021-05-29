@@ -69,7 +69,8 @@ struct vm_context *vm_context_create(void)
 
 void vm_context_free(struct vm_context *ctx)
 {
-	slabcache_free(&sc_vm_context, ctx);
+	printk("TODO: release context\n");
+	// slabcache_free(&sc_vm_context, ctx);
 }
 
 static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t veflags)
@@ -174,7 +175,7 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 {
 	/* TODO: ensure addr is user */
-	printk("A: %lx %lx %x\n", ip, addr, flags);
+	printk("A: %ld %lx %lx %x\n", current_thread->id, ip, addr, flags);
 
 	if(fault_is_perm(flags)) {
 		printk("perm fault\n");
@@ -274,14 +275,15 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 			return true;
 		}
 	}
-	obj_kso_init(viewobj, KSO_VIEW);
 
+	printk("SETTING VIEW for %ld to " IDFMT "\n", t->id, IDPR(viewobj->id));
 	t->ctx = vm_context_create();
-	spinlock_acquire_save(&viewobj->lock);
 	krc_get(&viewobj->refs);
-	t->ctx->viewobj = viewobj;
 	struct kso_view *kv = object_get_kso_data_checked(viewobj, KSO_VIEW);
+	/* TODO: better locking */
+	spinlock_acquire_save(&viewobj->lock);
 	list_insert(&kv->contexts, &t->ctx->entry);
+	t->ctx->viewobj = viewobj;
 	spinlock_release_restore(&viewobj->lock);
 
 	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
@@ -309,9 +311,12 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 	struct kso_view *view = object_get_kso_data_checked(obj, KSO_VIEW);
 	if(!view)
 		return false;
-	printk("::::::::: %lx %x\n", invl->offset, invl->length);
+	// printk("::::::::: %lx %x\n", invl->offset, invl->length);
+	// printk("invl :::: %p %p\n", current_thread->ctx->viewobj, obj);
+
 	foreach(e, list, &view->contexts) {
 		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
+		// printk("invalidating context :: %p (%p)\n", ctx, current_thread->ctx);
 		spinlock_acquire_save(&ctx->lock);
 		size_t slot_start = invl->offset / mm_objspace_region_size();
 		size_t slot_count = ((invl->length - 1) / mm_objspace_region_size()) + 1;
@@ -319,8 +324,9 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 
 		struct rbnode *node;
 		for(; slot_start < slot_end; slot_start++) {
+			/* TODO: make this faster */
 			node = rb_search(&ctx->root, slot_start, struct vmap, node, vmap_compar_key);
-			printk("search slot %p %ld: %p\n", ctx, slot_start, node);
+			// printk("search slot %p %ld: %p\n", ctx, slot_start, node);
 			if(node) {
 				break;
 			}
@@ -331,7 +337,7 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 			next = rb_next(node);
 			struct vmap *vmap = rb_entry(node, struct vmap, node);
 			if(vmap->slot < slot_end) {
-				printk("UNMAP VIA INAL %ld\n", vmap->slot);
+				//		printk("UNMAP VIA INAL %ld\n", vmap->slot);
 				vm_context_remove_vmap(ctx, vmap);
 				printk("TODO: arch-dep\n");
 				asm volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
@@ -344,6 +350,11 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 	}
 
 	rwlock_runlock(&res);
+
+	if(invl->offset == 0x400680000000) {
+		// arch_mm_print_ctx(current_thread->ctx);
+	}
+
 	return true;
 #if 0
 	spinlock_acquire_save(&obj->lock);

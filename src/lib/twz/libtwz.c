@@ -12,6 +12,7 @@ __attribute__((weak)) extern void __twz_libtwz_runtime_init(void);
 
 __attribute__((constructor)) void __init_lang_runtme()
 {
+	debug_printf("LANG RUNTIME INIT: %p\n", __twz_libtwz_runtime_init);
 	if(__twz_libtwz_runtime_init) {
 		__twz_libtwz_runtime_init();
 	}

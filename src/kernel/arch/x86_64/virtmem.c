@@ -2,6 +2,11 @@
 #include <memory.h>
 #include <processor.h>
 
+void arch_mm_print_ctx(struct vm_context *ctx)
+{
+	table_print_recur(&ctx->arch.root, 3, 0, 0);
+}
+
 #define RECUR_FLAGS (VM_MAP_USER | VM_MAP_WRITE | PAGE_PRESENT)
 int arch_mm_map(struct vm_context *ctx,
   uintptr_t virt,

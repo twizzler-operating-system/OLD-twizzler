@@ -337,8 +337,9 @@ void thread_exit(void)
 	struct thread *th = current_thread;
 	arch_processor_reset_current_thread(current_processor);
 
-	vm_context_free(th->ctx);
+	// vm_context_free(th->ctx);
 	th->ctx = NULL;
+	/* TODO: A free backed up context, etc */
 	arch_thread_destroy(th);
 	thread_sync_uninit_thread(th);
 	void *back = th->sctx_entries;
@@ -361,6 +362,7 @@ void thread_print_all_threads(void)
 		printk("thread %ld\n", t->id);
 		printk("  CPU: %d\n", t->processor ? (int)t->processor->id : -1);
 		printk("  state: %d\n", t->state);
+		printk("  ctx: %p\n", t->ctx);
 		arch_thread_print_info(t);
 		spinlock_release_restore(&t->lock);
 	}

@@ -286,6 +286,7 @@ static bool setup_queue(void)
 			return false;
 		}
 		int r = twix_open_queue(&userver.api, 0, &qid, &bid);
+		debug_printf("WE OPENED A THING!\n");
 		if(r) {
 			return false;
 		}
@@ -446,6 +447,7 @@ long hook_mmap(struct syscall_args *args)
 	objid_t id;
 	int r;
 
+	debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
 	ssize_t slot = -1;
 	size_t adj = OBJ_NULLPAGE_SIZE;
 	if(addr && (flags & MAP_FIXED)) {

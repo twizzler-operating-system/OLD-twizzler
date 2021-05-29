@@ -15,7 +15,7 @@ extern "C" {
 extern void libtwz_gate_return(long);
 extern void *__twz_secapi_nextstack;
 
-__attribute__((weak)) void *__twz_secapi_nextstack;
+__attribute__((weak)) extern void *__twz_secapi_nextstack;
 __attribute__((used)) static void **__nextstack_binding = &__twz_secapi_nextstack;
 
 #define __TWZ_GATE_SHARED(fn, g)                                                                   \
@@ -89,6 +89,10 @@ static inline int twz_secure_api_open_name(const char *name, struct secure_api *
 	api->hdr = (struct secure_api_header *)twz_object_base(&api->obj);
 	api->name = strdup(name);
 	api->flags = 0;
+	debug_printf("API OP " IDFMT " :: %p :: " IDFMT "\n",
+	  IDPR(twz_object_guid(&api->obj)),
+	  twz_object_base(&api->obj),
+	  IDPR(api->hdr->sctx));
 	return 0;
 }
 

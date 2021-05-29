@@ -212,6 +212,7 @@ int main()
 	debug_printf("trying open connection to unix server\n");
 	while(1) {
 		usleep(10000);
+		// debug_printf("trying...\n");
 		if(twix_force_v2_retry())
 			break;
 	}
