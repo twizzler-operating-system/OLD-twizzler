@@ -10,6 +10,11 @@ uintptr_t arch_mm_objspace_max_address(void)
 	return 2ul << arch_processor_physical_width();
 }
 
+uintptr_t arch_mm_objspace_kernel_size(void)
+{
+	return align_up(arch_mm_objspace_max_address() / 2, mm_page_size(2));
+}
+
 size_t arch_mm_objspace_region_size(void)
 {
 	return 2 * 1024 * 1024;
@@ -65,15 +70,17 @@ void arch_objspace_map(struct object_space *space,
 	}
 }
 
-void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags)
+void arch_objspace_unmap(struct object_space *space, uintptr_t addr, size_t nrpages, int flags)
 {
-	struct object_space *space = &_bootstrap_object_space;
+	if(!space)
+		space = &_bootstrap_object_space;
 	struct arch_object_space *arch = &space->arch;
 	for(size_t i = 0; i < nrpages; i++) {
 		table_unmap(&arch->root, addr + i * mm_page_size(0), flags);
 	}
 }
 
+#include <secctx.h>
 void arch_objspace_region_map_page(struct objspace_region *region,
   size_t idx,
   struct page *page,
@@ -90,22 +97,25 @@ void arch_objspace_region_map_page(struct objspace_region *region,
 
 	switch(PAGE_CACHE_TYPE(page)) {
 		case PAGE_CACHE_WB:
-			flags |= EPT_MEMTYPE_WB;
+			mapflags |= EPT_MEMTYPE_WB;
 			break;
 		case PAGE_CACHE_UC:
-			flags |= EPT_MEMTYPE_UC;
+			mapflags |= EPT_MEMTYPE_UC;
 			break;
 		case PAGE_CACHE_WT:
-			flags |= EPT_MEMTYPE_WT;
+			mapflags |= EPT_MEMTYPE_WT;
 			break;
 		case PAGE_CACHE_WC:
-			flags |= EPT_MEMTYPE_WC;
+			mapflags |= EPT_MEMTYPE_WC;
 			break;
 	}
 
 	if(flags & PAGE_MAP_COW)
 		mapflags &= ~EPT_WRITE;
 
+	if(region->arch.table.table[idx] == 0) {
+		region->arch.table.count++;
+	}
 	region->arch.table.table[idx] = mapflags | page->addr;
 	rwlock_wunlock(&res);
 }
@@ -138,31 +148,39 @@ void arch_objspace_region_unmap(struct objspace_region *region, size_t start, si
 			region->arch.table.count--;
 		}
 		region->arch.table.table[i] = 0;
+		region->arch.table.children[i] = 0;
 	}
 
 	rwlock_wunlock(&res);
 }
 
-void arch_objspace_region_map(struct objspace_region *region)
+void arch_objspace_region_map(struct object_space *space, struct objspace_region *region)
 {
-	struct object_space *space = &_bootstrap_object_space;
+	assert(space);
+	assert(region->addr >= arch_mm_objspace_kernel_size());
 
 	struct table_level *table = &space->arch.root;
 	table_realize(table, true);
 
-	// printk("mapping region %lx\n", region->addr);
 	int pml4_idx = PML4_IDX(region->addr);
 	int pdpt_idx = PDPT_IDX(region->addr);
 	int pd_idx = PD_IDX(region->addr);
-	table = table_get_next_level(table, pml4_idx, true, EPT_READ | EPT_WRITE | EPT_EXEC, NULL);
-	table = table_get_next_level(table, pdpt_idx, true, EPT_READ | EPT_WRITE | EPT_EXEC, NULL);
+
+	printk("::: %d %d %d\n", pml4_idx, pdpt_idx, pd_idx);
+
+	table = table_get_next_level(table, pml4_idx, EPT_READ | EPT_WRITE | EPT_EXEC, true, NULL);
+	table = table_get_next_level(table, pdpt_idx, EPT_READ | EPT_WRITE | EPT_EXEC, true, NULL);
 	table_realize(&region->arch.table, true);
+	if(!table->table[pd_idx])
+		table->count++;
 	table->table[pd_idx] = region->arch.table.phys | EPT_READ | EPT_WRITE | EPT_EXEC;
+	table->children[pd_idx] = &region->arch.table;
 }
 
-uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
+uintptr_t arch_mm_objspace_get_phys(struct object_space *space, uintptr_t oaddr)
 {
-	struct object_space *space = &_bootstrap_object_space;
+	if(space == NULL)
+		space = &_bootstrap_object_space;
 	uint64_t entry;
 	int level;
 	struct arch_object_space *arch = &space->arch;
@@ -172,18 +190,62 @@ uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr)
 	return entry & EPT_PAGE_MASK;
 }
 
-void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags)
+void arch_mm_objspace_invalidate(struct object_space *space, uintptr_t start, size_t len, int flags)
 {
+	/* TODO: take space into account */
+	if(space == NULL)
+		space = &_bootstrap_object_space;
 	x86_64_invvpid(start, len);
+}
+
+void arch_object_space_init_bootstrap(struct object_space *space)
+{
+	table_realize(&space->arch.root, true);
+
+	int pml4_max = PML4_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
+	int pdpt_max = PDPT_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
+
+	/* TODO: this is not verified for pdpt_max < 512 */
+	for(int pml4 = 0; pml4 < pml4_max; pml4++) {
+		space->arch.root.children[pml4] = table_level_new();
+		table_realize(space->arch.root.children[pml4], true);
+		space->arch.root.table[pml4] =
+		  space->arch.root.children[pml4]->phys | EPT_WRITE | EPT_READ | EPT_EXEC;
+		if((pml4 + 1 == pml4_max) && pdpt_max != 512) {
+			for(int pdpt = 0; pdpt < pdpt_max; pdpt++) {
+				space->arch.root.children[pml4]->count++;
+				space->arch.root.children[pml4]->children[pdpt] = table_level_new();
+				table_realize(space->arch.root.children[pml4]->children[pdpt], true);
+				space->arch.root.children[pml4]->table[pdpt] =
+				  space->arch.root.children[pml4]->children[pdpt]->phys | EPT_READ | EPT_WRITE
+				  | EPT_EXEC;
+			}
+		}
+	}
 }
 
 void arch_object_space_init(struct object_space *space)
 {
 	table_realize(&space->arch.root, true);
-	printk("TODO: this is not correct\n");
-	for(int i = 0; i < 512; i++) {
-		space->arch.root.children[i] = _bootstrap_object_space.arch.root.children[i];
-		space->arch.root.table[i] = _bootstrap_object_space.arch.root.table[i];
+	int pml4_max = PML4_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
+	int pdpt_max = PDPT_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
+	/* TODO: this is not verified for pdpt_max < 512 */
+	for(int pml4 = 0; pml4 < pml4_max; pml4++) {
+		if((pml4 + 1 == pml4_max) && pdpt_max != 512) {
+			struct table_level *table = _bootstrap_object_space.arch.root.children[pml4];
+			space->arch.root.children[pml4] = table_level_new();
+			table_realize(space->arch.root.children[pml4], true);
+			space->arch.root.table[pml4] =
+			  space->arch.root.children[pml4]->phys | EPT_WRITE | EPT_READ | EPT_EXEC;
+			for(int pdpt = 0; pdpt < pdpt_max; pdpt++) {
+				space->arch.root.children[pml4]->count++;
+				space->arch.root.children[pml4]->children[pdpt] = table->children[pdpt];
+				space->arch.root.children[pml4]->table[pdpt] = table->table[pdpt];
+			}
+		} else {
+			space->arch.root.children[pml4] = _bootstrap_object_space.arch.root.children[pml4];
+			space->arch.root.table[pml4] = _bootstrap_object_space.arch.root.table[pml4];
+		}
 	}
 }
 

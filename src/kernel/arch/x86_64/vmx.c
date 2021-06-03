@@ -504,6 +504,7 @@ static void __init_ept_root(void)
 	if(_bootstrap_object_space.arch.root.phys)
 		return;
 	_bootstrap_object_space.arch.root.lock = RWLOCK_INIT;
+	arch_object_space_init_bootstrap(&_bootstrap_object_space);
 	/* identity-map the first GB of memory. That should be enough to get us going. */
 	table_map(&_bootstrap_object_space.arch.root,
 	  0,

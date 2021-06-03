@@ -20,7 +20,7 @@ _Atomic uint64_t mm_page_alloc_count = 0;
 
 void mm_page_init(void)
 {
-	uintptr_t oaddr = mm_objspace_reserve(INITIAL_NUM_PAGES * sizeof(struct page));
+	uintptr_t oaddr = mm_objspace_kernel_reserve(INITIAL_NUM_PAGES * sizeof(struct page));
 	mm_map(KERNEL_VIRTUAL_PAGES_BASE,
 	  oaddr,
 	  INITIAL_NUM_PAGES * sizeof(struct page),
@@ -33,7 +33,7 @@ void mm_page_init(void)
 		pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
 		pages[i] = &pg[i];
 	}
-	mm_objspace_fill(
+	mm_objspace_kernel_fill(
 	  oaddr, pages, INITIAL_NUM_PAGES, MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
 }
 
@@ -46,7 +46,7 @@ static struct page *get_new_page_struct(void)
 		printk("new page page\n");
 		assert(align_up((uintptr_t)&allpages[max_pages], mm_page_size(0))
 		       == (uintptr_t)&allpages[max_pages]);
-		uintptr_t oaddr = mm_objspace_reserve(INITIAL_NUM_PAGES * sizeof(struct page));
+		uintptr_t oaddr = mm_objspace_kernel_reserve(INITIAL_NUM_PAGES * sizeof(struct page));
 		mm_map((uintptr_t)&allpages[max_pages],
 		  oaddr,
 		  INITIAL_NUM_PAGES * sizeof(struct page),
@@ -59,7 +59,7 @@ static struct page *get_new_page_struct(void)
 			pages[i] = &pg[i];
 		}
 		spinlock_release_restore(&lock);
-		mm_objspace_fill(oaddr,
+		mm_objspace_kernel_fill(oaddr,
 		  pages,
 		  INITIAL_NUM_PAGES,
 		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);

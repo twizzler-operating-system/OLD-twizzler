@@ -154,8 +154,8 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags)
 {
 	struct omap *omap = mm_objspace_get_object_map(obj, pagenr);
-	arch_objspace_region_map(omap->region);
 	assert(omap);
+	arch_objspace_region_map(current_thread->active_sc->space, omap->region);
 	arch_objspace_region_map_page(
 	  omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags);
 }

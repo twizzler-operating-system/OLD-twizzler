@@ -37,7 +37,7 @@ uintptr_t kheap_run_get_objspace(struct kheap_run *run)
 uintptr_t kheap_run_get_phys(struct kheap_run *run)
 {
 	uintptr_t oaddr = kheap_run_get_objspace(run);
-	return mm_objspace_get_phys(oaddr);
+	return mm_objspace_get_phys(NULL, oaddr);
 }
 
 static void *kheap_reserve_static(size_t len)
@@ -76,7 +76,7 @@ static void *kheap_allocate_from_end(void)
 {
 	void *p = (void *)atomic_fetch_add(&kheap_top, mm_objspace_region_size());
 	uintptr_t oaddr = ((uintptr_t)p - kheap_start) + kheap_oaddr_start;
-	mm_objspace_fill(oaddr,
+	mm_objspace_kernel_fill(oaddr,
 	  NULL,
 	  mm_objspace_region_size() / mm_page_size(0),
 	  KHEAP_MAP_FLAGS | MAP_REPLACE | MAP_ZERO);
@@ -103,11 +103,11 @@ void kheap_start_dynamic(void)
 
 	kheap_top = kheap_start;
 	kheap_end = kheap_top + KHEAP_SIZE;
-	kheap_oaddr_start = mm_objspace_reserve(KHEAP_SIZE * 2);
+	kheap_oaddr_start = mm_objspace_kernel_reserve(KHEAP_SIZE * 2);
 	kheap_oaddr_start = align_up(kheap_oaddr_start, mm_page_size(2));
 	mm_map(kheap_top, kheap_oaddr_start, KHEAP_SIZE, KHEAP_MAP_FLAGS);
 
-	mm_objspace_fill(kheap_oaddr_start,
+	mm_objspace_kernel_fill(kheap_oaddr_start,
 	  NULL,
 	  KHEAP_SIZE / mm_page_size(0),
 	  KHEAP_MAP_FLAGS | MAP_REPLACE | MAP_TABLE_PREALLOC);

@@ -50,13 +50,13 @@ static void tmpmap_init(struct tmpmap *tmpmap)
 {
 	if(tmpmap->virt == 0) {
 		tmpmap->virt = atomic_fetch_add(&tmpmap_start, TMPMAP_LEN);
-		tmpmap->oaddr = mm_objspace_reserve(TMPMAP_LEN);
+		tmpmap->oaddr = mm_objspace_kernel_reserve(TMPMAP_LEN);
 		printk("mapping tmpmap: %lx -> %lx\n", tmpmap->virt, tmpmap->oaddr);
 		mm_map(tmpmap->virt,
 		  tmpmap->oaddr,
 		  TMPMAP_LEN,
 		  MAP_READ | MAP_WRITE | MAP_WIRE | MAP_KERNEL | MAP_GLOBAL | MAP_REPLACE);
-		mm_objspace_fill(tmpmap->oaddr,
+		mm_objspace_kernel_fill(tmpmap->oaddr,
 		  NULL,
 		  TMPMAP_LEN / mm_page_size(0),
 		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE
@@ -67,9 +67,9 @@ static void tmpmap_init(struct tmpmap *tmpmap)
 
 static void tmpmap_reset(struct tmpmap *tmpmap)
 {
-	mm_objspace_unmap(tmpmap->oaddr, TMPMAP_LEN / mm_page_size(0), MAP_TABLE_PREALLOC);
+	mm_objspace_kernel_unmap(tmpmap->oaddr, TMPMAP_LEN / mm_page_size(0), MAP_TABLE_PREALLOC);
 	tmpmap->current = 0;
-	arch_mm_objspace_invalidate(tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
+	arch_mm_objspace_invalidate(NULL, tmpmap->oaddr, TMPMAP_LEN, INVL_SELF);
 }
 
 void *tmpmap_map_pages(struct page *pages[], size_t count)
@@ -88,7 +88,7 @@ void *tmpmap_map_pages(struct page *pages[], size_t count)
 		panic("cannot tmpmap %ld pages at the same time", count);
 	}
 
-	mm_objspace_fill(tmpmap->oaddr + tmpmap->current * mm_page_size(0),
+	mm_objspace_kernel_fill(tmpmap->oaddr + tmpmap->current * mm_page_size(0),
 	  pages,
 	  count,
 	  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_GLOBAL | MAP_WIRE | MAP_REPLACE);

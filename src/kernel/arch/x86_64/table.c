@@ -65,7 +65,7 @@ static DECLARE_SLABCACHE(sc_table_level,
   table_level_fini,
   NULL);
 
-static struct table_level *allocate_table_level(void)
+struct table_level *table_level_new(void)
 {
 	/* do this read to avoid extra writes */
 	if(bootstrap_table_levels_idx < NR_BOOTSTRAP_TABLES) {
@@ -108,7 +108,7 @@ struct table_level *table_get_next_level(struct table_level *table,
 		table_realize(next, ospace);
 		return next;
 	}
-	struct table_level *nt = allocate_table_level();
+	struct table_level *nt = table_level_new();
 	table_realize(nt, ospace);
 	table->children[idx] = nt;
 	table->table[idx] = nt->phys | flags;
@@ -291,15 +291,20 @@ void table_print_recur(struct table_level *table, int level, int indent, uintptr
 		size_t len = level < 3 ? mm_page_size(level) : mm_page_size(2) * 512;
 		if(table->table[i]) {
 			printk("%*s%lx - %lx", indent, "", co, co + len);
-			if(!table->children || !table->children[i]) {
-				printk(":: %lx\n", table->table[i]);
+			printk(":: %lx\n", table->table[i]);
+			/*
+			if((table->table[i] & PAGE_LARGE) != 0 || level == 0) {
+			    printk(":: %lx\n", table->table[i]);
 			} else {
-				printk("\n");
-			}
+			    printk("\n");
+			}*/
 		}
 
 		if(table->children && table->children[i]) {
+			assert((table->table[i] & PAGE_LARGE) == 0);
 			table_print_recur(table->children[i], level - 1, indent + 2, co);
+		} else {
+			assert(((table->table[i] & PAGE_LARGE) != 0) || level == 0 || table->table[i] == 0);
 		}
 	}
 }

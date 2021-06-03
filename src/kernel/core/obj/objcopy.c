@@ -206,6 +206,7 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 		object_invalidate(dest, spec->start_dst, spec->length);
 		rwlock_wunlock(&sres);
 	}
-	arch_mm_objspace_invalidate(0, 0xffffffffffffffff, 0);
+	/* TODO */
+	arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0);
 	rwlock_wunlock(&dres);
 }

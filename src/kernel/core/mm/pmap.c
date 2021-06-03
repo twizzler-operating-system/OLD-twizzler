@@ -47,7 +47,7 @@ static int __pmap_compar(struct pmap *a, struct pmap *b)
 static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 {
 	if(oaddr_start == 0) {
-		oaddr_start = mm_objspace_reserve(PMAP_MAX);
+		oaddr_start = mm_objspace_kernel_reserve(PMAP_MAX);
 	}
 	struct pmap *pmap;
 	struct rbnode *node = rb_search(&root, phys, struct pmap, node, __pmap_compar_key);
@@ -71,7 +71,7 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 		};
 		struct page *pages[] = { &page };
 		printk("TODO: dont ignore PAT type??\n");
-		mm_objspace_fill(
+		mm_objspace_kernel_fill(
 		  oaddr, pages, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 	} else {
 		pmap = rb_entry(node, struct pmap, node);
@@ -88,7 +88,7 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 				.flags = cache_type,
 			};
 			struct page *pages[] = { &page };
-			mm_objspace_fill(
+			mm_objspace_kernel_fill(
 			  oaddr, pages, 1, MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 			pmap->virt = start;
 			start += mm_page_size(0);

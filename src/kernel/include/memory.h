@@ -184,8 +184,9 @@ struct page;
 #define REGION_ALLOC_BOOTSTRAP 1
 uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags);
 
-void mm_objspace_fill(uintptr_t addr, struct page *pages[], size_t count, int flags);
-uintptr_t mm_objspace_reserve(size_t len);
+void mm_objspace_kernel_fill(uintptr_t addr, struct page *pages[], size_t count, int flags);
+uintptr_t mm_objspace_kernel_reserve(size_t len);
+uintptr_t arch_mm_objspace_kernel_size(void);
 
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags);
 
@@ -228,7 +229,7 @@ struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
 struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr);
 struct objspace_region *mm_objspace_allocate_region(void);
 void mm_objspace_free_region(struct objspace_region *region);
-void arch_objspace_region_map(struct objspace_region *region);
+void arch_objspace_region_map(struct object_space *, struct objspace_region *region);
 
 #define mm_objspace_region_size arch_mm_objspace_region_size
 uintptr_t arch_mm_objspace_max_address(void);
@@ -241,8 +242,8 @@ int arch_mm_map(struct vm_context *ctx,
   uint64_t mapflags);
 bool mm_is_ready(void);
 void kalloc_system_init(void);
-uintptr_t mm_objspace_get_phys(uintptr_t oaddr);
-uintptr_t arch_mm_objspace_get_phys(uintptr_t oaddr);
+uintptr_t mm_objspace_get_phys(struct object_space *, uintptr_t oaddr);
+uintptr_t arch_mm_objspace_get_phys(struct object_space *, uintptr_t oaddr);
 uintptr_t kheap_run_get_phys(struct kheap_run *run);
 
 #define TMPMAP_MAX_PAGES 1024
@@ -250,13 +251,13 @@ void *tmpmap_map_pages(struct page *pages[], size_t count);
 
 #define INVL_SELF 0
 #define INVL_ALL 1
-void arch_mm_objspace_invalidate(uintptr_t start, size_t len, int flags);
+void arch_mm_objspace_invalidate(struct object_space *, uintptr_t start, size_t len, int flags);
 void arch_objspace_region_map_page(struct objspace_region *,
   size_t idx,
   struct page *page,
   uint64_t flags);
-void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
-void arch_objspace_unmap(uintptr_t addr, size_t nrpages, int flags);
+void mm_objspace_kernel_unmap(uintptr_t addr, size_t nrpages, int flags);
+void arch_objspace_unmap(struct object_space *, uintptr_t addr, size_t nrpages, int flags);
 
 #define PAGEVEC_MAX_IDX 4096
 void arch_vm_context_init(struct vm_context *ctx);

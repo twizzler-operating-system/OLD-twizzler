@@ -4,7 +4,9 @@
 #include <objspace.h>
 #include <slab.h>
 
-static _Atomic uintptr_t objspace_reservation = MEMORY_BOOTSTRAP_MAX;
+static _Atomic uintptr_t objspace_kernel_reservation = MEMORY_BOOTSTRAP_MAX;
+
+static _Atomic uintptr_t objspace_user_reservation;
 
 static struct objspace_region *region_page = NULL;
 static size_t region_page_idx;
@@ -14,10 +16,13 @@ static DECLARE_LIST(region_list);
 
 static struct rbroot slotroot = RBINIT;
 
-uintptr_t mm_objspace_reserve(size_t len)
+uintptr_t mm_objspace_kernel_reserve(size_t len)
 {
 	len = align_up(len, mm_objspace_region_size());
-	uintptr_t ret = atomic_fetch_add(&objspace_reservation, len);
+	uintptr_t ret = atomic_fetch_add(&objspace_kernel_reservation, len);
+	if(ret >= arch_mm_objspace_kernel_size()) {
+		panic("out of kernel object space memory");
+	}
 	return ret;
 }
 
@@ -37,7 +42,10 @@ struct objspace_region *mm_objspace_allocate_region(void)
 	spinlock_acquire_save(&lock);
 	struct objspace_region *region;
 	if(list_empty(&region_list)) {
-		uintptr_t addr = atomic_fetch_add(&objspace_reservation, mm_objspace_region_size());
+		if(objspace_user_reservation == 0) {
+			objspace_user_reservation = arch_mm_objspace_kernel_size();
+		}
+		uintptr_t addr = atomic_fetch_add(&objspace_user_reservation, mm_objspace_region_size());
 		if(addr >= arch_mm_objspace_max_address()) {
 			spinlock_release_restore(&lock);
 			return NULL;
@@ -72,14 +80,14 @@ static void omap_fini(void *p __unused, void *obj)
 
 static DECLARE_SLABCACHE(sc_omap, sizeof(struct omap), omap_init, NULL, NULL, omap_fini, NULL);
 
-void mm_objspace_fill(uintptr_t addr, struct page *pages[], size_t count, int flags)
+void mm_objspace_kernel_fill(uintptr_t addr, struct page *pages[], size_t count, int flags)
 {
 	arch_objspace_map(NULL, addr, pages, count, flags);
 }
 
-void mm_objspace_unmap(uintptr_t addr, size_t nrpages, int flags)
+void mm_objspace_kernel_unmap(uintptr_t addr, size_t nrpages, int flags)
 {
-	arch_objspace_unmap(addr, nrpages, flags);
+	arch_objspace_unmap(NULL, addr, nrpages, flags);
 }
 
 int omap_compar_key(struct omap *v, size_t slot)
@@ -126,9 +134,9 @@ struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr)
 	panic("A");
 }
 
-uintptr_t mm_objspace_get_phys(uintptr_t oaddr)
+uintptr_t mm_objspace_get_phys(struct object_space *space, uintptr_t oaddr)
 {
-	return arch_mm_objspace_get_phys(oaddr);
+	return arch_mm_objspace_get_phys(space, oaddr);
 }
 
 static void object_space_init(void *data __unused, void *ptr)
