@@ -44,6 +44,8 @@ void __panic(const char *file, int linenr, int flags, const char *msg, ...)
 	spinlock_release(&panic_lock, 0);
 	// kernel_debug_entry();
 	if(!(flags & PANIC_CONTINUE))
-		for(;;)
-			;
+		for(;;) {
+			/* TODO: arch dep */
+			asm volatile("cli; jmp ." ::: "memory");
+		}
 }

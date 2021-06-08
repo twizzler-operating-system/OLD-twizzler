@@ -12,17 +12,21 @@
 
 //#define EPRINTK(...) printk(__VA_ARGS__)
 #define EPRINTK(...)
+
+extern struct object_space _bootstrap_object_space;
 static void _sc_ctor(void *_x __unused, void *ptr)
 {
 	struct sctx *sc = ptr;
+	// sc->space = &_bootstrap_object_space;
 	sc->space = object_space_alloc();
 }
 
 static void _sc_dtor(void *_x __unused, void *ptr)
 {
+	/* TODO: A */
 	struct sctx *sc = ptr;
-	object_space_free(sc->space);
-	sc->space = NULL;
+	// object_space_free(sc->space);
+	// sc->space = NULL;
 }
 
 static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), NULL, _sc_ctor, _sc_dtor, NULL, NULL);
@@ -31,6 +35,7 @@ static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL
 struct sctx *secctx_alloc(struct object *obj)
 {
 	struct sctx *s = slabcache_alloc(&sc_sc);
+	printk("ALLOC SECCTX: %p\n", s);
 	krc_init(&s->refs);
 	if(obj)
 		krc_get(&obj->refs);

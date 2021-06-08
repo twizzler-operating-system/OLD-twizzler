@@ -51,8 +51,9 @@ void *kalloc(size_t len, int flags)
 	struct header *obj = slabcache_alloc(&caches[class]);
 	obj->canary = CANARY;
 	obj->size_class = class;
-	if(flags & KALLOC_ZERO)
-		memset((void *)(obj + 1), 0, len - sizeof(struct header));
+	/* TODO: don't always zero */
+	// if(flags & KALLOC_ZERO)
+	memset((void *)(obj + 1), 0, len - sizeof(struct header));
 	assert(is_aligned(obj + 1, 8));
 	return (void *)(obj + 1);
 }

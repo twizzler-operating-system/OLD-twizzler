@@ -52,7 +52,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
   bool ignored)
 {
 	// if(frame->int_no != 32)
-	// printk(":: e: %ld\n", frame->int_no);
+	//	printk(":: e: %ld\n", frame->int_no);
 	if(!ignored) {
 		if(was_userspace) {
 			current_thread->arch.was_syscall = false;
@@ -144,6 +144,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 	}
 	// printk(":: %ld %d %d :: %lx\n", frame->int_no, was_userspace, ignored, frame->rip);
 	if(was_userspace) {
+		//	printk("returning to userspace from interrupt to %lx\n", frame->rip);
 		thread_schedule_resume();
 	}
 	/* if we aren't in userspace, we just return and the kernel_exception handler will
@@ -199,6 +200,11 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 
 void secctx_switch(int i)
 {
+	printk("SECCTX SWITCH %ld %d: %p -> %p\n",
+	  current_thread->id,
+	  i,
+	  current_thread->active_sc,
+	  current_thread->sctx_entries[i].context);
 	current_thread->active_sc = current_thread->sctx_entries[i].context;
 	if(!current_thread->active_sc) {
 		return;
@@ -290,8 +296,10 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 		if(thread->state == THREADSTATE_EXITED) {
 			/* thread exited! */
 		}
+		// printk("returning to userspace from syscall to %lx\n", thread->arch.syscall.rcx);
 		x86_64_resume_userspace(&thread->arch.syscall);
 	} else {
+		// printk("returning to us from int to %lx\n", thread->arch.exception.rip);
 		x86_64_resume_userspace_interrupt(&thread->arch.exception);
 	}
 }

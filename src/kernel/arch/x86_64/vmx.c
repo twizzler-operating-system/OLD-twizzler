@@ -7,7 +7,7 @@
 #include <secctx.h>
 static uint32_t revision_id;
 
-struct object_space _bootstrap_object_space;
+struct object_space _bootstrap_object_space = {};
 
 static _Atomic long vmexits_count = 0;
 
@@ -156,7 +156,7 @@ static void x86_64_enable_vmx(struct processor *proc)
 
 	suppoted_invept_types = (lo >> 25) & 3;
 
-#if 0
+#if 1
 	printk("processor %d entered vmx-root (VE=%d, VMF=%d)\n",
 	  current_processor->id,
 	  support_virt_exception,
@@ -207,9 +207,9 @@ static void vmx_handle_rootcall(struct processor *proc)
 	/* set the return value, 0 by default */
 	proc->arch.vcpu_state_regs[REG_RAX] = 0;
 	switch(fn) {
-		case VMX_RC_SWITCHEPT:
-			vmcs_writel(VMCS_EPT_PTR, (uintptr_t)a0 | (3 << 3) | 6);
-			break;
+		case VMX_RC_SWITCHEPT: {
+			vmcs_writel(VMCS_EPT_PTR, (uintptr_t)a0 | (3 << 3) | 6 | (1 << 6));
+		} break;
 		case VMX_RC_INVVPID: {
 			// printk("INVVPID type %ld\n", a0);
 			if(a0 == 0) {
@@ -260,6 +260,7 @@ static void vmx_handle_ept_violation(struct processor *proc)
 	proc->arch.veinfo->eptidx = 0; /* TODO (minor) */
 	proc->arch.veinfo->lock = 0xFFFFFFFF;
 	proc->arch.veinfo->ip = vmcs_readl(VMCS_GUEST_RIP);
+	proc->arch.ept_tmp = vmcs_readl(VMCS_EPT_PTR);
 	vmx_queue_exception(20); /* #VE */
 }
 
@@ -670,7 +671,8 @@ static void vtx_setup_vcpu(struct processor *proc)
 	vmcs_writel(VMCS_HOST_RIP, (uintptr_t)vmexit_point);
 	vmcs_writel(VMCS_HOST_RSP, (uintptr_t)proc->arch.vcpu_state_regs);
 
-	vmcs_writel(VMCS_EPT_PTR, (uintptr_t)_bootstrap_object_space.arch.root.phys | (3 << 3) | 6);
+	vmcs_writel(
+	  VMCS_EPT_PTR, (uintptr_t)_bootstrap_object_space.arch.root.phys | (3 << 3) | 6 | (1 << 6));
 	proc->arch.veinfo->lock = 0;
 }
 
@@ -772,7 +774,10 @@ void x86_64_switch_ept(uintptr_t root)
 
 void x86_64_secctx_switch(struct sctx *s)
 {
+	if(!s)
+		printk("SWITCH TO BOOTSTRAP SECCTX\n");
 	struct object_space *space = s ? s->space : &_bootstrap_object_space;
+	printk(":::=> %lx\n", space->arch.root.phys);
 	x86_64_switch_ept(space->arch.root.phys);
 }
 
@@ -789,11 +794,14 @@ void x86_64_virtualization_fault(struct processor *proc)
 		flags |= OBJSPACE_FAULT_EXEC;
 	}
 
+	printk("QUAL %lx\n", proc->arch.veinfo->qual);
+
+	printk(
+	  ":::::: %lx %lx\n", proc->arch.ept_tmp, current_thread->active_sc->space->arch.root.phys);
 	uint64_t p = proc->arch.veinfo->physical;
 	uint64_t l = proc->arch.veinfo->linear;
 	uint64_t rip = proc->arch.veinfo->ip;
 	asm volatile("lfence;" ::: "memory");
 	atomic_store(&proc->arch.veinfo->lock, 0);
-	kernel_objspace_fault_entry(
-	  current_thread ? current_thread->arch.exception.rip : rip, p, l, flags);
+	kernel_objspace_fault_entry(rip, p, l, flags);
 }

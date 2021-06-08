@@ -15,7 +15,7 @@ fi
 
 if [[ "$INSTANCES" == "" ]]; then
 	#echo $QEMU
-	qemu-system-x86_64 $QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom boot.iso -serial mon:stdio $QEMU_FLAGS
+	qemu-system-x86_64  --trace '*ept*' --trace '*kvm_exit*' --trace '*vtx*' --trace '*vmx*' $QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom boot.iso -serial mon:stdio $QEMU_FLAGS
 	#-device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
 	#-drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 
 	exit

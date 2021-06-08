@@ -83,6 +83,7 @@ static struct slab *new_slab(struct slabcache *c)
 	for(unsigned int i = 0; i < obj_per_slab(c, c->sz); i++) {
 		s->alloc |= ((unsigned __int128)1ull << i);
 		char *obj = s->data + i * c->sz;
+		memset(obj, 0, c->sz);
 		if(c->init) {
 			c->init(c->ptr, obj);
 		}

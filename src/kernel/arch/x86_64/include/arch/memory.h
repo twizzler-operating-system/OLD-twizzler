@@ -5,6 +5,7 @@
 #include <rwlock.h>
 
 #define TABLE_RUN_ALLOCATED 1
+#define TABLE_OSPACE 2
 struct kheap_run;
 struct table_level {
 	uintptr_t phys;  // physical address of this table
@@ -65,7 +66,7 @@ void table_map(struct table_level *root,
   uint64_t flags,
   uint64_t,
   bool);
-void table_realize(struct table_level *table, bool);
+void table_realize(struct table_level *table);
 struct table_level *table_get_next_level(struct table_level *table,
   int idx,
   uint64_t,
@@ -78,7 +79,7 @@ void table_free_downward(struct table_level *table);
 void table_print_recur(struct table_level *table, int level, int indent, uintptr_t off);
 struct object_space;
 void arch_object_space_init_bootstrap(struct object_space *space);
-struct table_level *table_level_new(void);
+struct table_level *table_level_new(bool);
 
 #define PML4_IDX(v) (((v) >> 39) & 0x1FF)
 #define PDPT_IDX(v) (((v) >> 30) & 0x1FF)

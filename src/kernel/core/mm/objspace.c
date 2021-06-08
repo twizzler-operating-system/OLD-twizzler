@@ -18,6 +18,7 @@ static struct rbroot slotroot = RBINIT;
 
 uintptr_t mm_objspace_kernel_reserve(size_t len)
 {
+	/* TODO: remove this align */
 	len = align_up(len, mm_objspace_region_size());
 	uintptr_t ret = atomic_fetch_add(&objspace_kernel_reservation, len);
 	if(ret >= arch_mm_objspace_kernel_size()) {
@@ -51,6 +52,7 @@ struct objspace_region *mm_objspace_allocate_region(void)
 			return NULL;
 		}
 		region = new_objspace_region_struct();
+		arch_objspace_region_init(region);
 		region->addr = addr;
 	} else {
 		region = list_entry(list_pop(&region_list), struct objspace_region, entry);
@@ -80,6 +82,8 @@ static void omap_fini(void *p __unused, void *obj)
 
 static DECLARE_SLABCACHE(sc_omap, sizeof(struct omap), omap_init, NULL, NULL, omap_fini, NULL);
 
+#include <processor.h>
+#include <secctx.h>
 void mm_objspace_kernel_fill(uintptr_t addr, struct page *pages[], size_t count, int flags)
 {
 	arch_objspace_map(NULL, addr, pages, count, flags);
@@ -166,5 +170,6 @@ struct object_space *object_space_alloc(void)
 
 void object_space_free(struct object_space *space)
 {
-	slabcache_free(&sc_objspace, space);
+	printk("TODO: A free objspaces\n");
+	// slabcache_free(&sc_objspace, space);
 }

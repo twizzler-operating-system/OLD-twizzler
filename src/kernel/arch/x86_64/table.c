@@ -43,6 +43,18 @@ static void table_level_ctor(__unused void *_p, void *obj)
 	tl->parent_idx = -1;
 	tl->count = 0;
 	tl->flags = TABLE_RUN_ALLOCATED;
+	if(_p == (void *)1) {
+		tl->flags |= TABLE_OSPACE;
+	}
+
+	if(tl->table) {
+		memset(tl->table, 0, 0x1000);
+	}
+	if(tl->children) {
+		for(int i = 0; i < 512; i++) {
+			tl->children[i] = 0;
+		}
+	}
 }
 
 static void table_level_fini(__unused void *_p, void *obj)
@@ -57,15 +69,23 @@ static void table_level_fini(__unused void *_p, void *obj)
 	memset(tl, 0, sizeof(*tl));
 }
 
-static DECLARE_SLABCACHE(sc_table_level,
+static DECLARE_SLABCACHE(sc_table_level_virt,
   sizeof(struct table_level),
   table_level_init,
   table_level_ctor,
   NULL,
   table_level_fini,
-  NULL);
+  (void *)0);
 
-struct table_level *table_level_new(void)
+static DECLARE_SLABCACHE(sc_table_level_ospace,
+  sizeof(struct table_level),
+  table_level_init,
+  table_level_ctor,
+  NULL,
+  table_level_fini,
+  (void *)1);
+
+struct table_level *table_level_new(bool ospace)
 {
 	/* do this read to avoid extra writes */
 	if(bootstrap_table_levels_idx < NR_BOOTSTRAP_TABLES) {
@@ -73,19 +93,22 @@ struct table_level *table_level_new(void)
 		if(idx < NR_BOOTSTRAP_TABLES) {
 			struct table_level *tl = &bootstrap_table_levels[idx];
 			tl->lock = RWLOCK_INIT;
+			tl->flags = ospace ? TABLE_OSPACE : 0;
 			return tl;
 		}
 	}
-	return slabcache_alloc(&sc_table_level);
+	if(ospace)
+		return slabcache_alloc(&sc_table_level_ospace);
+	return slabcache_alloc(&sc_table_level_virt);
 }
 
-void table_realize(struct table_level *table, bool ospace)
+void table_realize(struct table_level *table)
 {
 	if(table->children == NULL) {
 		allocate_early_or_late(NULL, NULL, (void **)&table->children, &table->children_run);
 	}
 	if(table->table == NULL) {
-		if(ospace)
+		if(table->flags & TABLE_OSPACE)
 			allocate_early_or_late(&table->phys, NULL, (void **)&table->table, &table->table_run);
 		else
 			allocate_early_or_late(NULL, &table->phys, (void **)&table->table, &table->table_run);
@@ -104,17 +127,24 @@ struct table_level *table_get_next_level(struct table_level *table,
   struct rwlock_result *lock_state)
 {
 	if(table->children[idx]) {
+		assert(table->table[idx] != 0);
+		assert((table->table[idx] & table->children[idx]->phys) == table->children[idx]->phys);
 		struct table_level *next = table->children[idx];
-		table_realize(next, ospace);
+		assert((table->flags & TABLE_OSPACE) == (next->flags & TABLE_OSPACE));
+		table_realize(next);
 		return next;
 	}
-	struct table_level *nt = table_level_new();
-	table_realize(nt, ospace);
+	assert(table->table[idx] == 0);
+	struct table_level *nt = table_level_new(ospace);
+	printk("new table: %p %lx %x\n", nt, nt->phys, nt->flags);
+	table_realize(nt);
+	printk("new table: %p %lx\n", nt, nt->phys);
 	table->children[idx] = nt;
 	table->table[idx] = nt->phys | flags;
 	table->count++;
 	nt->parent = table;
 	nt->parent_idx = idx;
+	assert((table->flags & TABLE_OSPACE) == (nt->flags & TABLE_OSPACE));
 
 	return nt;
 }
@@ -130,7 +160,10 @@ static void table_free_table_level(struct table_level *table)
 		}
 	}
 	if(table->flags & TABLE_RUN_ALLOCATED) {
-		slabcache_free(&sc_table_level, table);
+		if(table->flags & TABLE_OSPACE)
+			slabcache_free(&sc_table_level_ospace, table);
+		else
+			slabcache_free(&sc_table_level_virt, table);
 	} else {
 		table_level_fini(NULL, table);
 	}
@@ -147,8 +180,9 @@ void table_free_downward(struct table_level *table)
 			table->count--;
 		}
 	}
-	printk(":::: %ld\n", table->count);
-	assert(table->count == 0);
+	/* TODO: A */
+	// printk(":::: %ld\n", table->count);
+	// assert(table->count == 0);
 	table_free_table_level(table);
 }
 
@@ -186,7 +220,8 @@ void table_map(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
-	table_realize(table, ospace);
+	// printk("mapp: %lx -> %lx %d\n", virt, phys, level);
+	table_realize(table);
 
 	int i;
 	for(i = 0; i < (3 - level); i++) {
@@ -273,7 +308,7 @@ void table_premap(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
-	table_realize(table, ospace);
+	table_realize(table);
 
 	int i;
 	for(i = 0; i < (3 - level); i++) {
@@ -302,6 +337,8 @@ void table_print_recur(struct table_level *table, int level, int indent, uintptr
 
 		if(table->children && table->children[i]) {
 			assert((table->table[i] & PAGE_LARGE) == 0);
+			assert(table->table[i]);
+			assert((table->table[i] & table->children[i]->phys) == table->children[i]->phys);
 			table_print_recur(table->children[i], level - 1, indent + 2, co);
 		} else {
 			assert(((table->table[i] & PAGE_LARGE) != 0) || level == 0 || table->table[i] == 0);

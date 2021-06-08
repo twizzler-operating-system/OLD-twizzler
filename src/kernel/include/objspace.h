@@ -13,10 +13,12 @@ void arch_object_space_fini(struct object_space *space);
 void arch_object_space_init(struct object_space *space);
 void object_space_free(struct object_space *space);
 struct object_space *object_space_alloc(void);
+void arch_objspace_print_mapping(struct object_space *space, uintptr_t virt);
 
 struct objspace_region;
 void arch_objspace_region_cow(struct objspace_region *region, size_t start, size_t len);
 void arch_objspace_region_unmap(struct objspace_region *region, size_t start, size_t len);
+void arch_objspace_region_init(struct objspace_region *region);
 
 struct omap;
 int omap_compar(struct omap *a, struct omap *b);

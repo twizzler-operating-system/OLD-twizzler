@@ -230,9 +230,10 @@ void x86_64_vm_kernel_context_init(void)
 		_init = true;
 
 		struct arch_vm_context *arch = &kernel_ctx.arch;
-		arch->root.lock = RWLOCK_INIT;
 		memset(&kernel_ctx, 0, sizeof(kernel_ctx));
-		table_realize(&arch->root, false);
+		arch->root.lock = RWLOCK_INIT;
+		arch->root.flags = 0;
+		table_realize(&arch->root);
 
 		int pml4_slot = PML4_IDX(KERNEL_VIRTUAL_BASE);
 		int pdpt_slot = PDPT_IDX(KERNEL_VIRTUAL_BASE);
@@ -281,7 +282,9 @@ void arch_vm_context_dtor(struct vm_context *ctx)
 void arch_vm_context_init(struct vm_context *ctx)
 {
 	/* copy table references over for kernel memory space */
-	table_realize(&ctx->arch.root, false);
+	ctx->arch.root.flags = 0;
+	ctx->arch.root.lock = RWLOCK_INIT;
+	table_realize(&ctx->arch.root);
 	for(int i = 256; i < 512; i++) {
 		ctx->arch.root.table[i] = kernel_ctx.arch.root.table[i];
 		ctx->arch.root.children[i] = kernel_ctx.arch.root.children[i];

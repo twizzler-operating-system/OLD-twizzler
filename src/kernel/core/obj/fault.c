@@ -151,11 +151,15 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 	return true;
 }
 
+#include <objspace.h>
+extern struct object_space _bootstrap_object_space;
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags)
 {
 	struct omap *omap = mm_objspace_get_object_map(obj, pagenr);
 	assert(omap);
-	arch_objspace_region_map(current_thread->active_sc->space, omap->region);
+	arch_objspace_region_map(
+	  current_thread->active_sc->space, omap->region, flags & (MAP_READ | MAP_WRITE | MAP_EXEC));
+	printk("page nr %ld -> %ld\n", pagenr, pagenr % (mm_objspace_region_size() / mm_page_size(0)));
 	arch_objspace_region_map_page(
 	  omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags);
 }
@@ -198,14 +202,39 @@ static struct object *fault_get_object(uintptr_t vaddr)
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
 	printk("objspace fault entry th %ld: %lx %lx %lx %x\n",
-	  current_thread->id,
+	  current_thread ? current_thread->id : -1,
 	  ip,
 	  loaddr,
 	  vaddr,
 	  flags);
 
+	if(current_thread) {
+		// printk("::: %p\n",
+		// current_thread->active_sc->space->arch.root.children[PML4_IDX(loaddr)]);
+	}
+
+	if(vaddr == 0x37d5) {
+		arch_objspace_print_mapping(current_thread->active_sc->space, loaddr);
+	}
 	if(vaddr >= KERNEL_REGION_START) {
+		// if(current_thread)
+		//	table_print_recur(&current_thread->active_sc->space->arch.root, 3, 0, 0);
+		// table_print_recur(&_bootstrap_object_space.arch.root, 3, 0, 0);
+		arch_objspace_print_mapping(NULL, loaddr);
 		panic("object space fault to kernel memory");
+	}
+
+	static uint64_t last = 0;
+	static uint64_t lc = 0;
+	if(vaddr == 0x37D5) {
+		printk("SADNESS\n");
+		if(lc++ == 10) {
+			// table_print_recur(&current_thread->active_sc->space->arch.root, 3, 0, 0);
+			if(current_thread)
+				arch_objspace_print_mapping(current_thread->active_sc->space, loaddr);
+			arch_objspace_print_mapping(NULL, loaddr);
+			panic("sadnes, again :: %lx %lx %lx %x", ip, loaddr, vaddr, flags);
+		}
 	}
 
 	struct object *obj = fault_get_object(vaddr);

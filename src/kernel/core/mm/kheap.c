@@ -170,6 +170,8 @@ struct kheap_run *kheap_allocate(size_t len)
 				kheap_split_run(run, np);
 			}
 			assert(run->nr_pages >= np);
+			/* TODO: we can avoid this memset sometimes, probably */
+			memset(run->start, 0, run->nr_pages * mm_page_size(0));
 			return run;
 		}
 	}
@@ -180,6 +182,8 @@ struct kheap_run *kheap_allocate(size_t len)
 	run->nr_pages = mm_objspace_region_size() / mm_page_size(0);
 	kheap_split_run(run, np);
 	assert(run->nr_pages >= np);
+	/* TODO: we can avoid this memset sometimes, probably */
+	memset(run->start, 0, run->nr_pages * mm_page_size(0));
 	return run;
 }
 

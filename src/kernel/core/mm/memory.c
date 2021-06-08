@@ -268,8 +268,10 @@ void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align)
 	mm_early_count += len;
 	if(phys)
 		*phys = alloc;
+	void *v = mm_early_ptov(alloc);
 	if(virt)
-		*virt = mm_early_ptov(alloc);
+		*virt = v;
+	memset(v, 0, len);
 }
 
 #if 0

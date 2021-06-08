@@ -229,7 +229,7 @@ struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
 struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr);
 struct objspace_region *mm_objspace_allocate_region(void);
 void mm_objspace_free_region(struct objspace_region *region);
-void arch_objspace_region_map(struct object_space *, struct objspace_region *region);
+void arch_objspace_region_map(struct object_space *, struct objspace_region *region, uint64_t);
 
 #define mm_objspace_region_size arch_mm_objspace_region_size
 uintptr_t arch_mm_objspace_max_address(void);

@@ -100,6 +100,7 @@ struct arch_processor {
 		uint64_t ip;
 	} * veinfo;
 	uintptr_t veinfo_phys;
+	uint64_t ept_tmp;
 	uintptr_t *eptp_list;
 	size_t mwait_info;
 	size_t vpid;
