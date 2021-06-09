@@ -10,7 +10,7 @@ struct frame {
 	uintptr_t pc, fp;
 };
 void debug_print_backtrace(void);
-bool arch_debug_unwind_frame(struct frame *frame);
+bool arch_debug_unwind_frame(struct frame *frame, bool);
 void debug_puts(char *);
 
 #endif
@@ -21,3 +21,4 @@ void kernel_instrument_start(void);
 
 void debug_elf_register_sections(Elf64_Shdr *sections, size_t num, size_t entsize, size_t stridx);
 const char *debug_symbolize(void *addr);
+void debug_print_backtrace_userspace(void);
