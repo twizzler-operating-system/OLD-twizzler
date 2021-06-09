@@ -82,6 +82,7 @@ void range_toss(struct range *range)
 {
 	list_remove(&range->entry);
 	printk("TODO: clean up pv\n");
+	range->pv->refs--;
 }
 
 struct range *range_split(struct range *range, size_t rp)
@@ -122,6 +123,7 @@ void range_clone(struct range *range)
 	}
 	range_toss(range);
 	range->pv_offset = 0;
+	pv->refs = 1;
 	range->pv = pv;
 	list_insert(&pv->ranges, &range->entry);
 }
