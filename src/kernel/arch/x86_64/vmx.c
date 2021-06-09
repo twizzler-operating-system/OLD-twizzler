@@ -774,10 +774,7 @@ void x86_64_switch_ept(uintptr_t root)
 
 void x86_64_secctx_switch(struct sctx *s)
 {
-	if(!s)
-		printk("SWITCH TO BOOTSTRAP SECCTX\n");
 	struct object_space *space = s ? s->space : &_bootstrap_object_space;
-	printk(":::=> %lx\n", space->arch.root.phys);
 	x86_64_switch_ept(space->arch.root.phys);
 }
 
@@ -794,10 +791,10 @@ void x86_64_virtualization_fault(struct processor *proc)
 		flags |= OBJSPACE_FAULT_EXEC;
 	}
 
-	printk("QUAL %lx\n", proc->arch.veinfo->qual);
+	// printk("QUAL %lx\n", proc->arch.veinfo->qual);
 
-	printk(
-	  ":::::: %lx %lx\n", proc->arch.ept_tmp, current_thread->active_sc->space->arch.root.phys);
+	// printk(
+	//  ":::::: %lx %lx\n", proc->arch.ept_tmp, current_thread->active_sc->space->arch.root.phys);
 	uint64_t p = proc->arch.veinfo->physical;
 	uint64_t l = proc->arch.veinfo->linear;
 	uint64_t rip = proc->arch.veinfo->ip;

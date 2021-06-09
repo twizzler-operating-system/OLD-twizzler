@@ -180,7 +180,7 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		frame->rax = -EINVAL;
 	}
 
-#if CONFIG_PRINT_SYSCALLS || 1
+#if CONFIG_PRINT_SYSCALLS
 	// long long b = krdtsc();
 	long long b = 0, a = 0;
 	// if(num != SYS_DEBUG_PRINT)
@@ -200,11 +200,6 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 
 void secctx_switch(int i)
 {
-	printk("SECCTX SWITCH %ld %d: %p -> %p\n",
-	  current_thread->id,
-	  i,
-	  current_thread->active_sc,
-	  current_thread->sctx_entries[i].context);
 	current_thread->active_sc = current_thread->sctx_entries[i].context;
 	if(!current_thread->active_sc) {
 		return;

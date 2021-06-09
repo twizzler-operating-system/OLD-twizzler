@@ -129,3 +129,4 @@ void arch_thread_resume(struct thread *thread, uint64_t timeout);
 uintptr_t arch_thread_instruction_pointer(void);
 void thread_free_become_frame(struct thread_become_frame *frame);
 void arch_thread_print_info(struct thread *t);
+uintptr_t arch_thread_base_pointer(void);

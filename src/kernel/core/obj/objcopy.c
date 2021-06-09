@@ -48,6 +48,7 @@ static size_t cow_range(struct object *dest,
 		range_toss(dstrange);
 	}
 
+	assert(srcrange->pv->refs > 0);
 	srcrange->pv->refs++;
 	dstrange->pv = srcrange->pv;
 	dstrange->pv_offset = srcrange->pv_offset + srcoff;
@@ -206,7 +207,7 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 		object_invalidate(dest, spec->start_dst, spec->length);
 		rwlock_wunlock(&sres);
 	}
-	/* TODO */
+	/* TODO: A */
 	arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0);
 	rwlock_wunlock(&dres);
 }

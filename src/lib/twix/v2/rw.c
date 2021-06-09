@@ -97,7 +97,9 @@ HOOK5(sys_pwritev2, int, fd, const struct iovec *, iov, int, iovcnt, off_t, off,
 				return count;
 			}
 		}
+		debug_printf("write_bufdata %d %p %ld %ld\n", i, iov[i].iov_base, thisiov_len, count);
 		write_bufdata(iov[i].iov_base, thisiov_len, count);
+		debug_printf("write_bufdata2 %d %p %ld %ld\n", i, iov[i].iov_base, thisiov_len, count);
 		count += thisiov_len;
 	}
 

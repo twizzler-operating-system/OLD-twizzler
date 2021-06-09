@@ -136,9 +136,7 @@ struct table_level *table_get_next_level(struct table_level *table,
 	}
 	assert(table->table[idx] == 0);
 	struct table_level *nt = table_level_new(ospace);
-	printk("new table: %p %lx %x\n", nt, nt->phys, nt->flags);
 	table_realize(nt);
-	printk("new table: %p %lx\n", nt, nt->phys);
 	table->children[idx] = nt;
 	table->table[idx] = nt->phys | flags;
 	table->count++;

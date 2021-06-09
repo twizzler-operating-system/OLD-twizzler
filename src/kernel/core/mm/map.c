@@ -168,14 +168,14 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
 	*id = ve.id;
 	*veflags = ve.flags;
-	printk("reading view entry %ld: " IDFMT " %x\n", slot, IDPR(*id), *veflags);
+	// printk("reading view entry %ld: " IDFMT " %x\n", slot, IDPR(*id), *veflags);
 	return !!(ve.flags & VE_VALID);
 }
 
 void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 {
 	/* TODO: ensure addr is user */
-	printk("A: %ld %lx %lx %x\n", current_thread->id, ip, addr, flags);
+	// printk("A: %ld %lx %lx %x\n", current_thread->id, ip, addr, flags);
 
 	if(fault_is_perm(flags)) {
 		printk("perm fault\n");
