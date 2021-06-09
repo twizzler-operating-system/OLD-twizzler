@@ -252,7 +252,7 @@ void *tmpmap_map_pages(struct page *pages[], size_t count);
 #define INVL_SELF 0
 #define INVL_ALL 1
 void arch_mm_objspace_invalidate(struct object_space *, uintptr_t start, size_t len, int flags);
-void arch_objspace_region_map_page(struct objspace_region *,
+bool arch_objspace_region_map_page(struct objspace_region *,
   size_t idx,
   struct page *page,
   uint64_t flags);

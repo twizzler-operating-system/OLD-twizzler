@@ -25,6 +25,7 @@ extern struct object_space _bootstrap_object_space;
 
 void arch_objspace_region_init(struct objspace_region *region)
 {
+	/* TODO: need arch_destroy */
 	region->arch.table.flags = TABLE_OSPACE;
 	region->arch.table.lock = RWLOCK_INIT;
 }
@@ -88,15 +89,6 @@ void arch_objspace_map(struct object_space *space,
 	if(!space)
 		space = &_bootstrap_object_space;
 
-#if 1
-	if(virt == 0x162600000)
-		printk("objspace mapping %lx %lx (%p %p) :: %p\n",
-		  virt,
-		  count * mm_page_size(0),
-		  space,
-		  &_bootstrap_object_space,
-		  space->arch.root.children[PML4_IDX(virt)]);
-#endif
 	uint64_t flags = EPT_IGNORE_PAT;
 	flags |= (mapflags & MAP_WRITE) ? EPT_WRITE : 0;
 	flags |= (mapflags & MAP_READ) ? EPT_READ : 0;
@@ -147,7 +139,7 @@ void arch_objspace_unmap(struct object_space *space, uintptr_t addr, size_t nrpa
 	}
 }
 
-void arch_objspace_region_map_page(struct objspace_region *region,
+bool arch_objspace_region_map_page(struct objspace_region *region,
   size_t idx,
   struct page *page,
   uint64_t flags)
@@ -179,17 +171,14 @@ void arch_objspace_region_map_page(struct objspace_region *region,
 	if(flags & PAGE_MAP_COW)
 		mapflags &= ~EPT_WRITE;
 
+	bool ret = true;
 	if(region->arch.table.table[idx] == 0) {
 		region->arch.table.count++;
-	} else {
-		printk("existing page entry %p %p %lx (-> %lx)\n",
-		  region,
-		  region->arch.table.table,
-		  region->arch.table.table[idx],
-		  mapflags | page->addr);
+		ret = false;
 	}
 	region->arch.table.table[idx] = mapflags | page->addr;
 	rwlock_wunlock(&res);
+	return ret;
 }
 
 void arch_objspace_region_cow(struct objspace_region *region, size_t start, size_t len)
@@ -216,11 +205,12 @@ void arch_objspace_region_unmap(struct objspace_region *region, size_t start, si
 	}
 
 	for(size_t i = 0; i < len; i++) {
-		if(region->arch.table.table[i]) {
+		if(region->arch.table.table[i + start]) {
 			region->arch.table.count--;
 		}
-		region->arch.table.table[i] = 0;
-		region->arch.table.children[i] = 0;
+		region->arch.table.table[i + start] = 0;
+		region->arch.table.children[i + start] = 0;
+		/* TODO: A (free children) */
 	}
 
 	rwlock_wunlock(&res);
@@ -247,8 +237,6 @@ void arch_objspace_region_map(struct object_space *space,
 	mapflags |= (flags & MAP_WRITE) ? EPT_WRITE : 0;
 	mapflags |= (flags & MAP_EXEC) ? EPT_EXEC | (1 << 10) : 0;
 
-	printk("::: %d %d %d :: %lx\n", pml4_idx, pdpt_idx, pd_idx, table->table[pml4_idx]);
-
 	table = table_get_next_level(
 	  table, pml4_idx, EPT_READ | EPT_WRITE | EPT_EXEC | (1 << 10), true, NULL);
 	table = table_get_next_level(
@@ -256,8 +244,6 @@ void arch_objspace_region_map(struct object_space *space,
 	table_realize(&region->arch.table);
 	if(!table->table[pd_idx])
 		table->count++;
-	else
-		printk("existing entry %lx\n", table->table[pd_idx]);
 	table->table[pd_idx] = region->arch.table.phys | mapflags;
 	table->children[pd_idx] = &region->arch.table;
 }
@@ -298,7 +284,6 @@ void arch_object_space_init_bootstrap(struct object_space *space)
 		table_realize(space->arch.root.children[pml4]);
 		space->arch.root.table[pml4] =
 		  space->arch.root.children[pml4]->phys | EPT_WRITE | EPT_READ | EPT_EXEC;
-		printk("::: bootstrap %d: %lx\n", pml4, space->arch.root.table[pml4]);
 		if((pml4 + 1 == pml4_max) && pdpt_max != 512) {
 			for(int pdpt = 0; pdpt < pdpt_max; pdpt++) {
 				space->arch.root.children[pml4]->count++;
