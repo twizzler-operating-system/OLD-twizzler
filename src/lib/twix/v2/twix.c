@@ -497,7 +497,16 @@ long hook_mmap(struct syscall_args *args)
 	}
 
 	/* TODO: perms */
-	twz_view_set(NULL, slot, id, VE_READ | VE_WRITE | VE_EXEC);
+	long perms = 0;
+	perms |= (prot & PROT_READ) ? VE_READ : 0;
+	perms |= (prot & PROT_WRITE) ? VE_WRITE : 0;
+	perms |= (prot & PROT_EXEC) ? VE_EXEC : 0;
+
+	if(perms == 0) {
+		perms = VE_READ | VE_WRITE; // TODO
+	}
+
+	twz_view_set(NULL, slot, id, perms);
 
 	return (long)SLOT_TO_VADDR(slot) + adj;
 }
