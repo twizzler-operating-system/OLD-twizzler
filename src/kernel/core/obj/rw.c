@@ -54,7 +54,7 @@ static void loop_io(struct object *obj, size_t start, size_t len, struct io *io)
 	size_t i = 0;
 	while(i < len) {
 		size_t thislen = mm_page_size(0);
-		size_t offset = start % mm_page_size(0);
+		size_t offset = (start + i) % mm_page_size(0);
 		thislen -= offset;
 		if((thislen + i) > len)
 			thislen = len - i;

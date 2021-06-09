@@ -37,8 +37,19 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	}
 	atomic_store(&ves[slot].flags, flags | VE_VALID);
 
-	debug_printf(
-	  "mapping " IDFMT " --> %p (%x) (old = %x)\n", IDPR(target), SLOT_TO_VADDR(slot), flags, old);
+#if 0
+	twzobj vo;
+	twz_view_object_init(&vo);
+	debug_printf("mapping in %p " IDFMT " --> %p (%x) (old = %x) :: %p %x in " IDFMT "\n",
+	  obj,
+	  IDPR(target),
+	  SLOT_TO_VADDR(slot),
+	  flags,
+	  old,
+	  &ves[slot],
+	  ves[slot].flags,
+	  IDPR(twz_object_guid(&vo)));
+#endif
 	if((old & VE_VALID)) {
 		debug_printf("invalidating %p\n", obj);
 		struct sys_invalidate_op op = {

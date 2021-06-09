@@ -231,12 +231,14 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 	if(!obj) {
 		panic("A :userspace fault to object not mapped");
 	}
+#if 0
 	printk("%ld :: %x fault object: " IDFMT "\n", current_thread->id, flags, IDPR(obj->id));
 	if(current_thread->id == 7) {
 		static int blah = 10000;
 		if(blah-- < 0)
 			debug_print_backtrace_userspace();
 	}
+#endif
 
 	size_t pagenr = (vaddr % OBJ_MAXSIZE) / mm_page_size(0);
 	if(pagenr == 0) {

@@ -168,7 +168,14 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
 	*id = ve.id;
 	*veflags = ve.flags;
-	// printk("reading view entry %ld: " IDFMT " %x\n", slot, IDPR(*id), *veflags);
+#if 0
+	printk("reading view entry %ld: " IDFMT " %x from %lx (" IDFMT ")\n",
+	  slot,
+	  IDPR(*id),
+	  *veflags,
+	  __VE_OFFSET + slot * sizeof(struct viewentry),
+	  IDPR(view->id));
+#endif
 	return !!(ve.flags & VE_VALID);
 }
 
@@ -205,6 +212,7 @@ void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 	objid_t id;
 	size_t slot = addr / OBJ_MAXSIZE;
 	if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
+		printk("failed to read view entry\n");
 		raise_fault();
 		return;
 	}

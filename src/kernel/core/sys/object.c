@@ -378,13 +378,14 @@ long syscall_detach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 	if(child && child->kso_calls && child->kso_calls->detach) {
 		ret = child->kso_calls->detach(parent, child, sysc, flags) ? 0 : -EINVAL;
 	} else if(!child) {
+		printk("TODO: A handle detach with no child\n");
 		/*
 		struct kso_calls *kc = kso_lookup_calls(type);
 		bool (*c)(struct object *, struct object *, int, int) = kc ? kc->detach : NULL;
 		if(c) {
 		    ret = c(parent, child, sysc, flags) ? 0 : -EINVAL;
 		}*/
-		panic("A");
+		// panic("A");
 	}
 
 	if(child)
