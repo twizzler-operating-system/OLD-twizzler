@@ -59,7 +59,7 @@ struct range *object_add_range(struct object *obj,
   size_t len,
   size_t off)
 {
-	struct range *r = slabcache_alloc(&sc_range);
+	struct range *r = slabcache_alloc(&sc_range, NULL);
 	r->pv = pv;
 	r->obj = obj;
 	r->pv_offset = off;

@@ -103,6 +103,7 @@ static void mm_page_zero_addr(uintptr_t addr)
 	/* we might get lucky here! */
 	if(addr < MEMORY_BOOTSTRAP_MAX) {
 		memset(mm_early_ptov(addr), 0, mm_page_size(0));
+		atomic_thread_fence(memory_order_seq_cst);
 		return;
 	}
 	struct page page = {
@@ -112,6 +113,7 @@ static void mm_page_zero_addr(uintptr_t addr)
 	struct page *pages[] = { &page };
 	void *vaddr = tmpmap_map_pages(pages, 1);
 	memset(vaddr, 0, mm_page_size(0));
+	atomic_thread_fence(memory_order_seq_cst);
 }
 
 void mm_page_zero(struct page *page)

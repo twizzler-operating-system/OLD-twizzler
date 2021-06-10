@@ -32,8 +32,6 @@ struct processor_features x86_features = {};
 
 static struct processor _dummy_proc;
 
-static size_t xsave_region_size = 512;
-
 static void x86_feature_detect(void)
 {
 	uint32_t ecx = x86_64_cpuid(1, 0, 2 /*ECX*/);
@@ -106,8 +104,8 @@ static void proc_init(void)
 	//	if(base + sz > xsave_region_size)
 	//		xsave_region_size = base + sz;
 	//}
-	xsave_region_size = 1024; // TODO
-	align_up(xsave_region_size, 64);
+	// xsave_region_size = 1024; // TODO
+	// align_up(xsave_region_size, 64);
 
 	uint16_t fcw;
 	asm volatile("fstcw %0" : "=m"(fcw));
@@ -609,31 +607,4 @@ void arch_processor_init(struct processor *proc)
 	uint64_t gs = (uint64_t)&proc->arch;
 	x86_64_wrmsr(X86_MSR_GS_BASE, gs & 0xFFFFFFFF, gs >> 32);
 	// x86_64_start_vmx(proc);
-}
-
-void arch_thread_init(struct thread *thread,
-  void *entry,
-  void *arg,
-  void *stack,
-  size_t stacksz,
-  void *tls,
-  size_t thrd_ctrl_slot)
-{
-	memset(&thread->arch.syscall, 0, sizeof(thread->arch.syscall));
-	thread->arch.syscall.rcx = (uint64_t)entry;
-	thread->arch.syscall.rsp = (uint64_t)stack + stacksz - 8;
-	thread->arch.syscall.rdi = (uint64_t)arg;
-	thread->arch.syscall.rsi = ID_LO(thread->thrid);
-	thread->arch.syscall.rdx = ID_HI(thread->thrid);
-	thread->arch.was_syscall = 1;
-	thread->arch.fs = (long)tls; /* TODO: only set one of these */
-	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
-	if(xsave_region_size > 0x1000)
-		panic("NI - HUGE xsave region");
-	thread->arch.xsave_run = kheap_allocate(xsave_region_size);
-}
-
-void arch_thread_destroy(struct thread *thread)
-{
-	printk("TODO: thread destroy\n");
 }

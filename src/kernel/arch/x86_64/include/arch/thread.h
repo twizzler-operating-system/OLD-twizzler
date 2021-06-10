@@ -24,3 +24,5 @@ struct arch_thread {
 	bool was_syscall;
 	bool fpu_init;
 };
+
+#define XSAVE_REGION_SIZE 1024

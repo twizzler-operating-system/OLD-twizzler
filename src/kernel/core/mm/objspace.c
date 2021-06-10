@@ -122,7 +122,7 @@ struct omap *mm_objspace_get_object_map(struct object *obj, size_t page)
 		return omap;
 	}
 
-	struct omap *omap = slabcache_alloc(&sc_omap);
+	struct omap *omap = slabcache_alloc(&sc_omap, NULL);
 	omap->obj = obj;
 	omap->refs = 1;
 	omap->regnr = regnr;
@@ -165,7 +165,7 @@ static DECLARE_SLABCACHE(sc_objspace,
 
 struct object_space *object_space_alloc(void)
 {
-	return slabcache_alloc(&sc_objspace);
+	return slabcache_alloc(&sc_objspace, NULL);
 }
 
 void object_space_free(struct object_space *space)

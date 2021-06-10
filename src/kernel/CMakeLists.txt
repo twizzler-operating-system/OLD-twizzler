@@ -53,6 +53,7 @@ list(APPEND KERNEL_SOURCES
 	core/schedule.c
 	core/spinlock.c
 	core/syscall.c
+	core/thread.c
 	core/timer.c
 	core/ubsan.c
 	core/unwind.c

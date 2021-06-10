@@ -281,6 +281,7 @@ std::pair<long, bool> twix_cmd_poll(std::shared_ptr<queue_client> client, twix_q
 	}
 
 	if(ready == 0) {
+		/* TODO (major) : convert this to async jobs */
 		std::thread t1([tqe, client, events, info, flags, event_count] {
 			twix_queue_entry _tqe = *tqe;
 			int r =

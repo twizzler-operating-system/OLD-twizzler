@@ -130,7 +130,7 @@ void object_init_kso_data(struct object *obj, enum kso_type kt)
 
 static inline struct object *__obj_alloc(enum kso_type ksot, objid_t id)
 {
-	struct object *obj = slabcache_alloc(&sc_objs);
+	struct object *obj = slabcache_alloc(&sc_objs, NULL);
 
 	obj_init(obj);
 	obj->id = id;

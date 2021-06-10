@@ -51,7 +51,7 @@ static struct syncpoint *sp_lookup(struct object *obj, size_t off, bool create)
 			spinlock_release_restore(&obj->tslock);
 			return NULL;
 		}
-		sp = slabcache_alloc(&sc_syncpoint);
+		sp = slabcache_alloc(&sc_syncpoint, NULL);
 		krc_get(&obj->refs);
 		sp->obj = obj;
 		sp->off = off;
@@ -73,7 +73,7 @@ static void _sp_release(void *_sp)
 	struct object *obj = sp->obj;
 	sp->obj = NULL;
 	obj_put(obj);
-	slabcache_free(&sc_syncpoint, sp);
+	slabcache_free(&sc_syncpoint, sp, NULL);
 }
 
 static int sp_sleep_prep(struct syncpoint *sp,

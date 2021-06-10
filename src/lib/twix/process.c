@@ -880,7 +880,7 @@ static __inline__ unsigned long long rdtsc(void)
 
 long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t off)
 {
-	debug_printf("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
+	// debug_printf("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
 	if(fd >= 0 || (fd == -1 && addr)) {
 		//	size_t s = rdtsc();
 		long ret = __internal_mmap_object(addr, len, prot, flags, fd, off);

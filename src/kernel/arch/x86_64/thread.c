@@ -275,3 +275,39 @@ void arch_thread_raise_call(struct thread *t, void *addr, long a0, void *info, s
 	*arg1 = info_base_user;
 	*rsp = (long)stack;
 }
+
+void arch_thread_prep_start(struct thread *thread,
+  void *entry,
+  void *arg,
+  void *stack,
+  size_t stacksz,
+  void *tls,
+  size_t thrd_ctrl_slot)
+{
+	memset(&thread->arch.syscall, 0, sizeof(thread->arch.syscall));
+	thread->arch.syscall.rcx = (uint64_t)entry;
+	thread->arch.syscall.rsp = (uint64_t)stack + stacksz - 8;
+	thread->arch.syscall.rdi = (uint64_t)arg;
+	thread->arch.syscall.rsi = ID_LO(thread->thrid);
+	thread->arch.syscall.rdx = ID_HI(thread->thrid);
+	thread->arch.was_syscall = 1;
+	thread->arch.fs = (long)tls; /* TODO: only set one of these */
+	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
+}
+
+void arch_thread_init(struct thread *thread)
+{
+	if(XSAVE_REGION_SIZE > 0x1000)
+		panic("NI - HUGE xsave region");
+	thread->arch.xsave_run = kheap_allocate(XSAVE_REGION_SIZE);
+}
+
+void arch_thread_ctor(struct thread *thread)
+{
+	thread->arch.fpu_init = false;
+}
+
+void arch_thread_fini(struct thread *thread)
+{
+	kheap_free(thread->arch.xsave_run);
+}

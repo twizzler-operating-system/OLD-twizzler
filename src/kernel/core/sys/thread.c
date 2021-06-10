@@ -153,15 +153,18 @@ long syscall_thread_spawn(uint64_t tidlo,
 		t->sctx_entries[0].context = t->active_sc;
 	}
 
-	arch_thread_init(t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl);
+	arch_thread_prep_start(
+	  t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl);
 
 	t->state = THREADSTATE_RUNNING;
 	processor_attach_thread(NULL, t);
 
+#if 0
 	printk("spawned thread %ld from %ld on processor %d\n",
 	  t->id,
 	  current_thread ? (long)current_thread->id : -1,
 	  t->processor->id);
+#endif
 	return 0;
 }
 
@@ -197,7 +200,7 @@ static DECLARE_SLABCACHE(_sc_frame,
 
 void thread_free_become_frame(struct thread_become_frame *frame)
 {
-	slabcache_free(&_sc_frame, frame);
+	slabcache_free(&_sc_frame, frame, NULL);
 }
 
 static long __syscall_become_return(long a0, long *arg_stack)
@@ -216,7 +219,7 @@ static long __syscall_become_return(long a0, long *arg_stack)
 		obj_put(frame->view);
 	}
 
-	slabcache_free(&_sc_frame, frame);
+	slabcache_free(&_sc_frame, frame, NULL);
 	// kfree(frame);
 	return a0;
 }
@@ -238,7 +241,7 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 	struct arch_syscall_become_args ba;
 	memcpy(&ba, _ba, sizeof(ba));
 	// long _a = rdtsc();
-	struct thread_become_frame *oldframe = slabcache_alloc(&_sc_frame);
+	struct thread_become_frame *oldframe = slabcache_alloc(&_sc_frame, NULL);
 	// struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
 	oldframe->view = NULL;
 	struct object *target_view = NULL;

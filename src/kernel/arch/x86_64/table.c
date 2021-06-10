@@ -36,7 +36,7 @@ static void table_level_init(__unused void *_p, void *obj)
 	tl->lock = RWLOCK_INIT;
 }
 
-static void table_level_ctor(__unused void *_p, void *obj)
+static void table_level_ctor(void *_p, void *obj)
 {
 	struct table_level *tl = obj;
 	tl->parent = NULL;
@@ -75,7 +75,7 @@ static DECLARE_SLABCACHE(sc_table_level_virt,
   table_level_ctor,
   NULL,
   table_level_fini,
-  (void *)0);
+  NULL);
 
 static DECLARE_SLABCACHE(sc_table_level_ospace,
   sizeof(struct table_level),
@@ -83,7 +83,7 @@ static DECLARE_SLABCACHE(sc_table_level_ospace,
   table_level_ctor,
   NULL,
   table_level_fini,
-  (void *)1);
+  NULL);
 
 struct table_level *table_level_new(bool ospace)
 {
@@ -98,8 +98,8 @@ struct table_level *table_level_new(bool ospace)
 		}
 	}
 	if(ospace)
-		return slabcache_alloc(&sc_table_level_ospace);
-	return slabcache_alloc(&sc_table_level_virt);
+		return slabcache_alloc(&sc_table_level_ospace, (void *)1);
+	return slabcache_alloc(&sc_table_level_virt, (void *)0);
 }
 
 void table_realize(struct table_level *table)
@@ -159,9 +159,9 @@ static void table_free_table_level(struct table_level *table)
 	}
 	if(table->flags & TABLE_RUN_ALLOCATED) {
 		if(table->flags & TABLE_OSPACE)
-			slabcache_free(&sc_table_level_ospace, table);
+			slabcache_free(&sc_table_level_ospace, table, NULL);
 		else
-			slabcache_free(&sc_table_level_virt, table);
+			slabcache_free(&sc_table_level_virt, table, NULL);
 	} else {
 		table_level_fini(NULL, table);
 	}

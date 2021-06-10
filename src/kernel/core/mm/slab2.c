@@ -131,7 +131,7 @@ static void __slab_second_init(struct slabcache *c)
 	}
 }
 
-void *slabcache_alloc(struct slabcache *c)
+void *slabcache_alloc(struct slabcache *c, void *data)
 {
 	struct slab *s;
 	assert(c->canary == SLAB_CANARY);
@@ -155,11 +155,11 @@ void *slabcache_alloc(struct slabcache *c)
 	c->stats.current_alloced++;
 	c->stats.total_alloced++;
 	if(c->ctor)
-		c->ctor(c->ptr, ret);
+		c->ctor(data, ret);
 	return ret;
 }
 
-void slabcache_free(struct slabcache *sc, void *obj)
+void slabcache_free(struct slabcache *sc, void *obj, void *data)
 {
 	size_t raw_sz = sc->sz - sizeof(struct slabmarker);
 	struct slabmarker *mk = (void *)((char *)obj + raw_sz);
@@ -169,7 +169,7 @@ void slabcache_free(struct slabcache *sc, void *obj)
 	mk->marker_magic = 0;
 
 	if(sc->dtor)
-		sc->dtor(sc->ptr, obj);
+		sc->dtor(data, obj);
 
 	if(s->canary != SLAB_CANARY) {
 		panic("SC FREE CANARY MISMATCH: %lx: %p -> %p\n", s->canary, obj, s);

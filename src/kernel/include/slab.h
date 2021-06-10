@@ -73,7 +73,7 @@ void slabcache_init(struct slabcache *c,
   void (*fini)(void *, void *),
   void *ptr);
 void slabcache_reap(struct slabcache *c);
-void slabcache_free(struct slabcache *, void *obj);
-void *slabcache_alloc(struct slabcache *c);
+void slabcache_free(struct slabcache *, void *obj, void *);
+void *slabcache_alloc(struct slabcache *c, void *);
 void slabcache_all_print_stats(void);
 void slabcache_print_stats(struct slabcache *sc);

@@ -48,7 +48,7 @@ void *kalloc(size_t len, int flags)
 		hdr->canary = CANARY;
 		return (void *)(hdr + 1);
 	}
-	struct header *obj = slabcache_alloc(&caches[class]);
+	struct header *obj = slabcache_alloc(&caches[class], NULL);
 	obj->canary = CANARY;
 	obj->size_class = class;
 	/* TODO: don't always zero */
@@ -93,6 +93,6 @@ void kfree(void *p)
 	if(hdr->size_class == -1) {
 		kheap_free(hdr->run);
 	} else {
-		slabcache_free(&caches[hdr->size_class], hdr);
+		slabcache_free(&caches[hdr->size_class], hdr, NULL);
 	}
 }

@@ -93,7 +93,7 @@ static void pcief_register(uint16_t space,
   uint8_t function,
   struct object *co)
 {
-	struct pcie_function *pf = slabcache_alloc(&sc_pcief);
+	struct pcie_function *pf = slabcache_alloc(&sc_pcief, NULL);
 	pf->segment = space;
 	pf->bus = bus;
 	pf->device = device;

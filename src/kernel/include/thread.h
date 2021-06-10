@@ -111,14 +111,16 @@ void arch_thread_raise_call(struct thread *t, void *addr, long a0, void *, size_
 
 struct thread *thread_lookup(unsigned long id);
 struct thread *thread_create(void);
-void arch_thread_init(struct thread *thread,
+void arch_thread_prep_start(struct thread *thread,
   void *entry,
   void *arg,
   void *stack,
   size_t stacksz,
   void *tls,
   size_t);
-void arch_thread_destroy(struct thread *thread);
+void arch_thread_fini(struct thread *thread);
+void arch_thread_init(struct thread *thread);
+void arch_thread_ctor(struct thread *thread);
 
 void thread_initialize_processor(struct processor *proc);
 

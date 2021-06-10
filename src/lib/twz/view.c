@@ -51,7 +51,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	  IDPR(twz_object_guid(&vo)));
 #endif
 	if((old & VE_VALID)) {
-		debug_printf("invalidating %p\n", obj);
+		// debug_printf("invalidating %p\n", obj);
 		struct sys_invalidate_op op = {
 			.offset = (long)SLOT_TO_VADDR(slot),
 			.length = OBJ_MAXSIZE,

@@ -51,7 +51,7 @@ size_t pagevec_len(struct pagevec *pv)
 
 struct pagevec *object_new_pagevec(struct object *obj, size_t idx, size_t *off)
 {
-	struct pagevec *pv = slabcache_alloc(&sc_pagevec);
+	struct pagevec *pv = slabcache_alloc(&sc_pagevec, NULL);
 	pagevec_append_page(pv, NULL);
 	/* TODO: merge with other ones? */
 	*off = 0;
@@ -60,7 +60,7 @@ struct pagevec *object_new_pagevec(struct object *obj, size_t idx, size_t *off)
 
 struct pagevec *pagevec_new(void)
 {
-	return slabcache_alloc(&sc_pagevec);
+	return slabcache_alloc(&sc_pagevec, NULL);
 }
 
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)

@@ -64,7 +64,7 @@ int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page)
 
 struct vm_context *vm_context_create(void)
 {
-	return slabcache_alloc(&sc_vm_context);
+	return slabcache_alloc(&sc_vm_context, NULL);
 }
 
 void vm_context_free(struct vm_context *ctx)
@@ -75,7 +75,7 @@ void vm_context_free(struct vm_context *ctx)
 
 static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t veflags)
 {
-	struct vmap *vmap = slabcache_alloc(&sc_vmap);
+	struct vmap *vmap = slabcache_alloc(&sc_vmap, NULL);
 	vmap->omap = omap;
 	vmap->slot = addr / mm_objspace_region_size();
 	vmap->flags = veflags;
@@ -284,7 +284,6 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 		}
 	}
 
-	printk("SETTING VIEW for %ld to " IDFMT "\n", t->id, IDPR(viewobj->id));
 	t->ctx = vm_context_create();
 	krc_get(&viewobj->refs);
 	struct kso_view *kv = object_get_kso_data_checked(viewobj, KSO_VIEW);

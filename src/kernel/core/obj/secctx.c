@@ -34,8 +34,7 @@ static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL
 
 struct sctx *secctx_alloc(struct object *obj)
 {
-	struct sctx *s = slabcache_alloc(&sc_sc);
-	printk("ALLOC SECCTX: %p\n", s);
+	struct sctx *s = slabcache_alloc(&sc_sc, NULL);
 	krc_init(&s->refs);
 	if(obj)
 		krc_get(&obj->refs);
@@ -46,7 +45,7 @@ struct sctx *secctx_alloc(struct object *obj)
 
 void secctx_free(struct sctx *s)
 {
-	return slabcache_free(&sc_sc, s);
+	return slabcache_free(&sc_sc, s, NULL);
 }
 
 static void __secctx_krc_put(void *_sc)
@@ -66,7 +65,7 @@ static void __secctx_krc_put(void *_sc)
 		}
 		next = rb_next(node);
 		rb_delete(&scce->node, &sc->cache);
-		slabcache_free(&sc_sctx_ce, scce);
+		slabcache_free(&sc_sctx_ce, scce, NULL);
 	}
 }
 
@@ -95,7 +94,7 @@ static void sctx_cache_delete(struct sctx *sc, objid_t id)
 		if(scce->gates) {
 			kfree(scce->gates);
 		}
-		slabcache_free(&sc_sctx_ce, scce);
+		slabcache_free(&sc_sctx_ce, scce, NULL);
 	}
 }
 
@@ -121,7 +120,7 @@ static void sctx_cache_insert(struct sctx *sc,
   size_t gc)
 {
 	// printk("[sctx] cache insert " IDFMT ": %x (%ld gates)\n", IDPR(id), perms, gc);
-	struct sctx_cache_entry *ce = slabcache_alloc(&sc_sctx_ce);
+	struct sctx_cache_entry *ce = slabcache_alloc(&sc_sctx_ce, NULL);
 	ce->id = id;
 	ce->perms = perms;
 	ce->gates = gates;
