@@ -481,7 +481,7 @@ long syscall_ocreate(uint64_t kulo,
 	}
 #endif
 
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 1
 	if(srcid)
 		printk("CREATE OBJECT: " IDFMT " from srcobj " IDFMT "\n", IDPR(id), IDPR(srcid));
 	else

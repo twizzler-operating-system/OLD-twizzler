@@ -64,3 +64,62 @@ void debug_elf_register_sections(Elf64_Shdr *_sections, size_t num, size_t entsi
 		sections[s].type = sh->sh_type;
 	}
 }
+
+#include <object.h>
+#include <slab.h>
+static bool debug_process_line(char *line)
+{
+	if(!strcmp(line, "info mem")) {
+		mm_print_stats();
+	} else if(!strcmp(line, "info slab")) {
+		slabcache_all_print_stats();
+	} else if(!strcmp(line, "info cpus")) {
+		processor_print_all_stats();
+	} else if(!strcmp(line, "info threads")) {
+		thread_print_all_threads();
+	} else if(!strcmp(line, "info objs")) {
+		obj_print_stats();
+	} else if(!strcmp(line, "c") || !strcmp(line, "cont") || !strcmp(line, "continue")) {
+		return true;
+	}
+
+	return false;
+}
+
+bool debug_process_input(unsigned int c)
+{
+	static int state = 0;
+	static char buffer[128];
+	static unsigned bufpos = 0;
+	if(state == 0) {
+		bufpos = 0;
+		memset(buffer, 0, sizeof(buffer));
+		state = 1;
+		printk("\n\nkdbg> ");
+	}
+	if(c == '\n' || c == '\r') {
+		printk("\n");
+		bool r = debug_process_line(buffer);
+		if(!r) {
+			bufpos = 0;
+			memset(buffer, 0, sizeof(buffer));
+			printk("kdbg> ");
+		} else {
+			state = 0;
+			return true;
+		}
+	} else {
+		if(c == '\b' || c == 0x7f) {
+			if(bufpos) {
+				buffer[--bufpos] = 0;
+				printk("\b \b");
+			}
+		} else {
+			if(bufpos < sizeof(buffer) - 1) {
+				buffer[bufpos++] = c;
+				printk("%c", c);
+			}
+		}
+	}
+	return false;
+}

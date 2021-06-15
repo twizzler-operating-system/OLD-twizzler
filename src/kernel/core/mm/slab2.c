@@ -244,7 +244,9 @@ void slabcache_all_print_stats(void)
 {
 	foreach(e, list, &all_slabs) {
 		struct slabcache *sc = list_entry(e, struct slabcache, entry);
-		slabcache_print_stats(sc);
+		if(strcmp(sc->name, "kalloc")) {
+			slabcache_print_stats(sc);
+		}
 	}
 }
 

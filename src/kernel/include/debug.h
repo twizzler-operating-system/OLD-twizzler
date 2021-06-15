@@ -12,6 +12,7 @@ struct frame {
 void debug_print_backtrace(void);
 bool arch_debug_unwind_frame(struct frame *frame, bool);
 void debug_puts(char *);
+bool debug_process_input(unsigned int c);
 
 #endif
 

@@ -295,6 +295,16 @@ static struct object *ser_obj;
 #include <object.h>
 #include <syscall.h>
 #include <twz/sys/dev/device.h>
+
+static unsigned int debug_trigger_state = 0;
+static char debug_trigger_seq[] = {
+	0x1b,
+	0x5b,
+	0x32,
+	0x34,
+	0x7e,
+};
+
 __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h __unused)
 {
 	struct uart *u = &com1;
@@ -312,6 +322,14 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 			case 6:
 				c = uart_read(u, UART_REG_DATA);
 
+				if(debug_trigger_state >= array_len(debug_trigger_seq)) {
+					if(debug_process_input(c)) {
+						debug_trigger_state = 0;
+					}
+				} else if(c == debug_trigger_seq[debug_trigger_state]) {
+					debug_trigger_state++;
+				}
+
 				/* TODO */
 				if(c == '`') {
 					processor_print_all_stats();
@@ -324,8 +342,10 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 						arch_mm_print_ctx(current_thread->ctx);
 					}
 				}
-				long tmp = c;
-				device_signal_sync(ser_obj, 0, tmp);
+				if(debug_trigger_state < array_len(debug_trigger_seq)) {
+					long tmp = c;
+					device_signal_sync(ser_obj, 0, tmp);
+				}
 				break;
 			case 3:
 				ls = uart_read(u, UART_REG_LSR);
