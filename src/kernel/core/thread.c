@@ -57,6 +57,7 @@ static void _thread_dtor(void *_data __unused, void *ptr)
 			thr->backup_views[i].ctx = NULL;
 		}
 		thr->backup_views[i].id = 0;
+		thr->backup_views[i].ctx = NULL;
 	}
 	vm_context_free(thr->ctx);
 	thr->ctx = NULL;

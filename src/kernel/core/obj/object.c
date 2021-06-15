@@ -40,36 +40,27 @@ static int __obj_compar(struct object *a, struct object *b)
 	return __obj_compar_key(a, b->id);
 }
 
-static void _obj_ctor(void *_u, void *ptr)
+static void _obj_init(void *_u, void *ptr)
 {
 	(void)_u;
 	struct object *obj = ptr;
 	obj->lock = SPINLOCK_INIT;
 	obj->tslock = SPINLOCK_INIT;
-	obj->pagecache_root = RBINIT;
 	obj->omap_root = RBINIT;
-	obj->pagecache_level1_root = RBINIT;
 	obj->range_tree = RBINIT;
 	obj->tstable_root = RBINIT;
 	obj->page_requests_root = RBINIT;
+	obj->kso_type = KSO_NONE;
 }
 
 void obj_init(struct object *obj)
 {
-	_obj_ctor(NULL, obj);
-	obj->slot = NULL;
+	_obj_init(NULL, obj);
 	obj->flags = 0;
 	obj->id = 0;
-	obj->kvmap = NULL;
-	obj->kaddr = NULL;
-	obj->sourced_from = NULL;
 	krc_init(&obj->refs);
-	krc_init_zero(&obj->mapcount);
 	obj->ties_root = RBINIT;
 	obj->range_tree = RBINIT;
-	obj->preg = NULL;
-	obj->idx_map = RBINIT;
-	list_init(&obj->derivations);
 	list_init(&obj->sleepers);
 }
 
@@ -78,16 +69,9 @@ static void _obj_dtor(void *_u, void *ptr)
 	(void)_u;
 	struct object *obj = ptr;
 	assert(krc_iszero(&obj->refs));
-	assert(krc_iszero(&obj->mapcount));
 }
 
-static DECLARE_SLABCACHE(sc_objs, sizeof(struct object), _obj_ctor, NULL, _obj_dtor, NULL, NULL);
-
-void obj_system_init(void)
-{
-	panic("A");
-	// obj_system_init_objpage();
-}
+static DECLARE_SLABCACHE(sc_objs, sizeof(struct object), _obj_init, NULL, _obj_dtor, NULL, NULL);
 
 static struct kso_calls *_kso_calls[KSO_MAX];
 
@@ -95,11 +79,6 @@ void kso_register(int t, struct kso_calls *c)
 {
 	_kso_calls[t] = c;
 }
-
-/*struct kso_calls *kso_lookup_calls(int t)
-  {
-    return _kso_calls[t];
-}*/
 
 void kso_detach_event(struct thread *thr, bool entry, int sysc)
 {
@@ -168,27 +147,6 @@ void obj_assign_id(struct object *obj, objid_t id)
 	rb_insert(&obj_tree, obj, struct object, node, __obj_compar);
 	spinlock_release_restore(&objlock);
 }
-
-#if 0
-struct object *obj_create_clone(uint128_t id, struct object *src, enum kso_type ksot)
-{
-	struct object *obj = __obj_alloc(ksot, id);
-
-	obj_clone_cow(src, obj);
-
-	// if(src->flags & OF_PAGER) {
-	//} else {
-	//	obj_put(src);
-	//}
-
-	if(id) {
-		spinlock_acquire_save(&objlock);
-		rb_insert(&obj_tree, obj, struct object, node, __obj_compar);
-		spinlock_release_restore(&objlock);
-	}
-	return obj;
-}
-#endif
 
 struct object *obj_lookup(uint128_t id, int flags)
 {
@@ -289,81 +247,51 @@ struct slot *obj_alloc_slot(struct object *obj)
 }
 #endif
 
-#if 0
 static void _obj_release(void *_obj)
 {
 	struct object *obj = _obj;
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 1
 	printk("OBJ RELEASE: " IDFMT "\n", IDPR(obj->id));
 #endif
 	if(obj->flags & OF_DELETE) {
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 1
 		printk("FINAL DELETE object " IDFMT "\n", IDPR(obj->id));
 #endif
 
 		obj_tie_free(obj);
 
-		arch_object_unmap_all(obj);
+		assert(rb_empty(&obj->tstable_root));
+		assert(rb_empty(&obj->page_requests_root));
+		assert(rb_empty(&obj->ties_root));
+
 		struct rbnode *next;
-		for(struct rbnode *node = rb_first(&obj->pagecache_root); node; node = next) {
+		for(struct rbnode *node = rb_first(&obj->range_tree); node; node = next) {
 			next = rb_next(node);
-			struct objpage *pg = rb_entry(node, struct objpage, node);
-			rb_delete(node, &obj->pagecache_root);
-			objpage_release(pg, 0);
+			struct range *range = rb_entry(node, struct range, node);
+			range_toss(range);
+			range_free(range);
 		}
 
-		for(struct rbnode *node = rb_first(&obj->pagecache_level1_root); node; node = next) {
+		for(struct rbnode *node = rb_first(&obj->omap_root); node; node = next) {
 			next = rb_next(node);
-			struct objpage *pg = rb_entry(node, struct objpage, node);
-			rb_delete(node, &obj->pagecache_root);
-			objpage_release(pg, 0);
+			struct omap *omap = rb_entry(node, struct omap, objnode);
+			omap_free(omap);
 		}
 
-		if(obj->flags & OF_PERSIST) {
-			/* TODO: delete all persistent pages */
-		}
+		obj->omap_root = RBINIT;
+		obj->range_tree = RBINIT;
 
-		struct list *lnext;
-		if(obj->sourced_from) {
-			spinlock_acquire_save(&obj->sourced_from->lock);
-			for(struct list *e = list_iter_start(&obj->sourced_from->derivations);
-			    e != list_iter_end(&obj->sourced_from->derivations);
-			    e = lnext) {
-				lnext = list_iter_next(e);
-				struct derivation_info *di = list_entry(e, struct derivation_info, entry);
-				if(di->id == obj->id) {
-					list_remove(&di->entry);
-					kfree(di);
-				}
+		if(obj->kso_type != KSO_NONE) {
+			if(obj->kso_calls && obj->kso_calls->dtor) {
+				obj->kso_calls->dtor(obj);
 			}
-
-			spinlock_release_restore(&obj->sourced_from->lock);
-			obj_put(obj->sourced_from);
-			obj->sourced_from = NULL;
-		}
-#if 0
-		printk("obj release " IDFMT ":: %p %p\n",
-		  IDPR(obj->id),
-		  list_iter_start(&obj->derivations),
-		  list_iter_end(&obj->derivations));
-#endif
-		for(struct list *e = list_iter_start(&obj->derivations);
-		    e != list_iter_end(&obj->derivations);
-		    e = lnext) {
-			lnext = list_iter_next(e);
-			struct derivation_info *di = list_entry(e, struct derivation_info, entry);
-			//	printk("freed derivation %p\n", di);
-			list_remove(&di->entry);
-			kfree(di);
+			obj->kso_type = KSO_NONE;
 		}
 
-		arch_object_destroy(obj);
 		obj_count--;
-		/* TODO: clean up... */
-		slabcache_free(&sc_objs, obj);
+		slabcache_free(&sc_objs, obj, NULL);
 	}
 }
-#endif
 
 void obj_put(struct object *o)
 {
@@ -373,7 +301,7 @@ void obj_put(struct object *o)
 		}
 		spinlock_release_restore(&objlock);
 		// workqueue_insert(&current_processor->wq, &o->delete_task, _obj_release, o);
-		//_obj_release(o);
+		_obj_release(o);
 		/* TODO: A release and free object pages, maps, and kso_data */
 		// printk("TODO release object (AND free kso_data)\n");
 	}

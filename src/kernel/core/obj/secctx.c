@@ -14,33 +14,44 @@
 #define EPRINTK(...)
 
 extern struct object_space _bootstrap_object_space;
-static void _sc_ctor(void *_x __unused, void *ptr)
+static void _sc_init(void *_x __unused, void *ptr)
 {
 	struct sctx *sc = ptr;
-	// sc->space = &_bootstrap_object_space;
 	sc->space = object_space_alloc();
+}
+
+static void _sc_ctor(void *_obj, void *ptr)
+{
+	struct sctx *sc = ptr;
+	struct object *obj = _obj;
+	krc_init(&sc->refs);
+	if(obj)
+		krc_get(&obj->refs);
+	sc->obj = obj;
+	sc->superuser = false;
 }
 
 static void _sc_dtor(void *_x __unused, void *ptr)
 {
-	/* TODO: A */
 	struct sctx *sc = ptr;
-	// object_space_free(sc->space);
-	// sc->space = NULL;
+	if(sc->obj) {
+		obj_put(sc->obj);
+	}
 }
 
-static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), NULL, _sc_ctor, _sc_dtor, NULL, NULL);
+static void _sc_fini(void *_x __unused, void *ptr)
+{
+	struct sctx *sc = ptr;
+	object_space_free(sc->space);
+	sc->space = NULL;
+}
+
+static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_init, _sc_ctor, NULL, _sc_fini, NULL);
 static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL, NULL, NULL);
 
 struct sctx *secctx_alloc(struct object *obj)
 {
-	struct sctx *s = slabcache_alloc(&sc_sc, NULL);
-	krc_init(&s->refs);
-	if(obj)
-		krc_get(&obj->refs);
-	s->obj = obj;
-	s->superuser = false;
-	return s;
+	return slabcache_alloc(&sc_sc, obj);
 }
 
 void secctx_free(struct sctx *s)
@@ -1038,11 +1049,17 @@ static void __secctx_ctor(struct object *o)
 	o->kso_data = secctx_alloc(o);
 }
 
+static void __secctx_dtor(struct object *o)
+{
+	secctx_free(o->kso_data);
+}
+
 static struct kso_calls __ksoc_sctx = {
 	.attach = __secctx_attach,
 	.detach = __secctx_detach,
 	.detach_event = __secctx_detach_event,
 	.ctor = __secctx_ctor,
+	.dtor = __secctx_dtor,
 };
 
 __initializer static void __init_kso_secctx(void)

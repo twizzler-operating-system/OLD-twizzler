@@ -165,6 +165,9 @@ void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint6
 	     omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags)) {
 		arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0); // TODO: A
 	}
+	/* TODO: would like a better system for this */
+	assert(omap->refs > 1);
+	omap->refs--;
 }
 
 #if 0
@@ -403,12 +406,11 @@ int object_operate_on_locked_page(struct object *obj,
 	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
 
 	if(ret == GET_PAGE_BLOCK) {
-		printk("TODO: implement this\n");
+		printk("TODO: A implement this\n");
 		/* TODO: return a "def resched" thing */
 	} else {
 		if(range->pv->refs > 1) {
 			if(flags & OP_LP_DO_COPY) {
-				printk("COPY ON WRITE\n");
 				rwres = rwlock_upgrade(&rwres, 0);
 				range = range_split(range, pagenr - range->start);
 				range_clone(range);

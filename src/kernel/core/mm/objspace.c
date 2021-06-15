@@ -133,6 +133,20 @@ struct omap *mm_objspace_get_object_map(struct object *obj, size_t page)
 	return omap;
 }
 
+static void mm_objspace_clear_region(struct objspace_region *region)
+{
+	arch_objspace_region_unmap(region, 0, mm_objspace_region_size() / mm_page_size(0));
+	arch_mm_objspace_invalidate(NULL, region->addr, mm_objspace_region_size() / mm_page_size(0), 0);
+}
+
+void omap_free(struct omap *omap)
+{
+	printk("=> %ld\n", omap->refs);
+	assert(omap->refs == 0);
+	mm_objspace_clear_region(omap->region);
+	slabcache_free(&sc_omap, omap, NULL);
+}
+
 struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr)
 {
 	panic("A");
@@ -170,6 +184,5 @@ struct object_space *object_space_alloc(void)
 
 void object_space_free(struct object_space *space)
 {
-	printk("TODO: A free objspaces\n");
-	// slabcache_free(&sc_objspace, space);
+	slabcache_free(&sc_objspace, space, NULL);
 }

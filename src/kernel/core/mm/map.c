@@ -10,6 +10,19 @@
 
 struct vm_context kernel_ctx;
 
+static DECLARE_SLABCACHE(sc_vmap, sizeof(struct vmap), NULL, NULL, NULL, NULL, NULL);
+
+static void vm_context_remove_vmap(struct vm_context *ctx, struct vmap *vmap)
+{
+	rb_delete(&vmap->node, &ctx->root);
+	arch_mm_unmap(ctx, vmap->slot * mm_objspace_region_size(), mm_objspace_region_size());
+
+	vmap->omap->refs--;
+	vmap->omap = NULL;
+	obj_put(vmap->obj);
+	vmap->obj = NULL;
+}
+
 static void vm_context_init(void *data __unused, void *ptr)
 {
 	struct vm_context *ctx = ptr;
@@ -21,11 +34,20 @@ static void vm_context_init(void *data __unused, void *ptr)
 static void vm_context_ctor(void *data __unused, void *ptr)
 {
 	struct vm_context *ctx = ptr;
+	ctx->root = RBINIT;
 }
 
 static void vm_context_dtor(void *data __unused, void *ptr)
 {
 	struct vm_context *ctx = ptr;
+	ctx->viewobj = NULL;
+	struct rbnode *node, *next = rb_first(&ctx->root);
+	while((node = next)) {
+		next = rb_next(node);
+		struct vmap *map = rb_entry(node, struct vmap, node);
+		vm_context_remove_vmap(ctx, map);
+		slabcache_free(&sc_vmap, map, NULL);
+	}
 	arch_vm_context_dtor(ctx);
 }
 
@@ -41,8 +63,6 @@ static DECLARE_SLABCACHE(sc_vm_context,
   vm_context_dtor,
   vm_context_fini,
   NULL);
-
-static DECLARE_SLABCACHE(sc_vmap, sizeof(struct vmap), NULL, NULL, NULL, NULL, NULL);
 
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags)
 {
@@ -69,8 +89,11 @@ struct vm_context *vm_context_create(void)
 
 void vm_context_free(struct vm_context *ctx)
 {
-	printk("TODO: release context\n");
-	// slabcache_free(&sc_vm_context, ctx);
+	struct kso_view *view = object_get_kso_data_checked(ctx->viewobj, KSO_VIEW);
+	assert(view);
+	list_remove(&ctx->entry);
+	obj_put(ctx->viewobj);
+	slabcache_free(&sc_vm_context, ctx, NULL);
 }
 
 static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t veflags)
@@ -79,6 +102,8 @@ static struct vmap *vmap_create(uintptr_t addr, struct omap *omap, uint32_t vefl
 	vmap->omap = omap;
 	vmap->slot = addr / mm_objspace_region_size();
 	vmap->flags = veflags;
+	vmap->obj = omap->obj;
+	krc_get(&vmap->obj->refs);
 	return vmap;
 }
 
@@ -141,12 +166,6 @@ static void vm_context_add_vmap(struct vm_context *ctx, struct vmap *vmap)
 	  vmap->omap->region->addr,
 	  mm_objspace_region_size(),
 	  flags);
-}
-
-static void vm_context_remove_vmap(struct vm_context *ctx, struct vmap *vmap)
-{
-	rb_delete(&vmap->node, &ctx->root);
-	arch_mm_unmap(ctx, vmap->slot * mm_objspace_region_size(), mm_objspace_region_size());
 }
 
 static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint32_t *veflags)
@@ -303,27 +322,17 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 	return true;
 }
 
-static void __view_ctor(struct object *obj)
-{
-	struct kso_view *kv = obj->kso_data = kalloc(sizeof(struct kso_view), 0);
-	list_init(&kv->contexts);
-}
-
 static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 {
 	if(invl->length == 0)
 		return true;
 	struct rwlock_result res = rwlock_rlock(&obj->rwlock, 0);
-
 	struct kso_view *view = object_get_kso_data_checked(obj, KSO_VIEW);
 	if(!view)
 		return false;
-	// printk("::::::::: %lx %x\n", invl->offset, invl->length);
-	// printk("invl :::: %p %p\n", current_thread->ctx->viewobj, obj);
 
 	foreach(e, list, &view->contexts) {
 		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
-		// printk("invalidating context :: %p (%p)\n", ctx, current_thread->ctx);
 		spinlock_acquire_save(&ctx->lock);
 		size_t slot_start = invl->offset / mm_objspace_region_size();
 		size_t slot_count = ((invl->length - 1) / mm_objspace_region_size()) + 1;
@@ -333,7 +342,6 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 		for(; slot_start < slot_end; slot_start++) {
 			/* TODO: make this faster */
 			node = rb_search(&ctx->root, slot_start, struct vmap, node, vmap_compar_key);
-			// printk("search slot %p %ld: %p\n", ctx, slot_start, node);
 			if(node) {
 				break;
 			}
@@ -344,10 +352,10 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 			next = rb_next(node);
 			struct vmap *vmap = rb_entry(node, struct vmap, node);
 			if(vmap->slot < slot_end) {
-				//		printk("UNMAP VIA INAL %ld\n", vmap->slot);
 				vm_context_remove_vmap(ctx, vmap);
-				printk("TODO: arch-dep\n");
-				asm volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
+				arch_mm_virtual_invalidate(
+				  ctx, vmap->slot * mm_objspace_region_size(), mm_objspace_region_size());
+				slabcache_free(&sc_vmap, vmap, NULL);
 			} else {
 				next = NULL;
 			}
@@ -357,52 +365,25 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 	}
 
 	rwlock_runlock(&res);
-
-	if(invl->offset == 0x400680000000) {
-		// arch_mm_print_ctx(current_thread->ctx);
-	}
-
 	return true;
-#if 0
-	spinlock_acquire_save(&obj->lock);
+}
 
-	foreach(e, list, &obj->view.contexts) {
-		struct vm_context *ctx = list_entry(e, struct vm_context, entry);
-		spinlock_acquire_save(&ctx->lock);
+static void __view_ctor(struct object *obj)
+{
+	struct kso_view *kv = obj->kso_data = kalloc(sizeof(struct kso_view), 0);
+	list_init(&kv->contexts);
+}
 
-		for(size_t slot = invl->offset / mm_page_size(MAX_PGLEVEL);
-		    slot <= (invl->offset + invl->length) / mm_page_size(MAX_PGLEVEL);
-		    slot++) {
-			struct rbnode *node = rb_search(&ctx->root, slot, struct vmap, node, vmap_compar_key);
-			if(node) {
-				struct vmap *map = rb_entry(node, struct vmap, node);
-#if CONFIG_DEBUG_OBJECT_SLOT
-				printk("UNMAP VIA INVAL: " IDFMT " mapcount %ld\n",
-				  IDPR(map->obj->id),
-				  map->obj->mapcount.count);
-#endif
-				if(map->obj != obj) {
-					vm_map_disestablish(ctx, map);
-				} else {
-					/* TODO: right now this is okay, but maybe we'll want to handle this case in the
-					 * future to be more general. Basically, if we invalidate the entry holding the
-					 * object defining the view we're invalidating in, we'd deadlock. But ... I
-					 * don't think this should ever happen. */
-					printk("[vm] warning - invalidating view entry of invalidation target\n");
-				}
-			}
-		}
-
-		spinlock_release_restore(&ctx->lock);
-	}
-	spinlock_release_restore(&obj->lock);
-	return true;
-#endif
+static void __view_dtor(struct object *obj)
+{
+	struct kso_view *kv = obj->kso_data;
+	assert(list_empty(&kv->contexts));
+	kfree(obj->kso_data);
 }
 
 static struct kso_calls _kso_view = {
 	.ctor = __view_ctor,
-	.dtor = NULL,
+	.dtor = __view_dtor,
 	.attach = NULL,
 	.detach = NULL,
 	.invl = _vm_view_invl,

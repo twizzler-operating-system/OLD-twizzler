@@ -17,8 +17,14 @@ static void __kso_device_ctor(struct object *obj)
 	dev->flags = 0;
 }
 
+static void __kso_device_dtor(struct object *obj)
+{
+	kfree(obj->kso_data);
+}
+
 static struct kso_calls _kso_device = {
 	.ctor = __kso_device_ctor,
+	.dtor = __kso_device_dtor,
 };
 
 __initializer static void __device_init(void)

@@ -187,9 +187,14 @@ static void __thr_ctor(struct object *obj)
 	obj->kso_data = kalloc(sizeof(struct kso_throbj), 0);
 }
 
+static void __thr_dtor(struct object *obj)
+{
+	kfree(obj->kso_data);
+}
+
 static struct kso_calls _kso_thr = {
 	.ctor = __thr_ctor,
-	.dtor = NULL,
+	.dtor = __thr_dtor,
 	.attach = NULL,
 	.detach = NULL,
 	.invl = NULL,

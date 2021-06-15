@@ -63,6 +63,20 @@ struct pagevec *pagevec_new(void)
 	return slabcache_alloc(&sc_pagevec, NULL);
 }
 
+void pagevec_free(struct pagevec *pv)
+{
+	assert(pv->refs == 0);
+	assert(list_empty(&pv->ranges));
+	void *r;
+	while((r = vector_pop(&pv->pages))) {
+		struct page_entry *entry = r;
+		if(entry->page) {
+			printk("freeing page!\n");
+			mm_page_free(entry->page);
+		}
+	}
+}
+
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)
 {
 	struct page_entry ne = {

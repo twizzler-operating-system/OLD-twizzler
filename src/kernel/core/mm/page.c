@@ -213,6 +213,20 @@ static struct page *__do_mm_page_alloc(int flags)
 	return RET(flags, page);
 }
 
+void mm_page_free(struct page *page)
+{
+	/* TODO: determine if page is zero or not (with MMU dirty bit) */
+	page->flags &= ~PAGE_ZERO;
+
+	spinlock_acquire_save(&lock);
+	if(page->flags & PAGE_ZERO) {
+		list_insert(&pagezero_list, &page->entry);
+	} else {
+		list_insert(&page_list, &page->entry);
+	}
+	spinlock_release_restore(&lock);
+}
+
 struct page *mm_page_alloc(int flags)
 {
 	spinlock_acquire_save(&lock);

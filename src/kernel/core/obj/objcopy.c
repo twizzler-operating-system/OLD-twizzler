@@ -62,7 +62,7 @@ static size_t cow_range(struct object *dest,
 
 static void invl_omap(struct omap *omap, size_t pgoff, size_t pgnum)
 {
-	printk("INVL OMAP:: %ld :: %ld %ld\n", omap->regnr, pgoff, pgnum);
+	// printk("INVL OMAP:: %ld :: %ld %ld\n", omap->regnr, pgoff, pgnum);
 	arch_objspace_region_cow(omap->region, pgoff, pgnum);
 }
 
@@ -131,7 +131,7 @@ static void object_invalidate(struct object *obj, size_t pagenr, size_t pgcount)
 
 			if(node) {
 				struct omap *omap = rb_entry(node, struct omap, objnode);
-				printk("   unmap %ld %ld %ld\n", omap->regnr, s, l);
+				// printk("   unmap %ld %ld %ld\n", omap->regnr, s, l);
 				arch_objspace_region_unmap(omap->region, s, l);
 				pgcount -= l;
 				pagenr += l;
@@ -170,12 +170,14 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 			panic("A");
 		}
 
+#if 0
 		printk("doing copy: %ld %ld %ld :: " IDFMT " <= " IDFMT "\n",
 		  spec->start_src,
 		  spec->start_dst,
 		  spec->length,
 		  IDPR(dest->id),
 		  IDPR(spec->src->id));
+#endif
 		struct rwlock_result sres = rwlock_wlock(&spec->src->rwlock, 0);
 		for(size_t j = 0; j < spec->length;) {
 			size_t srcpg = spec->start_src + j;

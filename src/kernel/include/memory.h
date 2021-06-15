@@ -114,12 +114,12 @@ void arch_mm_context_destroy(struct vm_context *ctx);
 struct omap;
 struct vmap {
 	struct omap *omap;
+	struct object *obj;
 	size_t slot;
 	uint32_t flags;
 	int status;
 
 	struct rbnode node;
-	struct list entry;
 };
 
 // struct vmap *vm_context_map(struct vm_context *v, uint128_t objid, size_t slot, uint32_t flags);
@@ -227,13 +227,14 @@ struct omap {
 
 struct omap *mm_objspace_get_object_map(struct object *obj, size_t page);
 struct omap *mm_objspace_lookup_omap_addr(uintptr_t addr);
+void omap_free(struct omap *omap);
 struct objspace_region *mm_objspace_allocate_region(void);
 void mm_objspace_free_region(struct objspace_region *region);
 void arch_objspace_region_map(struct object_space *, struct objspace_region *region, uint64_t);
 
 #define mm_objspace_region_size arch_mm_objspace_region_size
-uintptr_t arch_mm_objspace_max_address(void);
-size_t arch_mm_objspace_region_size(void);
+__attribute__((const, pure)) uintptr_t arch_mm_objspace_max_address(void);
+__attribute__((const, pure)) size_t arch_mm_objspace_region_size(void);
 
 int arch_mm_map(struct vm_context *ctx,
   uintptr_t virt,
@@ -265,3 +266,4 @@ void vm_context_free(struct vm_context *ctx);
 
 extern struct vm_context kernel_ctx;
 void arch_mm_print_ctx(struct vm_context *ctx);
+void arch_mm_virtual_invalidate(struct vm_context *ctx, uintptr_t virt, size_t len);

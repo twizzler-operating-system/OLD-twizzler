@@ -27,3 +27,4 @@ void mm_page_idle_zero(void);
 struct page *mm_page_fake_create(uintptr_t phys, int flags);
 void mm_page_write(struct page *page, void *data, size_t len);
 struct page *mm_page_clone(struct page *page);
+void mm_page_free(struct page *page);

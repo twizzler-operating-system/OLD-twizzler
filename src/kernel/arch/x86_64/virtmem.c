@@ -58,6 +58,12 @@ void arch_mm_unmap(struct vm_context *ctx, uintptr_t virt, size_t len)
 	}
 }
 
+void arch_mm_virtual_invalidate(struct vm_context *ctx, uintptr_t virt, size_t len)
+{
+	/* TODO: A do this better */
+	asm volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
+}
+
 #if 0
 #define mm_vtoo(p) get_phys((uintptr_t)p)
 

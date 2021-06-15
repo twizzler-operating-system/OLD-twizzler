@@ -53,6 +53,12 @@ struct range *object_find_next_range(struct object *obj, size_t pagenr)
 	return best;
 }
 
+void range_free(struct range *range)
+{
+	assert(range->pv == NULL);
+	slabcache_free(&sc_range, range, NULL);
+}
+
 struct range *object_add_range(struct object *obj,
   struct pagevec *pv,
   size_t start,
@@ -80,14 +86,20 @@ void range_cut_half(struct range *range, size_t len)
 
 void range_toss(struct range *range)
 {
-	list_remove(&range->entry);
-	printk("TODO: clean up pv\n");
-	range->pv->refs--;
+	if(range->pv) {
+		list_remove(&range->entry);
+		range->pv->refs--;
+		if(range->pv->refs == 0) {
+			printk("freeing pv\n");
+			pagevec_free(range->pv);
+		}
+		range->pv = NULL;
+	}
 }
 
 struct range *range_split(struct range *range, size_t rp)
 {
-	printk("A split range %ld %ld %ld %ld\n", range->start, range->len, range->pv_offset, rp);
+	// printk("A split range %ld %ld %ld %ld\n", range->start, range->len, range->pv_offset, rp);
 	assert(rp < range->len);
 
 	if(rp != range->len - 1) {

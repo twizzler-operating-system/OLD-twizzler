@@ -82,15 +82,11 @@ struct derivation_info {
 struct nv_region;
 struct object {
 	uint128_t id;
-	struct arch_object arch;
 
-	struct krc refs, mapcount, kaddr_count;
-
-	struct slot *slot;
+	struct krc refs;
 
 	/* TODO: clean all this  up */
 	_Atomic uint64_t flags;
-
 	uint32_t cache_mode;
 	uint32_t cached_pflags;
 
@@ -110,26 +106,13 @@ struct object {
 	struct spinlock sleepers_lock;
 	struct list sleepers;
 
-	struct rbroot pagecache_root, pagecache_level1_root, tstable_root, page_requests_root;
+	struct rbroot tstable_root, page_requests_root;
 
 	struct rbroot range_tree, omap_root;
 
-	struct rbnode slotnode, node;
+	struct rbnode node;
 
 	struct rbroot ties_root;
-
-	struct task delete_task;
-
-	/* needed for kernel to access objects */
-	struct vmap *kvmap;
-	struct slot *kslot;
-	void *kaddr;
-
-	struct object *sourced_from;
-	struct list derivations;
-	struct rbroot idx_map;
-
-	struct nv_region *preg;
 };
 
 void object_init_kso_data(struct object *, enum kso_type);
@@ -284,11 +267,13 @@ size_t range_pv_idx(struct range *, size_t);
 struct range *range_split(struct range *, size_t);
 void range_cut_half(struct range *range, size_t len);
 void range_toss(struct range *range);
+void range_free(struct range *range);
 
 void range_clone(struct range *);
 int pagevec_get_page(struct pagevec *, size_t, struct page **, int flags);
 size_t pagevec_len(struct pagevec *);
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page);
+void pagevec_free(struct pagevec *pv);
 struct range *object_add_range(struct object *, struct pagevec *, size_t, size_t, size_t);
 struct pagevec *object_new_pagevec(struct object *, size_t, size_t *);
 struct range *object_find_range(struct object *, size_t);
