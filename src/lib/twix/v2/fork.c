@@ -116,6 +116,9 @@ long hook_clone(struct syscall_args *args)
 		*ptid = tqe.ret;
 	}
 
+	twz_object_delete(&thread, 0);
+	twz_object_release(&thread);
+
 	return tqe.ret;
 }
 

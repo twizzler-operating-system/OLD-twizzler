@@ -59,6 +59,7 @@ void range_free(struct range *range)
 	slabcache_free(&sc_range, range, NULL);
 }
 
+#include <processor.h>
 struct range *object_add_range(struct object *obj,
   struct pagevec *pv,
   size_t start,
@@ -66,6 +67,12 @@ struct range *object_add_range(struct object *obj,
   size_t off)
 {
 	struct range *r = slabcache_alloc(&sc_range, NULL);
+	if(current_thread) {
+		printk("alloc new range: " IDFMT " %ld\n", IDPR(obj->id), start);
+		// debug_print_backtrace();
+		// debug_print_backtrace_userspace();
+	}
+
 	r->pv = pv;
 	r->obj = obj;
 	r->pv_offset = off;
@@ -88,9 +95,13 @@ void range_toss(struct range *range)
 {
 	if(range->pv) {
 		list_remove(&range->entry);
+		printk("  range %ld %ld %ld: %ld\n",
+		  range->start,
+		  range->pv_offset,
+		  range->len,
+		  range->pv->refs);
 		range->pv->refs--;
 		if(range->pv->refs == 0) {
-			printk("freeing pv\n");
 			pagevec_free(range->pv);
 		}
 		range->pv = NULL;

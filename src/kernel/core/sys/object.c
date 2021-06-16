@@ -486,6 +486,8 @@ long syscall_ocreate(uint64_t kulo,
 		printk("CREATE OBJECT: " IDFMT " from srcobj " IDFMT "\n", IDPR(id), IDPR(srcid));
 	else
 		printk("CREATE OBJECT: " IDFMT "\n", IDPR(id));
+	if(current_thread)
+		debug_print_backtrace_userspace();
 #endif
 
 	if(srcid) {

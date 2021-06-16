@@ -141,7 +141,6 @@ static void mm_objspace_clear_region(struct objspace_region *region)
 
 void omap_free(struct omap *omap)
 {
-	printk("=> %ld\n", omap->refs);
 	assert(omap->refs == 0);
 	mm_objspace_clear_region(omap->region);
 	slabcache_free(&sc_omap, omap, NULL);

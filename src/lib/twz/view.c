@@ -139,7 +139,7 @@ int twz_vaddr_to_obj(const void *v, objid_t *id, uint32_t *fl)
 
 static struct __viewrepr_bucket *__lookup_bucket(struct twzview_repr *v, objid_t id, uint32_t flags)
 {
-	int32_t idx = id % (TWZSLOT_MAX_SLOT + 1);
+	int32_t idx = id % NR_VIEW_BUCKETS;
 	struct __viewrepr_bucket *b = v->buckets;
 	do {
 		// if(b[idx].id == 0)
@@ -158,7 +158,7 @@ static struct __viewrepr_bucket *__insert_obj(struct twzview_repr *v,
   uint32_t flags,
   size_t slot)
 {
-	int32_t idx = id % (TWZSLOT_MAX_SLOT + 1);
+	int32_t idx = id % NR_VIEW_BUCKETS;
 	struct __viewrepr_bucket *b = v->buckets;
 	struct __viewrepr_bucket *pb = NULL;
 	do {

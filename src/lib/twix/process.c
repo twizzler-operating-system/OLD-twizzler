@@ -608,7 +608,7 @@ long linux_sys_clone(struct twix_register_frame *frame,
 
 	int r;
 	if((r = twz_object_new(
-	      &thr, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+	      &thr, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 		/* TODO CLEANUP */
 	}
@@ -645,6 +645,8 @@ long linux_sys_clone(struct twix_register_frame *frame,
 		*ptid = new_tid;
 	}
 
+	twz_object_delete(&thr, 0);
+	twz_object_release(&thr);
 	return new_tid;
 }
 
