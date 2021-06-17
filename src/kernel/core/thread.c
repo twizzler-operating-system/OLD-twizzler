@@ -157,8 +157,17 @@ void thread_exit(void)
 	  offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE,
 	  INT_MAX);
 	obj_put(current_thread->reprobj);
-	current_thread->reprobj = NULL;
 
+#if 0
+	printk("put thrrepr: " IDFMT ": %ld\n",
+	  IDPR(current_thread->reprobj->id),
+	  current_thread->reprobj->refs.count);
+
+	printk("put thrctrl: " IDFMT ": %ld\n",
+	  IDPR(current_thread->thrctrl->id),
+	  current_thread->thrctrl->refs.count);
+#endif
+	current_thread->reprobj = NULL;
 	obj_put(current_thread->thrctrl);
 
 	struct thread *thr = current_thread;

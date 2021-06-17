@@ -131,7 +131,7 @@ long linux_sys_futex(int *uaddr,
   int val3);
 long linux_sys_clock_gettime(clockid_t clock, struct timespec *tp);
 
-long linux_sys_munmap();
+long linux_sys_munmap(void *addr, size_t len);
 long linux_sys_madvise();
 long linux_sys_mprotect();
 long linux_sys_prlimit();

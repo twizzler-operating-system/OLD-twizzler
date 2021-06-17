@@ -244,7 +244,7 @@ void resetup_queue(long is_thread)
 	// twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
 	objid_t stateid;
-	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &stateid)) {
+	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE, 0, 0, &stateid)) {
 		abort();
 	}
 
@@ -254,6 +254,8 @@ void resetup_queue(long is_thread)
 	struct twix_conn *conn = twz_object_base(&state_object);
 	conn->bid = bid;
 	conn->qid = qid;
+	// debug_printf(
+	//  "resetup objects: " IDFMT " " IDFMT " " IDFMT "\n", IDPR(stateid), IDPR(bid), IDPR(qid));
 
 	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
 		abort();
@@ -261,6 +263,8 @@ void resetup_queue(long is_thread)
 	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
 		abort();
 
+	twz_object_tie_guid(twz_object_guid(&conn->cmdqueue), stateid, 0);
+	twz_object_delete_guid(stateid, 0);
 	userver.ok = true;
 	userver.inited = true;
 	// debug_printf("AFTER SETUP %p\n", userver.api.hdr);
@@ -286,7 +290,6 @@ static bool setup_queue(void)
 			return false;
 		}
 		int r = twix_open_queue(&userver.api, 0, &qid, &bid);
-		debug_printf("WE OPENED A THING!\n");
 		if(r) {
 			return false;
 		}
@@ -486,7 +489,6 @@ long hook_mmap(struct syscall_args *args)
 		return tqe.ret;
 	extract_bufdata(&id, sizeof(id), 0);
 	/* TODO: tie object */
-	// twix_log("twix_v2_mmap: " IDFMT "\n", IDPR(id));
 
 	if(slot == -1) {
 		slot = __twix_mmap_get_slot();

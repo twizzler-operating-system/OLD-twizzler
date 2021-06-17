@@ -208,7 +208,7 @@ static struct object *fault_get_object(uintptr_t vaddr)
 #include <thread.h>
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
-#if 1
+#if 0
 	printk("objspace fault entry th %ld: %lx %lx %lx %x\n",
 	  current_thread ? current_thread->id : -1,
 	  ip,
@@ -234,7 +234,7 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 	if(!obj) {
 		panic("A :userspace fault to object not mapped");
 	}
-#if 1
+#if 0
 	printk("%ld :: %x fault object: " IDFMT " (%d)\n",
 	  current_thread->id,
 	  flags,

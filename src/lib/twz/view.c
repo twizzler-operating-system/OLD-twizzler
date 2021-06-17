@@ -35,7 +35,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	if(flags & VE_WRITE) {
 		flags &= ~VE_EXEC;
 	}
-	atomic_store(&ves[slot].flags, flags | VE_VALID);
+	atomic_store(&ves[slot].flags, flags | (target == 0 ? 0 : VE_VALID));
 
 #if 0
 	twzobj vo;

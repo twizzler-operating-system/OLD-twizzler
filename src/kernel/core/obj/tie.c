@@ -70,7 +70,7 @@ void obj_tie_free(struct object *obj)
 		next = rb_next(n);
 
 		struct object_tie *tie = rb_entry(n, struct object_tie, node);
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 0
 		printk("UNTIE object " IDFMT " from " IDFMT " (%d)\n",
 		  IDPR(tie->child->id),
 		  IDPR(obj->id),

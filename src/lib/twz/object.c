@@ -314,6 +314,7 @@ int twz_object_init_name(twzobj *obj, const char *name, uint32_t flags)
 EXTERNAL
 void twz_object_release(twzobj *obj)
 {
+	/* TODO: A -- if the object was deleted, then do the invalidation NOW */
 	if(obj->flags & TWZ_OBJ_NORELEASE) {
 		libtwz_panic("tried to release an object marked no-release-needed");
 	}

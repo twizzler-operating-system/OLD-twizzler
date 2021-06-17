@@ -150,6 +150,13 @@ void obj_assign_id(struct object *obj, objid_t id)
 
 struct object *obj_lookup(uint128_t id, int flags)
 {
+#if 0
+	if(current_thread && current_thread->id > 10) {
+		printk("==> " IDFMT "\n", IDPR(id));
+		debug_print_backtrace();
+	}
+#endif
+
 	spinlock_acquire_save(&objlock);
 	struct rbnode *node = rb_search(&obj_tree, id, struct object, node, __obj_compar_key);
 
@@ -250,11 +257,11 @@ struct slot *obj_alloc_slot(struct object *obj)
 static void _obj_release(void *_obj)
 {
 	struct object *obj = _obj;
-#if CONFIG_DEBUG_OBJECT_LIFE || 1
-	printk("OBJ RELEASE: " IDFMT "\n", IDPR(obj->id));
+#if CONFIG_DEBUG_OBJECT_LIFE || 0
+	printk("OBJ RELEASE: " IDFMT " (%d)\n", IDPR(obj->id), obj->kso_type);
 #endif
 	if(obj->flags & OF_DELETE) {
-#if CONFIG_DEBUG_OBJECT_LIFE || 1
+#if CONFIG_DEBUG_OBJECT_LIFE || 0
 		printk("FINAL DELETE object " IDFMT "\n", IDPR(obj->id));
 #endif
 

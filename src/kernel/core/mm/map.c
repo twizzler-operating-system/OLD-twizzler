@@ -92,6 +92,8 @@ void vm_context_free(struct vm_context *ctx)
 	struct kso_view *view = object_get_kso_data_checked(ctx->viewobj, KSO_VIEW);
 	assert(view);
 	list_remove(&ctx->entry);
+	// printk("vm_context_free: " IDFMT ": %ld\n", IDPR(ctx->viewobj->id),
+	// ctx->viewobj->refs.count);
 	obj_put(ctx->viewobj);
 	slabcache_free(&sc_vm_context, ctx, NULL);
 }
@@ -312,6 +314,8 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 	t->ctx->viewobj = viewobj;
 	spinlock_release_restore(&viewobj->lock);
 
+	// printk("set view: " IDFMT ": %ld\n", IDPR(viewobj->id), viewobj->refs.count);
+
 	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 		if(t->backup_views[i].id == 0) {
 			t->backup_views[i].id = viewobj->id;
@@ -351,6 +355,7 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 		for(; node && slot_start < slot_end; node = next) {
 			next = rb_next(node);
 			struct vmap *vmap = rb_entry(node, struct vmap, node);
+			// printk("invl " IDFMT "\n", IDPR(vmap->obj->id));
 			if(vmap->slot < slot_end) {
 				vm_context_remove_vmap(ctx, vmap);
 				arch_mm_virtual_invalidate(

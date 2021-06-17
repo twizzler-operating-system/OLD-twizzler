@@ -67,11 +67,13 @@ struct range *object_add_range(struct object *obj,
   size_t off)
 {
 	struct range *r = slabcache_alloc(&sc_range, NULL);
+#if 0
 	if(current_thread) {
 		printk("alloc new range: " IDFMT " %ld\n", IDPR(obj->id), start);
 		// debug_print_backtrace();
 		// debug_print_backtrace_userspace();
 	}
+#endif
 
 	r->pv = pv;
 	r->obj = obj;
@@ -95,11 +97,13 @@ void range_toss(struct range *range)
 {
 	if(range->pv) {
 		list_remove(&range->entry);
+#if 0
 		printk("  range %ld %ld %ld: %ld\n",
 		  range->start,
 		  range->pv_offset,
 		  range->len,
 		  range->pv->refs);
+#endif
 		range->pv->refs--;
 		if(range->pv->refs == 0) {
 			pagevec_free(range->pv);
