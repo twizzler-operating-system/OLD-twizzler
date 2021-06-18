@@ -64,7 +64,9 @@ static inline void *vector_pop(struct vector *vec)
 {
 	if(vec->length == 0)
 		return NULL;
-	return vector_get(vec, --vec->length);
+	void *ret = vector_get(vec, vec->length - 1);
+	vec->length--;
+	return ret;
 }
 
 #define vector_foreach(x, i, v) for(size_t i = 0, void *x = NULL; x = vector_get(v, i); i++)

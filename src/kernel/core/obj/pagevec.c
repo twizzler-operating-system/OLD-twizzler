@@ -19,6 +19,7 @@ static void __pagevec_ctor(void *d __unused, void *obj)
 static void __pagevec_dtor(void *d __unused, void *obj)
 {
 	struct pagevec *pv = obj;
+	assert(list_empty(&pv->ranges));
 	vector_destroy(&pv->pages);
 }
 
@@ -32,6 +33,8 @@ static DECLARE_SLABCACHE(sc_pagevec,
 
 void pagevec_combine(struct pagevec *a, struct pagevec *b)
 {
+	panic("A");
+	// TODO: make sure we free b or something
 	assert(a->refs <= 1 && b->refs <= 1);
 	vector_concat(&a->pages, &b->pages);
 }
@@ -71,10 +74,10 @@ void pagevec_free(struct pagevec *pv)
 	while((r = vector_pop(&pv->pages))) {
 		struct page_entry *entry = r;
 		if(entry->page) {
-			printk("freeing page!\n");
 			mm_page_free(entry->page);
 		}
 	}
+	slabcache_free(&sc_pagevec, pv, NULL);
 }
 
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)

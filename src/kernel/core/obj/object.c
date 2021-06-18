@@ -272,21 +272,25 @@ static void _obj_release(void *_obj)
 		assert(rb_empty(&obj->ties_root));
 
 		struct rbnode *next;
+		/* TODO: we could collect all the nodes in a vector, reset the tree, and then free() them,
+		 * that way we don't need to call rb_delete for each one */
 		for(struct rbnode *node = rb_first(&obj->range_tree); node; node = next) {
 			next = rb_next(node);
 			struct range *range = rb_entry(node, struct range, node);
 			range_toss(range);
+			rb_delete(node, &obj->range_tree);
 			range_free(range);
 		}
 
 		for(struct rbnode *node = rb_first(&obj->omap_root); node; node = next) {
 			next = rb_next(node);
 			struct omap *omap = rb_entry(node, struct omap, objnode);
+			rb_delete(node, &obj->omap_root);
 			omap_free(omap);
 		}
 
-		obj->omap_root = RBINIT;
-		obj->range_tree = RBINIT;
+		assert(rb_empty(&obj->range_tree));
+		assert(rb_empty(&obj->omap_root));
 
 		if(obj->kso_type != KSO_NONE) {
 			if(obj->kso_calls && obj->kso_calls->dtor) {

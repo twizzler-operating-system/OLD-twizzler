@@ -84,7 +84,9 @@ struct range *object_add_range(struct object *obj,
 		pv->refs++;
 		list_insert(&pv->ranges, &r->entry);
 	}
-	rb_insert(&obj->range_tree, r, struct range, node, __range_compar);
+	if(!rb_insert(&obj->range_tree, r, struct range, node, __range_compar)) {
+		panic("tried to overwrite object range");
+	}
 	return r;
 }
 
@@ -96,6 +98,9 @@ void range_cut_half(struct range *range, size_t len)
 void range_toss(struct range *range)
 {
 	if(range->pv) {
+#if CONFIG_DEBUG
+		assert(list_len(&range->entry) == range->pv->refs);
+#endif
 		list_remove(&range->entry);
 #if 0
 		printk("  range %ld %ld %ld: %ld\n",
@@ -117,6 +122,12 @@ struct range *range_split(struct range *range, size_t rp)
 	// printk("A split range %ld %ld %ld %ld\n", range->start, range->len, range->pv_offset, rp);
 	assert(rp < range->len);
 
+	if(rp == 0) {
+		range->len = 1;
+	} else {
+		range->len = rp;
+	}
+
 	if(rp != range->len - 1) {
 		/* new range for the last part */
 		object_add_range(range->obj,
@@ -129,10 +140,8 @@ struct range *range_split(struct range *range, size_t rp)
 	if(rp > 0) {
 		struct range *newrange =
 		  object_add_range(range->obj, range->pv, range->start + rp, 1, range->pv_offset + rp);
-		range->len = rp;
 		return newrange;
 	} else {
-		range->len = 1;
 		return range;
 	}
 }

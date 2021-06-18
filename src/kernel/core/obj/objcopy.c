@@ -49,10 +49,13 @@ static size_t cow_range(struct object *dest,
 	}
 
 	assert(srcrange->pv->refs > 0);
+	assert(dstrange->pv == NULL);
 	srcrange->pv->refs++;
 	dstrange->pv = srcrange->pv;
 	dstrange->pv_offset = srcrange->pv_offset + srcoff;
 	list_insert(&dstrange->pv->ranges, &dstrange->entry);
+
+	assert(list_len(&dstrange->pv->ranges) == dstrange->pv->refs);
 
 	// struct page_entry *p = vector_get(&srcrange->pv->pages, 0);
 	// printk(":: %p %lx\n", dstrange, p && p->page ? p->page->addr : 0);
