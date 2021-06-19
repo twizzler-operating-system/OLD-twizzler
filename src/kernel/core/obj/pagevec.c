@@ -1,6 +1,7 @@
 #include <object.h>
 #include <page.h>
 #include <slab.h>
+#include <spinlock.h>
 
 static void __pagevec_init(void *d __unused, void *obj)
 {
@@ -80,12 +81,24 @@ void pagevec_free(struct pagevec *pv)
 	slabcache_free(&sc_pagevec, pv, NULL);
 }
 
+void pagevec_lock(struct pagevec *pv)
+{
+	spinlock_acquire_save(&pv->lock);
+}
+
+void pagevec_unlock(struct pagevec *pv)
+{
+	spinlock_release_restore(&pv->lock);
+}
+
 void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page)
 {
 	struct page_entry ne = {
 		.page = page,
 	};
+	spinlock_acquire_save(&pv->lock);
 	vector_set_grow(&pv->pages, idx, &ne);
+	spinlock_release_restore(&pv->lock);
 }
 
 int pagevec_get_page(struct pagevec *pv, size_t idx, struct page **page, int flags)

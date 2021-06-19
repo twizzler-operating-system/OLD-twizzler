@@ -282,6 +282,8 @@ bool arch_object_map_page(struct object *obj, size_t, struct page *, int);
 void pagevec_append_page(struct pagevec *pv, struct page *page);
 void pagevec_combine(struct pagevec *a, struct pagevec *b);
 struct pagevec *pagevec_new(void);
+void pagevec_lock(struct pagevec *);
+void pagevec_unlock(struct pagevec *);
 
 #define PAGE_MAP_COW 1
 

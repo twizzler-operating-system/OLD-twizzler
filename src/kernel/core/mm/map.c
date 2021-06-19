@@ -90,8 +90,10 @@ struct vm_context *vm_context_create(void)
 void vm_context_free(struct vm_context *ctx)
 {
 	struct kso_view *view = object_get_kso_data_checked(ctx->viewobj, KSO_VIEW);
+	struct rwlock_result res = rwlock_wlock(&ctx->viewobj->rwlock, 0);
 	assert(view);
 	list_remove(&ctx->entry);
+	rwlock_wunlock(&res);
 	// printk("vm_context_free: " IDFMT ": %ld\n", IDPR(ctx->viewobj->id),
 	// ctx->viewobj->refs.count);
 	obj_put(ctx->viewobj);
@@ -145,11 +147,24 @@ static void raise_fault()
 	panic("A");
 }
 
-struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, uintptr_t virt)
+static struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, uintptr_t virt)
 {
 	struct rbnode *node =
 	  rb_search(&ctx->root, virt / mm_objspace_region_size(), struct vmap, node, vmap_compar_key);
 	return node ? rb_entry(node, struct vmap, node) : NULL;
+}
+
+struct object *vm_context_lookup_object(struct vm_context *ctx, uintptr_t virt)
+{
+	struct object *obj = NULL;
+	spinlock_acquire_save(&ctx->lock);
+	struct vmap *vmap = vm_context_lookup_vmap(ctx, virt);
+	if(vmap) {
+		obj = vmap->obj;
+		krc_get(&obj->refs);
+	}
+	spinlock_release_restore(&ctx->lock);
+	return obj;
 }
 
 static void vm_context_add_vmap(struct vm_context *ctx, struct vmap *vmap)
@@ -309,10 +324,10 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 	krc_get(&viewobj->refs);
 	struct kso_view *kv = object_get_kso_data_checked(viewobj, KSO_VIEW);
 	/* TODO: better locking */
-	spinlock_acquire_save(&viewobj->lock);
+	struct rwlock_result res = rwlock_wlock(&viewobj->rwlock, 0);
 	list_insert(&kv->contexts, &t->ctx->entry);
 	t->ctx->viewobj = viewobj;
-	spinlock_release_restore(&viewobj->lock);
+	rwlock_wunlock(&res);
 
 	// printk("set view: " IDFMT ": %ld\n", IDPR(viewobj->id), viewobj->refs.count);
 
@@ -332,8 +347,10 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 		return true;
 	struct rwlock_result res = rwlock_rlock(&obj->rwlock, 0);
 	struct kso_view *view = object_get_kso_data_checked(obj, KSO_VIEW);
-	if(!view)
+	if(!view) {
+		rwlock_runlock(&res);
 		return false;
+	}
 
 	foreach(e, list, &view->contexts) {
 		struct vm_context *ctx = list_entry(e, struct vm_context, entry);

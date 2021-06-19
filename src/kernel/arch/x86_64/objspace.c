@@ -145,8 +145,6 @@ bool arch_objspace_region_map_page(struct objspace_region *region,
   uint64_t flags)
 {
 	assert(idx < 512);
-	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
-	table_realize(&region->arch.table);
 	/* TODO: do we want to ignore PAT? */
 	uint64_t mapflags = EPT_IGNORE_PAT;
 	mapflags |= (flags & MAP_READ) ? EPT_READ : 0;
@@ -171,6 +169,8 @@ bool arch_objspace_region_map_page(struct objspace_region *region,
 	if(flags & PAGE_MAP_COW)
 		mapflags &= ~EPT_WRITE;
 
+	struct rwlock_result res = rwlock_wlock(&region->arch.table.lock, 0);
+	table_realize(&region->arch.table);
 	bool ret = true;
 	if(region->arch.table.table[idx] == 0) {
 		region->arch.table.count++;
@@ -237,6 +237,7 @@ void arch_objspace_region_map(struct object_space *space,
 	mapflags |= (flags & MAP_WRITE) ? EPT_WRITE : 0;
 	mapflags |= (flags & MAP_EXEC) ? EPT_EXEC | (1 << 10) : 0;
 
+	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
 	table = table_get_next_level(
 	  table, pml4_idx, EPT_READ | EPT_WRITE | EPT_EXEC | (1 << 10), true, NULL);
 	table = table_get_next_level(
@@ -246,6 +247,7 @@ void arch_objspace_region_map(struct object_space *space,
 		table->count++;
 	table->table[pd_idx] = region->arch.table.phys | mapflags;
 	table->children[pd_idx] = &region->arch.table;
+	rwlock_wunlock(&res);
 }
 
 uintptr_t arch_mm_objspace_get_phys(struct object_space *space, uintptr_t oaddr)
@@ -267,6 +269,8 @@ void arch_mm_objspace_invalidate(struct object_space *space, uintptr_t start, si
 	if(space == NULL)
 		space = &_bootstrap_object_space;
 	x86_64_invvpid(start, len);
+	processor_send_ipi(
+	  PROCESSOR_IPI_DEST_OTHERS, PROCESSOR_IPI_SHOOTDOWN, NULL, PROCESSOR_IPI_NOWAIT);
 }
 
 void arch_object_space_init_bootstrap(struct object_space *space)

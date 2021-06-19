@@ -2,6 +2,7 @@
 
 struct rwlock {
 	_Atomic int32_t readers, writers;
+	void *_Atomic wowner;
 };
 
 #define RWLOCK_INIT                                                                                \
@@ -17,9 +18,11 @@ struct rwlock_result {
 	struct rwlock *lock;
 	int int_flag;
 	short res;
-	short write;
+	uint8_t write;
+	uint8_t recursed;
 };
 #define RWLOCK_TRY 1
+#define RWLOCK_RECURSE 2
 
 struct rwlock_result __rwlock_rlock(struct rwlock *rw, int flags, const char *, int);
 struct rwlock_result __rwlock_upgrade(struct rwlock_result *rr, int flags, const char *, int);

@@ -218,6 +218,7 @@ void table_map(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
+	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
 	// printk("mapp: %lx -> %lx %d\n", virt, phys, level);
 	table_realize(table);
 
@@ -242,6 +243,7 @@ void table_map(struct table_level *table,
 	// else
 	//	printk("replace: %lx\n", table->table[idx]);
 	table->table[idx] = phys | flags;
+	rwlock_wunlock(&res);
 }
 
 void table_unmap(struct table_level *table, uintptr_t virt, int flags)
@@ -252,8 +254,10 @@ void table_unmap(struct table_level *table, uintptr_t virt, int flags)
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 	int i;
+	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
 	for(i = 0; i < 4; i++) {
 		if(!table->table) {
+			rwlock_wunlock(&res);
 			return;
 		}
 		if(table->children[idxs[i]])
@@ -263,9 +267,11 @@ void table_unmap(struct table_level *table, uintptr_t virt, int flags)
 				table_remove_entry(table, idxs[i], !(flags & MAP_TABLE_PREALLOC));
 			}
 
+			rwlock_wunlock(&res);
 			return;
 		}
 	}
+	rwlock_wunlock(&res);
 }
 
 bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, int *level)
@@ -276,9 +282,11 @@ bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, i
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
+	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
 	int i;
 	for(i = 0; i < 4; i++) {
 		if(!table->table) {
+			rwlock_wunlock(&res);
 			return false;
 		}
 		if(table->children[idxs[i]])
@@ -288,9 +296,11 @@ bool table_readmap(struct table_level *table, uintptr_t virt, uint64_t *entry, i
 				*entry = table->table[idxs[i]];
 			if(level)
 				*level = 3 - i;
+			rwlock_wunlock(&res);
 			return true;
 		}
 	}
+	rwlock_wunlock(&res);
 	return false;
 }
 
@@ -306,18 +316,23 @@ void table_premap(struct table_level *table,
 	int pt_idx = PT_IDX(virt);
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
+	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
 	table_realize(table);
 
 	int i;
 	for(i = 0; i < (3 - level); i++) {
 		table = table_get_next_level(table, idxs[i], table_flags, ospace, NULL);
 	}
+	rwlock_wunlock(&res);
 }
 
 void table_print_recur(struct table_level *table, int level, int indent, uintptr_t off)
 {
-	if(!table->table)
+	struct rwlock_result res = rwlock_rlock(&table->lock, RWLOCK_RECURSE);
+	if(!table->table) {
+		rwlock_runlock(&res);
 		return;
+	}
 	assert(level >= 0);
 	for(int i = 0; i < 512; i++) {
 		uintptr_t co = off + ((level < 3) ? mm_page_size(level) : mm_page_size(2) * 512) * i;
@@ -342,4 +357,5 @@ void table_print_recur(struct table_level *table, int level, int indent, uintptr
 			assert(((table->table[i] & PAGE_LARGE) != 0) || level == 0 || table->table[i] == 0);
 		}
 	}
+	rwlock_runlock(&res);
 }

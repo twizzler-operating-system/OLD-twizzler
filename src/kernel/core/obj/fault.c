@@ -201,8 +201,7 @@ static void __op_fault_callback(struct object *obj,
 
 static struct object *fault_get_object(uintptr_t vaddr)
 {
-	struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, vaddr);
-	return vmap ? vmap->omap->obj : NULL;
+	return vm_context_lookup_object(current_thread->ctx, vaddr);
 }
 
 #include <thread.h>
@@ -227,7 +226,11 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 		//	table_print_recur(&current_thread->active_sc->space->arch.root, 3, 0, 0);
 		// table_print_recur(&_bootstrap_object_space.arch.root, 3, 0, 0);
 		arch_objspace_print_mapping(NULL, loaddr);
-		panic("object space fault to kernel memory");
+		panic("object space fault to kernel memory (oaddr=%lx, vaddr=%lx, flags=%x, ip=%lx)",
+		  loaddr,
+		  vaddr,
+		  flags,
+		  ip);
 	}
 
 	struct object *obj = fault_get_object(vaddr);
@@ -246,6 +249,7 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 	if(pagenr == 0) {
 		struct fault_null_info info = twz_fault_build_null_info((void *)ip, (void *)vaddr);
 		thread_raise_fault(current_thread, FAULT_NULL, &info, sizeof(info));
+		obj_put(obj);
 		return;
 	}
 
@@ -254,102 +258,7 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 		opflags |= OP_LP_DO_COPY;
 	}
 	object_operate_on_locked_page(obj, pagenr, opflags, __op_fault_callback, NULL);
-	// arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0);
-	// asm volatile("mov %%cr3, %%rax; mov %%rax, %%cr3" ::: "rax", "memory");
-
-#if 0
-	size_t idx = (loaddr % mm_page_size(MAX_PGLEVEL)) / mm_page_size(0);
-	if(idx == 0 && !VADDR_IS_KERNEL(vaddr)) {
-		struct fault_null_info info = twz_fault_build_null_info((void *)ip, (void *)vaddr);
-		thread_raise_fault(current_thread, FAULT_NULL, &info, sizeof(info));
-		return;
-	}
-
-	struct slot *slot;
-	struct object *o = obj_lookup_slot(loaddr, &slot);
-
-	if(o == NULL) {
-		panic(
-		  "no object mapped to slot during object fault: vaddr=%lx, oaddr=%lx, ip=%lx, slot=%ld",
-		  vaddr,
-		  loaddr,
-		  ip,
-		  loaddr / OBJ_MAXSIZE);
-	}
-
-	uint64_t perms = 0;
-	uint64_t existing_flags;
-
-	bool do_map = !arch_object_getmap_slot_flags(NULL, slot, &existing_flags);
-	do_map = do_map || (existing_flags & flags) != flags;
-
-	if(do_map) {
-		if(!VADDR_IS_KERNEL(vaddr) && !(o->flags & OF_KERNEL)) {
-			if(o->flags & OF_PAGER) {
-				perms = OBJSPACE_READ | OBJSPACE_WRITE | OBJSPACE_EXEC_U;
-			} else {
-				if(!__objspace_fault_calculate_perms(o, flags, loaddr, vaddr, ip, &perms)) {
-					goto done;
-				}
-			}
-			perms &= (OBJSPACE_READ | OBJSPACE_WRITE | OBJSPACE_EXEC_U);
-		} else {
-			perms = OBJSPACE_READ | OBJSPACE_WRITE;
-		}
-		if((flags & perms) != flags) {
-			panic("TODO: this mapping will never work");
-		}
-
-		spinlock_acquire_save(&slot->lock);
-		if(!arch_object_getmap_slot_flags(NULL, slot, &existing_flags)) {
-			object_space_map_slot(NULL, slot, perms);
-		} else if((existing_flags & flags) != flags) {
-			arch_object_map_slot(NULL, o, slot, perms);
-		}
-		spinlock_release_restore(&slot->lock);
-	}
-
-	struct rwlock_result rwres = rwlock_rlock(&o->rwlock, 0);
-	struct range *range = object_find_range(o, idx);
-	if(!range) {
-		rwres = rwlock_upgrade(&rwres, 0);
-		size_t off;
-		struct pagevec *pv = object_new_pagevec(o, idx, &off);
-		range = object_add_range(o, pv, idx, pagevec_len(pv) - off, off);
-		rwres = rwlock_downgrade(&rwres);
-	}
-
-	size_t pvidx = range_pv_idx(range, idx);
-
-	struct page *page;
-	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
-
-	if(ret == GET_PAGE_BLOCK) {
-		/* TODO: return a "def resched" thing */
-	} else {
-		int mapflags = 0;
-		if(range->pv->refs > 1) {
-			if(flags & OBJSPACE_FAULT_WRITE) {
-				rwres = rwlock_upgrade(&rwres, 0);
-				range = range_split(range, idx - range->start);
-				range_clone(range);
-				rwres = rwlock_downgrade(&rwres);
-
-				ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
-				assert(ret == 0);
-			} else {
-				flags |= PAGE_MAP_COW;
-			}
-		}
-		arch_object_map_page(o, idx, page, mapflags);
-	}
-
-	rwlock_runlock(&rwres);
-
-done:
-	obj_put(o);
-	slot_release(slot);
-#endif
+	obj_put(obj);
 }
 
 void object_insert_page(struct object *obj, size_t pagenr, struct page *page)
@@ -399,9 +308,10 @@ int object_operate_on_locked_page(struct object *obj,
 	}
 
 	size_t pvidx = range_pv_idx(range, pagenr);
-	// printk("op %p : %ld %ld\n", range, range->start, pvidx);
 
 	struct page *page;
+	struct pagevec *locked_pv = range->pv;
+	pagevec_lock(locked_pv);
 	int ret = pagevec_get_page(range->pv, pvidx, &page, GET_PAGE_BLOCK);
 
 	if(ret == GET_PAGE_BLOCK) {
@@ -413,6 +323,9 @@ int object_operate_on_locked_page(struct object *obj,
 				rwres = rwlock_upgrade(&rwres, 0);
 				range = range_split(range, pagenr - range->start);
 				range_clone(range);
+				pagevec_unlock(locked_pv);
+				locked_pv = range->pv;
+				pagevec_lock(locked_pv);
 				rwres = rwlock_downgrade(&rwres);
 
 				pvidx = range_pv_idx(range, pagenr);
@@ -424,6 +337,7 @@ int object_operate_on_locked_page(struct object *obj,
 		}
 		fn(obj, pagenr, page, data, cb_fl);
 	}
+	pagevec_unlock(range->pv);
 
 	rwlock_runlock(&rwres);
 

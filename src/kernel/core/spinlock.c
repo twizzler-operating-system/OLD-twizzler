@@ -50,9 +50,18 @@ int __spinlock_try_acquire(struct spinlock *lock, const char *f __unused, int l 
 	return set ? 3 : 1;
 }
 
-bool __spinlock_acquire(struct spinlock *lock, const char *f __unused, int l __unused)
+bool __spinlock_acquire(struct spinlock *lock, int flags, const char *f __unused, int l __unused)
 {
 	register bool set = arch_interrupt_set(0);
+
+	if(!set && (flags & 1) && lock->owner && lock->recur_count > 0) {
+		void *p = processor_get_current();
+		if(p && lock->owner == p) {
+			lock->recur_count++;
+			return false;
+		}
+	}
+
 	long long a = krdtsc();
 
 	uint32_t our_ticket = atomic_fetch_add(&lock->next_ticket, 1);
@@ -119,6 +128,13 @@ bool __spinlock_acquire(struct spinlock *lock, const char *f __unused, int l __u
 
 	lock->holder = our_ticket;
 
+	lock->owner = processor_get_current();
+	if(flags & 1) {
+		lock->recur_count = 1;
+	} else {
+		lock->recur_count = 0;
+	}
+
 	long long b = krdtsc();
 	if(b - a > 1000000 && f) {
 		// printk("LONG WAIT: %s %d :: %ld\n", f, l, b - a);
@@ -138,6 +154,13 @@ void __spinlock_release(struct spinlock *lock, bool flags, const char *f, int l)
 	lock->holder_line = 0;
 	lock->holder_thread = NULL;
 #endif
+	if(lock->owner && lock->recur_count) {
+		lock->recur_count--;
+		if(lock->recur_count > 0)
+			return;
+	}
+	lock->owner = NULL;
+	lock->recur_count = 0;
 	// atomic_store_explicit(&lock->data, 0, memory_order_release);
 	uint32_t hold = atomic_load(&lock->holder);
 	uint32_t cur = atomic_fetch_add(&lock->current_ticket, 1);

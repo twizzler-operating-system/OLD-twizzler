@@ -21,7 +21,8 @@ void mutex_acquire(struct mutex *m)
 			atomic_store(&m->sleep, 0);
 			atomic_store(&m->resetcode, _twz_rcode);
 		} else {
-			debug_printf("waiting for lock busting? %lx %lx\n", m->resetcode, _twz_rcode);
+			debug_printf(
+			  "waiting for lock busting? %lx %lx %lx\n", m->resetcode, _twz_rcode, m->sleep);
 			while(atomic_load(&m->resetcode) == ~0ul)
 				asm("pause");
 		}

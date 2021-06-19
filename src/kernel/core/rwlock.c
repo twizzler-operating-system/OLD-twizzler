@@ -1,4 +1,5 @@
 #include <interrupt.h>
+#include <processor.h>
 #include <rwlock.h>
 #include <stdatomic.h>
 
@@ -145,6 +146,17 @@ struct rwlock_result __rwlock_wlock(struct rwlock *rw, int flags, const char *fi
 	printk("trying to get write lock %p: %s:%d\n", rw, file, line);
 #endif
 	register int set = arch_interrupt_set(0);
+	if(!set && rw->writers > 0 && (flags & RWLOCK_RECURSE)
+	   && rw->wowner == processor_get_current()) {
+		struct rwlock_result res = {
+			.lock = rw,
+			.int_flag = set,
+			.res = RWLOCK_GOT,
+			.write = 1,
+			.recursed = 1,
+		};
+		return res;
+	}
 	uint32_t tries = 0;
 	while(1) {
 		if(atomic_fetch_add(&rw->writers, 1)) {
@@ -175,6 +187,7 @@ struct rwlock_result __rwlock_wlock(struct rwlock *rw, int flags, const char *fi
 		.res = RWLOCK_GOT,
 		.write = 1,
 	};
+	rw->wowner = processor_get_current();
 	assert(rw->readers >= 0 && rw->writers > 0);
 	return res;
 
@@ -196,6 +209,9 @@ void __rwlock_wunlock(struct rwlock_result *rr, const char *file, int line)
 #endif
 	assert(rr->write);
 	assert(rr->lock->writers > 0);
+	if(rr->recursed)
+		return;
+	rr->lock->wowner = NULL;
 	atomic_fetch_sub(&rr->lock->writers, 1);
 	arch_interrupt_set(rr->int_flag);
 }

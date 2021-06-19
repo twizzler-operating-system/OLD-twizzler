@@ -419,7 +419,7 @@ __noinstrument void debug_puts(char *s)
 	instrument_disable();
 #endif
 
-	bool fl = __spinlock_acquire(&_lock, NULL, 0);
+	bool fl = __spinlock_acquire(&_lock, 1, NULL, 0);
 	while(*s) {
 		serial_putc(*s);
 		if(*s == '\n')

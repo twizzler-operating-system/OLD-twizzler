@@ -62,12 +62,12 @@ static struct page *get_new_page_struct(void)
 			pages[i] = &pg[i];
 		}
 		/* TODO A: can we avoid recusion in here */
-		spinlock_release_restore(&lock);
+		//	spinlock_release_restore(&lock);
 		mm_objspace_kernel_fill(oaddr,
 		  pages,
 		  INITIAL_ALLOC_PAGES,
 		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
-		spinlock_acquire_save(&lock);
+		//	spinlock_acquire_save(&lock);
 		// printk("done: new page page (%p %lx)\n", &allpages[next_page], oaddr);
 	}
 
@@ -90,7 +90,7 @@ struct page *mm_page_fake_create(uintptr_t phys, int flags)
 	if(phys > 0xffff000000000000ul) {
 		panic("A what2");
 	}
-	spinlock_acquire_save(&lock);
+	spinlock_acquire_save_recur(&lock);
 	struct page *page = get_new_page_struct();
 	spinlock_release_restore(&lock);
 	page->addr = phys;
@@ -229,7 +229,7 @@ void mm_page_free(struct page *page)
 
 struct page *mm_page_alloc(int flags)
 {
-	spinlock_acquire_save(&lock);
+	spinlock_acquire_save_recur(&lock);
 	struct page *page = __do_mm_page_alloc(flags);
 	spinlock_release_restore(&lock);
 	if((flags & PAGE_ZERO) && !(page->flags & PAGE_ZERO)) {
@@ -243,7 +243,7 @@ struct page *mm_page_alloc(int flags)
 
 uintptr_t mm_page_alloc_addr(int flags)
 {
-	spinlock_acquire_save(&lock);
+	spinlock_acquire_save_recur(&lock);
 	void *p = __do_mm_page_alloc(flags | PAGE_ADDR);
 	spinlock_release_restore(&lock);
 	if(flags & PAGE_ZERO) {

@@ -10,11 +10,6 @@ void kernel_main(struct processor *);
 
 static struct processor processors[PROCESSOR_MAX_CPUS];
 
-__noinstrument struct processor *processor_get_current(void)
-{
-	return &processors[arch_processor_current_id()];
-}
-
 static struct processor *proc_bsp = NULL;
 static _Atomic unsigned int processor_count = 0;
 extern int initial_boot_stack;
@@ -22,6 +17,14 @@ extern int kernel_data_percpu_load;
 extern int kernel_data_percpu_length;
 
 void *bsp_percpu_region = NULL;
+
+__noinstrument struct processor *processor_get_current(void)
+{
+	int64_t id = arch_processor_current_id();
+	if(id == -1)
+		return NULL;
+	return &processors[arch_processor_current_id()];
+}
 
 void processor_early_init(void)
 {

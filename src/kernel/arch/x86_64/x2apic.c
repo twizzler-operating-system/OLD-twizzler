@@ -47,6 +47,8 @@
 #define LAPIC_TCCR 0x839
 #define LAPIC_TDCR 0x83E
 
+static bool lapic_ready = false;
+
 __noinstrument static inline void x2apic_write(uint32_t reg, uint64_t data)
 {
 	uint32_t lo = (uint32_t)data;
@@ -81,8 +83,10 @@ for(int i=0;i<8;i++) {
 #endif
 }
 
-__noinstrument unsigned int arch_processor_current_id(void)
+__noinstrument int64_t arch_processor_current_id(void)
 {
+	if(!lapic_ready)
+		return -1;
 	/* TODO: is this right? */
 	// return x2apic_read(LAPIC_LDR);
 	return x2apic_read(LAPIC_ID);
@@ -290,6 +294,7 @@ void x86_64_lapic_init_percpu(void)
 	lo |= X86_MSR_APIC_BASE_ENABLE | X86_MSR_APIC_BASE_X2MODE;
 	x86_64_wrmsr(X86_MSR_APIC_BASE, lo, hi);
 	lapic_configure(lo & X86_MSR_APIC_BASE_BSP);
+	lapic_ready = true;
 }
 
 static void x86_64_apic_send_ipi(unsigned char dest_shorthand, unsigned int dst, unsigned int v)
