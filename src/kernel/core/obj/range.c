@@ -67,22 +67,16 @@ struct range *object_add_range(struct object *obj,
   size_t off)
 {
 	struct range *r = slabcache_alloc(&sc_range, NULL);
-#if 0
-	if(current_thread) {
-		printk("alloc new range: " IDFMT " %ld\n", IDPR(obj->id), start);
-		// debug_print_backtrace();
-		// debug_print_backtrace_userspace();
-	}
-#endif
-
 	r->pv = pv;
 	r->obj = obj;
 	r->pv_offset = off;
 	r->len = len;
 	r->start = start;
 	if(pv) {
+		pagevec_lock(pv);
 		pv->refs++;
 		list_insert(&pv->ranges, &r->entry);
+		pagevec_unlock(pv);
 	}
 	if(!rb_insert(&obj->range_tree, r, struct range, node, __range_compar)) {
 		panic("tried to overwrite object range");
@@ -98,6 +92,7 @@ void range_cut_half(struct range *range, size_t len)
 void range_toss(struct range *range)
 {
 	if(range->pv) {
+		pagevec_lock(range->pv);
 #if CONFIG_DEBUG
 		assert(list_len(&range->entry) == range->pv->refs);
 #endif
@@ -111,8 +106,10 @@ void range_toss(struct range *range)
 #endif
 		range->pv->refs--;
 		if(range->pv->refs == 0) {
+			pagevec_unlock(range->pv);
 			pagevec_free(range->pv);
-		}
+		} else
+			pagevec_unlock(range->pv);
 		range->pv = NULL;
 	}
 }

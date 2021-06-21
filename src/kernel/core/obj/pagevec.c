@@ -83,7 +83,7 @@ void pagevec_free(struct pagevec *pv)
 
 void pagevec_lock(struct pagevec *pv)
 {
-	spinlock_acquire_save(&pv->lock);
+	spinlock_acquire_save_recur(&pv->lock);
 }
 
 void pagevec_unlock(struct pagevec *pv)
