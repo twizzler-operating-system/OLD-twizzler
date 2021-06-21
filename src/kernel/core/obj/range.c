@@ -41,13 +41,13 @@ struct range *object_find_next_range(struct object *obj, size_t pagenr)
 		struct range *range = rb_entry(_node, struct range, node);
 
 		if(range->start > pagenr) {
-			_node = _node->right;
-		} else if(range->start <= pagenr && pagenr < range->start + range->len) {
-			return range;
-		} else {
 			if(!best || range->start < best->start)
 				best = range;
 			_node = _node->left;
+		} else if(range->start <= pagenr && pagenr < range->start + range->len) {
+			return range;
+		} else {
+			_node = _node->right;
 		}
 	}
 	return best;

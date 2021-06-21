@@ -1,3 +1,4 @@
+#include <clksrc.h>
 #include <lib/rb.h>
 #include <memory.h>
 #include <object.h>
@@ -164,10 +165,13 @@ static void object_invalidate(struct object *obj, size_t pagenr, size_t pgcount)
 
 void object_copy(struct object *dest, struct object_copy_spec *specs, size_t count)
 {
+	// long long a = clksrc_get_nanoseconds();
 	/* TODO: when discovering an empty srcrange, need to create one and a dummy pagevec to share */
 	struct rwlock_result dres = rwlock_wlock(&dest->rwlock, 0);
+	size_t nrpages = 0;
 	for(size_t i = 0; i < count; i++) {
 		struct object_copy_spec *spec = &specs[i];
+		nrpages += specs[i].length;
 
 		if(!spec->src) {
 			panic("A");
@@ -192,10 +196,8 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 			if(!srcrange) {
 				/* TODO: verify */
 				/* TODO: A */
-				// printk("TODO: do the 'next range' opt\n");
-				j++;
-				continue;
 				srcrange = object_find_next_range(spec->src, srcpg);
+				assert(srcrange->start > srcpg);
 				if(!srcrange || (srcrange->start >= srcpg + rem)) {
 					j += rem;
 					continue;
@@ -215,4 +217,6 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 	/* TODO: A */
 	arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0);
 	rwlock_wunlock(&dres);
+	// long long b = clksrc_get_nanoseconds();
+	// printk("ocopy %lld (%ld)\n", (b - a) / 1000, nrpages);
 }
