@@ -80,6 +80,7 @@ static void _sp_release(void *_sp)
 	struct object *obj = sp->obj;
 	sp->obj = NULL;
 	obj_put(obj);
+	assert(list_empty(&sp->waiters));
 	slabcache_free(&sc_syncpoint, sp, NULL);
 }
 

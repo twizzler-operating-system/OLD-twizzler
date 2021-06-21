@@ -26,6 +26,7 @@ struct mutex {
 static inline void mutex_init(struct mutex *m)
 {
 	atomic_store(&m->sleep, 0);
+	atomic_store(&m->resetcode, 0);
 }
 
 void mutex_acquire(struct mutex *m);

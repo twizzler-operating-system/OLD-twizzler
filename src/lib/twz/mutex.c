@@ -1,5 +1,6 @@
 #include <twz/debug.h>
 #include <twz/mutex.h>
+#include <twz/obj.h>
 #include <twz/sys/sys.h>
 
 _Atomic uint64_t _twz_rcode = 0;
@@ -22,11 +23,6 @@ void mutex_acquire(struct mutex *m)
 			atomic_store(&m->sleep, 0);
 			atomic_store(&m->resetcode, _twz_rcode);
 		} else {
-			debug_printf("waiting for lock busting? %lx %lx %lx (%lx)\n",
-			  m->resetcode,
-			  _twz_rcode,
-			  m->sleep,
-			  value);
 			while(atomic_load(&m->resetcode) == ~0ul)
 				asm("pause");
 		}
