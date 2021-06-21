@@ -18,6 +18,7 @@
 
 static void thread_resume(struct thread *thr, uint64_t timeout)
 {
+	thread_onresume_clear_other_sleeps(thr);
 	arch_thread_resume(thr, timeout);
 }
 

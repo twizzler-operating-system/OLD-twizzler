@@ -149,7 +149,9 @@ void __spinlock_release(struct spinlock *lock, bool flags, const char *f, int l)
 	(void)l;
 	/* TODO: when not debugging locks, dont have these arguments */
 #if CONFIG_DEBUG_LOCKS
-	assert(lock->holder_thread == current_thread);
+	if(lock->owner != processor_get_current()) {
+		panic("diff in holder: %p %p\n", lock->holder_thread, current_thread);
+	}
 	lock->holder_file = NULL;
 	lock->holder_line = 0;
 	lock->holder_thread = NULL;

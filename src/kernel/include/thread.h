@@ -4,6 +4,7 @@
 #include <lib/inthash.h>
 #include <lib/list.h>
 #include <memory.h>
+#include <spinlock.h>
 #include <thread-bits.h>
 #include <time.h>
 #include <workqueue.h>
@@ -29,11 +30,10 @@ struct thread_become_frame {
 	struct object *view;
 };
 
+struct thread_list;
 struct sleep_entry {
-	struct thread *thr;
+	struct thread_list *tl;
 	struct syncpoint *sp;
-	struct list entry;
-	bool active;
 };
 
 struct thread_sctx_entry {
@@ -132,3 +132,4 @@ uintptr_t arch_thread_instruction_pointer(void);
 void thread_free_become_frame(struct thread_become_frame *frame);
 void arch_thread_print_info(struct thread *t);
 uintptr_t arch_thread_base_pointer(void);
+void thread_onresume_clear_other_sleeps(struct thread *);

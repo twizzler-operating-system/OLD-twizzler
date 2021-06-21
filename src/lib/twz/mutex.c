@@ -16,13 +16,17 @@ void mutex_acquire(struct mutex *m)
 		/* might need to bust the lock. Make sure everyone still comes in here until we're done by
 		 * changing the resetcode to -1. If we exchange and get 1, we wait. If we don't get -1,
 		 * then we're the one that's going to bust the lock. */
-		if(atomic_exchange(&m->resetcode, ~0ul) != ~0ul) {
+		uint64_t value = atomic_exchange(&m->resetcode, ~0ul);
+		if(value != ~0ul) {
 			/* bust lock, and then store new reset code */
 			atomic_store(&m->sleep, 0);
 			atomic_store(&m->resetcode, _twz_rcode);
 		} else {
-			debug_printf(
-			  "waiting for lock busting? %lx %lx %lx\n", m->resetcode, _twz_rcode, m->sleep);
+			debug_printf("waiting for lock busting? %lx %lx %lx (%lx)\n",
+			  m->resetcode,
+			  _twz_rcode,
+			  m->sleep,
+			  value);
 			while(atomic_load(&m->resetcode) == ~0ul)
 				asm("pause");
 		}
