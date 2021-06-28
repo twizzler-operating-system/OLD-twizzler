@@ -71,8 +71,6 @@ list(APPEND KERNEL_SOURCES
 	core/obj/kso.c
 	core/obj/objcopy.c
 	core/obj/object.c
-	core/obj/objpage.c
-	core/obj/objmap.c
 	core/obj/pager.c
 	core/obj/pagevec.c
 	core/obj/queue.c
