@@ -3,10 +3,12 @@
 #include <lib/rb.h>
 #include <memory.h>
 #include <object.h>
+#include <objspace.h>
 #include <processor.h>
 #include <rwlock.h>
 #include <slab.h>
 #include <thread.h>
+#include <vmm.h>
 
 struct vm_context kernel_ctx;
 

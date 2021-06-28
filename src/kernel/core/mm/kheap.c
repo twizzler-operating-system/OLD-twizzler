@@ -1,6 +1,9 @@
+#include <kheap.h>
 #include <memory.h>
+#include <objspace.h>
 #include <page.h>
 #include <spinlock.h>
+#include <vmm.h>
 
 #define KHEAP_SIZE 1024 * 1024 * 1024ul
 

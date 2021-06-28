@@ -7,6 +7,7 @@
 #include <memory.h>
 #include <nvdimm.h>
 #include <object.h>
+#include <objspace.h>
 #include <page.h>
 #include <pager.h>
 #include <processor.h>

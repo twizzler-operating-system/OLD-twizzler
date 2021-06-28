@@ -59,15 +59,11 @@ static size_t cow_range(struct object *dest,
 	assert(list_len(&dstrange->pv->ranges) == dstrange->pv->refs);
 	pagevec_unlock(srcrange->pv);
 
-	// struct page_entry *p = vector_get(&srcrange->pv->pages, 0);
-	// printk(":: %p %lx\n", dstrange, p && p->page ? p->page->addr : 0);
-
 	return len;
 }
 
 static void invl_omap(struct omap *omap, size_t pgoff, size_t pgnum)
 {
-	// printk("INVL OMAP:: %ld :: %ld %ld\n", omap->regnr, pgoff, pgnum);
 	arch_objspace_region_cow(omap->region, pgoff, pgnum);
 }
 

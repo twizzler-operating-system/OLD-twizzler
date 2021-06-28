@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <kheap.h>
 #include <memory.h>
 #include <slab.h>
 /* TODO (minor): optimization: we could try to fit several slabs in a

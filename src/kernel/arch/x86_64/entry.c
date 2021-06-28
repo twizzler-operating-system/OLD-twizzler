@@ -2,10 +2,12 @@
 #include <arch/x86_64-vmx.h>
 #include <clksrc.h>
 #include <kalloc.h>
+#include <kheap.h>
 #include <processor.h>
 #include <secctx.h>
 #include <syscall.h>
 #include <thread.h>
+#include <vmm.h>
 
 void x86_64_signal_eoi(void);
 

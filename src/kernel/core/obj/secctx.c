@@ -9,6 +9,7 @@
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>
 #include <twz/sys/syscall.h>
+#include <vmm.h>
 
 //#define EPRINTK(...) printk(__VA_ARGS__)
 #define EPRINTK(...)

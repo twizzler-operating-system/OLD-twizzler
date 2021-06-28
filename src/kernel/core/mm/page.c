@@ -1,6 +1,9 @@
 #include <memory.h>
+#include <objspace.h>
 #include <page.h>
 #include <stdatomic.h>
+#include <tmpmap.h>
+#include <vmm.h>
 
 /* TODO: percpu? finer locking? */
 

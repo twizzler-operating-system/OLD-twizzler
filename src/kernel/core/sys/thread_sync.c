@@ -5,6 +5,7 @@
 #include <processor.h>
 #include <slab.h>
 #include <syscall.h>
+#include <vmm.h>
 
 #define MAX_SLEEPS 1024
 

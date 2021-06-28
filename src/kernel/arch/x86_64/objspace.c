@@ -30,7 +30,6 @@ void arch_objspace_region_init(struct objspace_region *region)
 	region->arch.table.lock = RWLOCK_INIT;
 }
 
-#if 1
 void arch_objspace_print_mapping(struct object_space *space, uintptr_t virt)
 {
 	if(!space)
@@ -78,7 +77,6 @@ void arch_objspace_print_mapping(struct object_space *space, uintptr_t virt)
 		return;
 	}
 }
-#endif
 
 void arch_objspace_map(struct object_space *space,
   uintptr_t virt,
@@ -209,8 +207,7 @@ void arch_objspace_region_unmap(struct objspace_region *region, size_t start, si
 			region->arch.table.count--;
 		}
 		region->arch.table.table[i + start] = 0;
-		region->arch.table.children[i + start] = 0;
-		/* TODO: A (free children) */
+		assert(region->arch.table.children[i + start] == NULL);
 	}
 
 	rwlock_wunlock(&res);

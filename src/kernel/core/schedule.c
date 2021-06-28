@@ -9,6 +9,7 @@
 #include <processor.h>
 #include <thread.h>
 #include <time.h>
+#include <vmm.h>
 
 #define TIMESLICE_MIN 50000000
 #define TIMESLICE_GIVEUP 10000

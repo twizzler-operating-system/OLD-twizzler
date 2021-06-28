@@ -7,6 +7,7 @@
 #include <machine/machine.h>
 #include <processor.h>
 #include <slab.h>
+#include <vmm.h>
 #define COM1_PORT 0x3f8 /* COM1 */
 #define COM1_IRQ 0x24
 

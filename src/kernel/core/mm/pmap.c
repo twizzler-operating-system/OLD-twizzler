@@ -1,9 +1,11 @@
 #include <memory.h>
 #include <object.h>
+#include <objspace.h>
 #include <pmap.h>
 #include <slots.h>
 #include <spinlock.h>
 #include <twz/sys/dev/memory.h>
+#include <vmm.h>
 
 /* TODO: put this in header */
 extern struct vm_context kernel_ctx;

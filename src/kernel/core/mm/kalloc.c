@@ -1,4 +1,5 @@
 #include <kalloc.h>
+#include <kheap.h>
 #include <memory.h>
 #include <slab.h>
 

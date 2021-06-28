@@ -12,7 +12,6 @@ list(APPEND KERNEL_SOURCES
 	arch/x86_64/madt.c
 	arch/x86_64/memory.c
 	arch/x86_64/nfit.c
-	arch/x86_64/object.c
 	arch/x86_64/objspace.c
 	arch/x86_64/pit.c
 	arch/x86_64/processor.c

@@ -5,6 +5,7 @@
 #include <secctx.h>
 #include <syscall.h>
 #include <thread.h>
+#include <vmm.h>
 
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>

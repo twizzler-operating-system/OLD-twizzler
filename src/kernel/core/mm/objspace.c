@@ -1,3 +1,4 @@
+#include <kheap.h>
 #include <lib/list.h>
 #include <memory.h>
 #include <object.h>

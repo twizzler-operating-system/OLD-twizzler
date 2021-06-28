@@ -1,3 +1,4 @@
+#include <kheap.h>
 #include <memory.h>
 #include <slab.h>
 
@@ -6,7 +7,7 @@ static void allocate_early_or_late(uintptr_t *phys,
   void **virt,
   struct kheap_run **_run)
 {
-	if(mm_ready) {
+	if(mm_is_ready()) {
 		struct kheap_run *run = kheap_allocate(0x1000);
 		if(oaddr)
 			*oaddr = kheap_run_get_objspace(run);
@@ -178,9 +179,6 @@ void table_free_downward(struct table_level *table)
 			table->count--;
 		}
 	}
-	/* TODO: A */
-	// printk(":::: %ld\n", table->count);
-	// assert(table->count == 0);
 	table_free_table_level(table);
 }
 
@@ -200,6 +198,7 @@ static void table_remove_entry(struct table_level *table, size_t idx, bool free_
 
 	if(table->count == 0 && table->parent && free_tables) {
 		table_remove_entry(table->parent, table->parent_idx, free_tables);
+		/* TODO: A */
 		// table_free_table_level(table);
 	}
 }
@@ -219,7 +218,6 @@ void table_map(struct table_level *table,
 	int idxs[] = { pml4_idx, pdpt_idx, pd_idx, pt_idx };
 
 	struct rwlock_result res = rwlock_wlock(&table->lock, RWLOCK_RECURSE);
-	// printk("mapp: %lx -> %lx %d\n", virt, phys, level);
 	table_realize(table);
 
 	int i;
@@ -236,12 +234,8 @@ void table_map(struct table_level *table,
 	}
 	if(level != 0)
 		flags |= PAGE_LARGE;
-	// printk("traversed %d\n", (3 - level));
-	// printk(":: %lx: %lx %lx %lx\n", virt, phys, flags, table_flags);
 	if(!table->table[idx])
 		table->count++;
-	// else
-	//	printk("replace: %lx\n", table->table[idx]);
 	table->table[idx] = phys | flags;
 	rwlock_wunlock(&res);
 }
@@ -340,12 +334,6 @@ void table_print_recur(struct table_level *table, int level, int indent, uintptr
 		if(table->table[i]) {
 			printk("%*s%lx - %lx", indent, "", co, co + len);
 			printk(":: %lx\n", table->table[i]);
-			/*
-			if((table->table[i] & PAGE_LARGE) != 0 || level == 0) {
-			    printk(":: %lx\n", table->table[i]);
-			} else {
-			    printk("\n");
-			}*/
 		}
 
 		if(table->children && table->children[i]) {

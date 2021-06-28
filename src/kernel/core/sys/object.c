@@ -8,6 +8,7 @@
 #include <syscall.h>
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>
+#include <vmm.h>
 
 static bool __do_invalidate(struct object *obj, struct kso_invl_args *invl)
 {

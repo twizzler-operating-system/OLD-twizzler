@@ -6,6 +6,7 @@
 #include <processor.h>
 #include <slab.h>
 #include <thread.h>
+#include <vmm.h>
 static _Atomic unsigned long _internal_tid_counter = 0;
 
 static void _thread_init(void *_u __unused, void *ptr)

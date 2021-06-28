@@ -1,11 +1,13 @@
 #include <memory.h>
 #include <object.h>
+#include <objspace.h>
 #include <pmap.h>
 #include <processor.h>
 #include <slots.h>
 #include <spinlock.h>
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>
+#include <vmm.h>
 
 /* tmpmap -- support mapping any physical page into a virtual address so that we can access it.
  * While _some_ physical memory is identity mapped in the system, not all of it is because of the

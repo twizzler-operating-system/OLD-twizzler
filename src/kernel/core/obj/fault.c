@@ -1,3 +1,4 @@
+#include <objspace.h>
 #include <page.h>
 #include <pager.h>
 #include <processor.h>
@@ -7,6 +8,7 @@
 #include <thread.h>
 #include <tmpmap.h>
 #include <twz/meta.h>
+#include <vmm.h>
 int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip)
 {
 	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));
@@ -151,40 +153,23 @@ static bool __objspace_fault_calculate_perms(struct object *o,
 	return true;
 }
 
-#include <objspace.h>
-extern struct object_space _bootstrap_object_space;
 void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags)
 {
 	struct omap *omap = mm_objspace_get_object_map(obj, pagenr);
 	assert(omap);
 	arch_objspace_region_map(
 	  current_thread->active_sc->space, omap->region, flags & (MAP_READ | MAP_WRITE | MAP_EXEC));
-	// printk("page nr %ld -> %ld\n", pagenr, pagenr % (mm_objspace_region_size() /
-	// mm_page_size(0)));
 	if(arch_objspace_region_map_page(
 	     omap->region, pagenr % (mm_objspace_region_size() / mm_page_size(0)), page, flags)) {
-		arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0); // TODO: A
+		arch_mm_objspace_invalidate(NULL,
+		  omap->region->addr + (pagenr % (mm_objspace_region_size() / mm_page_size(0))),
+		  mm_page_size(0),
+		  0);
 	}
 	/* TODO: would like a better system for this */
 	assert(omap->refs > 1);
 	omap->refs--;
 }
-
-#if 0
-struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **slot)
-{
-	ssize_t tl = oaddr / mm_page_size(MAX_PGLEVEL);
-	*slot = slot_lookup(tl);
-	if(!*slot) {
-		return NULL;
-	}
-	struct object *obj = (*slot)->obj;
-	if(obj) {
-		krc_get(&obj->refs);
-	}
-	return obj;
-}
-#endif
 
 static void __op_fault_callback(struct object *obj,
   size_t pagenr,
@@ -222,10 +207,6 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 #endif
 
 	if(vaddr >= KERNEL_REGION_START) {
-		// if(current_thread)
-		//	table_print_recur(&current_thread->active_sc->space->arch.root, 3, 0, 0);
-		// table_print_recur(&_bootstrap_object_space.arch.root, 3, 0, 0);
-		arch_objspace_print_mapping(NULL, loaddr);
 		panic("object space fault to kernel memory (oaddr=%lx, vaddr=%lx, flags=%x, ip=%lx)",
 		  loaddr,
 		  vaddr,

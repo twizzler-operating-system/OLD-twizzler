@@ -6,4 +6,5 @@ void *kalloc(size_t sz, int);
 void *kcalloc(size_t num, size_t sz, int);
 void kfree(void *p);
 
+void kalloc_system_init(void);
 #define KALLOC_ZERO 1

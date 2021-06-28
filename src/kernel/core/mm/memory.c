@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <kheap.h>
 #include <lib/iter.h>
 #include <memory.h>
 #include <object.h>
@@ -7,7 +8,9 @@
 #include <slots.h>
 #include <thread.h>
 #include <tmpmap.h>
+#include <vmm.h>
 static DECLARE_LIST(physical_regions);
+static bool mm_ready = false;
 
 static const char *memory_type_strings[] = {
 	[MEMORY_AVAILABLE] = "System RAM",
@@ -36,8 +39,6 @@ void mm_register_region(struct memregion *reg)
 	list_insert(&physical_regions, &reg->entry);
 
 	if(mm_ready) {
-		/* registration of a region triggers this if the memory manager is fully ready. If it's not,
-		 * we need to hold off until we can create the page stacks. */
 		if(reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE) {
 			reg->ready = true;
 		}
@@ -111,7 +112,11 @@ extern size_t mm_page_count;
 extern size_t mm_page_alloc_count;
 extern size_t mm_page_bootstrap_count;
 extern size_t mm_page_alloced;
-bool mm_ready = false;
+
+bool mm_is_ready(void)
+{
+	return mm_ready;
+}
 
 #include <twz/sys/dev/memory.h>
 
@@ -198,30 +203,6 @@ void mm_init_phase_2(void)
 {
 	mm_page_init();
 	kheap_start_dynamic();
-#if 0
-	obj_system_init();
-	slot_init_bootstrap(KOSLOT_INIT_ALLOC, KVSLOT_ALLOC_START);
-	_initial_allocator.start = SLOT_TO_OADDR(KOSLOT_INIT_ALLOC);
-	_initial_allocator.vstart = SLOT_TO_VADDR(KVSLOT_ALLOC_START);
-	_initial_allocator.length = OBJ_MAXSIZE;
-	pmm_buddy_init(&_initial_allocator);
-	list_insert(&allocators, &_initial_allocator.entry);
-
-	// allocs[0].start = SLOT_TO_OADDR(KOSLOT_INIT_ALLOC) + 0x8000;
-	// allocs[0].vstart = SLOT_TO_VADDR(KVSLOT_ALLOC_START) + 0x8000;
-	// allocs[0].length = OBJ_MAXSIZE - 0x8000;
-	// pmm_buddy_init(&allocs[0]);
-	// list_insert(&allocators, &allocs[0].entry);
-
-	foreach(e, list, &physical_regions) {
-		struct memregion *reg = list_entry(e, struct memregion, entry);
-		if(reg->type == MEMORY_AVAILABLE && reg->subtype == MEMORY_AVAILABLE_VOLATILE) {
-			page_init(reg);
-			reg->ready = true;
-		}
-	}
-	slots_init();
-#endif
 	kalloc_system_init();
 	printk("[mm] memory management bootstrapping completed\n");
 	mm_ready = true;

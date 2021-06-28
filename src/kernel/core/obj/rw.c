@@ -1,6 +1,7 @@
 #include <object.h>
 #include <page.h>
 #include <slots.h>
+#include <tmpmap.h>
 
 struct io {
 	size_t len;
@@ -15,28 +16,10 @@ static void do_io(struct object *obj, size_t pagenr, struct page *page, void *da
 	assert(io->off + io->len <= mm_page_size(0));
 	if(page) {
 		void *addr = tmpmap_map_pages(&page, 1);
-#if 0
-		printk("RW %ld %ld %d %d %x :: %lx :%p\n",
-		  pagenr,
-		  io->len,
-		  io->off,
-		  io->dir,
-		  *(uint32_t *)io->ptr,
-		  page->addr,
-		  addr);
-#endif
 		if(io->dir == READ) {
 			memcpy(io->ptr, (char *)addr + io->off, io->len);
-			//	if(io->dir == READ)
-			//		printk(":::: %x :: %lx\n", *(uint32_t *)io->ptr, page->addr);
 		} else if(io->dir == WRITE) {
 			memcpy((char *)addr + io->off, io->ptr, io->len);
-#if 0
-			void *addr2 = tmpmap_map_pages(page, 1);
-			if(memcmp(((char *)io->ptr), ((char *)addr2) + io->off, io->len)) {
-				panic("AAAAAA :: %x %x", *(int *)io->ptr, *(int *)((char *)addr2 + io->off));
-			}
-#endif
 		} else {
 			panic("unknown IO direction");
 		}

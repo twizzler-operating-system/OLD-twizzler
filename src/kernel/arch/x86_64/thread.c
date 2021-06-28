@@ -1,4 +1,5 @@
 #include <kalloc.h>
+#include <kheap.h>
 #include <processor.h>
 #include <syscall.h>
 #include <thread.h>
