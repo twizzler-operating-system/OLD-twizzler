@@ -153,13 +153,6 @@ void obj_assign_id(struct object *obj, objid_t id)
 
 struct object *obj_lookup(uint128_t id, int flags)
 {
-#if 0
-	if(current_thread && current_thread->id > 10) {
-		printk("==> " IDFMT "\n", IDPR(id));
-		debug_print_backtrace();
-	}
-#endif
-
 	spinlock_acquire_save(&objlock);
 	struct rbnode *node = rb_search(&obj_tree, id, struct object, node, __obj_compar_key);
 
@@ -178,84 +171,9 @@ struct object *obj_lookup(uint128_t id, int flags)
 	} else {
 		spinlock_release_restore(&objlock);
 		return NULL;
-#if 0
-		struct nv_region *reg = nv_region_lookup_object(id);
-		if(reg) {
-			obj = obj_create(0, 0);
-			spinlock_acquire_save(&objlock);
-			node = rb_search(&obj_tree, id, struct object, node, __obj_compar_key);
-			if(!node) {
-				obj->preg = reg;
-				obj->flags |= OF_PERSIST;
-				obj->id = id;
-				rb_insert(&obj_tree, obj, struct object, node, __obj_compar);
-			} else {
-				/* TODO: free the object we prematurely allocated */
-				obj = rb_entry(node, struct object, node);
-			}
-			spinlock_release_restore(&objlock);
-		}
-#endif
 	}
 	return obj;
 }
-
-#if 0
-void obj_release_slot(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-
-	assert(obj->slot);
-	assert(obj->mapcount.count > 0);
-
-	// printk("REL_SLOT " IDFMT "; mapcount=%ld\n", IDPR(obj->id), obj->mapcount.count);
-	if(krc_put(&obj->mapcount)) {
-		/* hit zero; release */
-		struct slot *slot = obj->slot;
-		obj->slot = NULL;
-		/* this krc drop MUST not reduce the count to 0, because there must be a reference to obj
-		 * coming into this function */
-		object_space_release_slot(slot);
-		slot_release(slot);
-		bool tmp = krc_put(&obj->refs);
-		if(tmp) {
-			panic("tmp nonzero for object " IDFMT "\n", IDPR(obj->id));
-		}
-		assert(!tmp);
-#if CONFIG_DEBUG_OBJECT_SLOT
-		printk("MAPCOUNT ZERO: " IDFMT "; refs=%ld\n", IDPR(obj->id), obj->refs.count);
-#endif
-	}
-
-	spinlock_release_restore(&obj->lock);
-}
-
-struct slot *obj_alloc_slot(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-	if(!obj->slot) {
-		assert(obj->mapcount.count == 0);
-		obj->slot = slot_alloc();
-		krc_get(&obj->refs);
-		obj->slot->obj = obj; /* above get */
-	}
-
-	krc_get(&obj->mapcount);
-
-#if CONFIG_DEBUG_OBJECT_SLOT
-	printk("[slot]: allocated uslot %ld for " IDFMT " (%p %lx %d), mapcount %ld\n",
-	  obj->slot->num,
-	  IDPR(obj->id),
-	  obj,
-	  obj->flags,
-	  obj->kso_type,
-	  obj->mapcount.count);
-#endif
-	krc_get(&obj->slot->rc); /* return */
-	spinlock_release_restore(&obj->lock);
-	return obj->slot;
-}
-#endif
 
 static void _obj_release(void *_obj)
 {
@@ -314,10 +232,7 @@ void obj_put(struct object *o)
 			rb_delete(&o->node, &obj_tree);
 		}
 		spinlock_release_restore(&objlock);
-		// workqueue_insert(&current_processor->wq, &o->delete_task, _obj_release, o);
 		_obj_release(o);
-		/* TODO: A release and free object pages, maps, and kso_data */
-		// printk("TODO release object (AND free kso_data)\n");
 	}
 }
 
@@ -364,8 +279,6 @@ objid_t obj_compute_id(struct object *obj)
 		size_t slen = mi.sz;
 		if(slen > OBJ_TOPDATA)
 			slen = OBJ_TOPDATA;
-		if(slen > 0x30000000)
-			panic("A wtf: %lx", slen);
 		for(size_t s = 0; s < slen; s += mm_page_size(0)) {
 			size_t rem = mm_page_size(0);
 			if(s + mm_page_size(0) > slen) {
@@ -382,7 +295,6 @@ objid_t obj_compute_id(struct object *obj)
 		size_t mdbottom = OBJ_METAPAGE_SIZE + sizeof(struct fotentry) * mi.fotentries;
 		size_t pos = OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + mdbottom);
 		size_t thispage = mm_page_size(0);
-		printk(":: pos %lx\n", pos);
 		for(size_t s = pos; s < OBJ_MAXSIZE - OBJ_NULLPAGE_SIZE; s += thispage) {
 			size_t offset = pos % mm_page_size(0);
 			size_t len = mm_page_size(0) - offset;
