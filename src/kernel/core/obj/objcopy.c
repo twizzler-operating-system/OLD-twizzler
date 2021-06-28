@@ -20,28 +20,11 @@ static size_t cow_range(struct object *dest,
 	}
 	assert(len > 0);
 
-#if 0
-	printk("  cow range %ld %ld %ld --> %ld ((%ld %ld))\n",
-	  srcrange->start,
-	  len,
-	  srcrange->pv_offset,
-	  dstpg,
-	  srcrange->len,
-	  srcoff);
-#endif
-
 	struct range *dstrange = object_find_range(dest, dstpg);
 	if(!dstrange) {
 		/* make new range */
-		// printk("      new dstrange!\n");
 		dstrange = object_add_range(dest, NULL, dstpg, len, srcrange->pv_offset + srcoff);
 	} else {
-#if 0
-		printk("      existing dstrange: %ld %ld %ld\n",
-		  dstrange->start,
-		  dstrange->len,
-		  dstrange->pv_offset);
-#endif
 		if(len >= dstrange->len) {
 			len = dstrange->len;
 		} else {
@@ -64,14 +47,11 @@ static size_t cow_range(struct object *dest,
 	return len;
 }
 
-static void invl_omap(struct omap *omap, size_t pgoff, size_t pgnum)
-{
-	arch_objspace_region_cow(omap->region, pgoff, pgnum);
-}
+#define OP_INVL 1
+#define OP_COW 2
 
-static void object_make_cow(struct object *obj, size_t pagenr, size_t pgcount)
+static void object_op_on_pages(struct object *obj, size_t pagenr, size_t pgcount, int type)
 {
-	/* TODO: verify */
 	while(pgcount) {
 		size_t omapnr = pagenr / (mm_objspace_region_size() / mm_page_size(0));
 		struct rbnode *node =
@@ -88,54 +68,16 @@ static void object_make_cow(struct object *obj, size_t pagenr, size_t pgcount)
 
 			if(node) {
 				struct omap *omap = rb_entry(node, struct omap, objnode);
-				invl_omap(omap, s, l);
-				pgcount -= l;
-				pagenr += l;
-
-				node = rb_next(node);
-				if(node) {
-					struct omap *next_omap = rb_entry(node, struct omap, objnode);
-					size_t dist = (next_omap->regnr - omap->regnr)
-					              * (mm_objspace_region_size() / mm_page_size(0));
-					if(dist >= pgcount) {
-						return;
-					}
-
-					pagenr += dist;
-					pgcount -= dist;
-				} else {
-					return;
+				switch(type) {
+					case OP_INVL:
+						arch_objspace_region_unmap(omap->region, s, l);
+						break;
+					case OP_COW:
+						arch_objspace_region_cow(omap->region, s, l);
+						break;
+					default:
+						panic("invalid op type");
 				}
-			} else {
-				pgcount -= l;
-				pagenr += l;
-				break;
-			}
-		}
-	}
-}
-
-static void object_invalidate(struct object *obj, size_t pagenr, size_t pgcount)
-{
-	/* TODO: verify */
-	while(pgcount) {
-		size_t omapnr = pagenr / (mm_objspace_region_size() / mm_page_size(0));
-		struct rbnode *node =
-		  rb_search(&obj->omap_root, omapnr, struct omap, objnode, omap_compar_key);
-
-		while(1) {
-			size_t s = pagenr % (mm_objspace_region_size() / mm_page_size(0));
-			size_t l = (mm_objspace_region_size() / mm_page_size(0));
-			if(s + l > mm_objspace_region_size() / mm_page_size(0)) {
-				l = (mm_objspace_region_size() / mm_page_size(0)) - s;
-			}
-			if(pgcount < l)
-				l = pgcount;
-
-			if(node) {
-				struct omap *omap = rb_entry(node, struct omap, objnode);
-				// printk("   unmap %ld %ld %ld\n", omap->regnr, s, l);
-				arch_objspace_region_unmap(omap->region, s, l);
 				pgcount -= l;
 				pagenr += l;
 
@@ -164,8 +106,8 @@ static void object_invalidate(struct object *obj, size_t pagenr, size_t pgcount)
 
 void object_copy(struct object *dest, struct object_copy_spec *specs, size_t count)
 {
-	// long long a = clksrc_get_nanoseconds();
-	/* TODO: when discovering an empty srcrange, need to create one and a dummy pagevec to share */
+	/* TODO (high): when discovering an empty srcrange, need to create one and a dummy pagevec to
+	 * share */
 	struct rwlock_result dres = rwlock_wlock(&dest->rwlock, 0);
 	size_t nrpages = 0;
 	for(size_t i = 0; i < count; i++) {
@@ -173,7 +115,9 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 		nrpages += specs[i].length;
 
 		if(!spec->src) {
-			panic("A");
+			/* TODO (high): zero-out pages in dest for this range */
+			printk("warning -- zero-out copy unimplemented");
+			continue;
 		}
 
 #if 0
@@ -193,8 +137,6 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 
 			struct range *srcrange = object_find_range(spec->src, srcpg);
 			if(!srcrange) {
-				/* TODO: verify */
-				/* TODO: A */
 				srcrange = object_find_next_range(spec->src, srcpg);
 				assert(srcrange->start > srcpg);
 				if(!srcrange || (srcrange->start >= srcpg + rem)) {
@@ -209,13 +151,11 @@ void object_copy(struct object *dest, struct object_copy_spec *specs, size_t cou
 			size_t x = cow_range(dest, srcrange, dstpg, srcpg, rem);
 			j += x;
 		}
-		object_make_cow(spec->src, spec->start_src, spec->length);
-		object_invalidate(dest, spec->start_dst, spec->length);
+		object_op_on_pages(spec->src, spec->start_src, spec->length, OP_COW);
+		object_op_on_pages(dest, spec->start_dst, spec->length, OP_INVL);
 		rwlock_wunlock(&sres);
 	}
-	/* TODO: A */
+	/* TODO (opt): don't invalidate the whole address space */
 	arch_mm_objspace_invalidate(NULL, 0, 0xffffffffffffffff, 0);
 	rwlock_wunlock(&dres);
-	// long long b = clksrc_get_nanoseconds();
-	// printk("ocopy %lld (%ld)\n", (b - a) / 1000, nrpages);
 }

@@ -88,7 +88,11 @@ struct range *object_add_range(struct object *obj,
 
 void range_cut_half(struct range *range, size_t len)
 {
-	panic("A");
+	if(range->len <= len)
+		return;
+	size_t newlen = range->len - len;
+	range->len = len;
+	object_add_range(range->obj, range->pv, range->start + len, newlen, range->pv_offset + len);
 }
 
 void range_toss(struct range *range)
@@ -99,13 +103,6 @@ void range_toss(struct range *range)
 		assert(list_len(&range->entry) == range->pv->refs);
 #endif
 		list_remove(&range->entry);
-#if 0
-		printk("  range %ld %ld %ld: %ld\n",
-		  range->start,
-		  range->pv_offset,
-		  range->len,
-		  range->pv->refs);
-#endif
 		range->pv->refs--;
 		if(range->pv->refs == 0) {
 			pagevec_unlock(range->pv);
@@ -118,9 +115,8 @@ void range_toss(struct range *range)
 
 struct range *range_split(struct range *range, size_t rp)
 {
-	// printk("A split range %ld %ld %ld %ld\n", range->start, range->len, range->pv_offset, rp);
 	assert(rp < range->len);
-
+	size_t oldlen = range->len;
 	if(rp == 0) {
 		range->len = 1;
 	} else {
@@ -132,7 +128,7 @@ struct range *range_split(struct range *range, size_t rp)
 		object_add_range(range->obj,
 		  range->pv,
 		  range->start + rp + 1,
-		  range->len - (rp + 1),
+		  oldlen - (rp + 1),
 		  range->pv_offset + rp + 1);
 	}
 

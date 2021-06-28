@@ -35,10 +35,9 @@ static DECLARE_SLABCACHE(sc_pagevec,
 
 void pagevec_combine(struct pagevec *a, struct pagevec *b)
 {
-	panic("A");
-	// TODO: make sure we free b or something
 	assert(a->refs <= 1 && b->refs <= 1);
 	vector_concat(&a->pages, &b->pages);
+	/* NOTE: caller must deal with b (free it, possibly?) */
 }
 
 void pagevec_append_page(struct pagevec *pv, struct page *page)
@@ -58,7 +57,6 @@ struct pagevec *object_new_pagevec(struct object *obj, size_t idx, size_t *off)
 {
 	struct pagevec *pv = slabcache_alloc(&sc_pagevec, NULL);
 	pagevec_append_page(pv, NULL);
-	/* TODO: merge with other ones? */
 	*off = 0;
 	return pv;
 }

@@ -10,6 +10,9 @@
 #include <tmpmap.h>
 #include <twz/meta.h>
 #include <vmm.h>
+
+/* TODO (high): we need to hook up the permissions checking still */
+
 int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip)
 {
 	// printk("Checking permission of object %p: " IDFMT "\n", obj, IDPR(obj->id));
@@ -179,7 +182,6 @@ static void __op_fault_callback(struct object *obj,
   uint64_t cbfl)
 {
 	uint64_t mapflags = MAP_READ | MAP_WRITE | MAP_EXEC;
-	// printk("cb: %ld %lx :: %lx\n", pagenr, cbfl, page->addr);
 	if(cbfl & PAGE_MAP_COW)
 		mapflags |= PAGE_MAP_COW;
 	object_map_page(obj, pagenr, page, mapflags);
@@ -193,20 +195,8 @@ static struct object *fault_get_object(uintptr_t vaddr)
 #include <thread.h>
 void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr, uint32_t flags)
 {
-#if 0
-	printk("objspace fault entry th %ld: %lx %lx %lx %x\n",
-	  current_thread ? current_thread->id : -1,
-	  ip,
-	  loaddr,
-	  vaddr,
-	  flags);
-
-	if(current_thread) {
-		// printk("::: %p\n",
-		// current_thread->active_sc->space->arch.root.children[PML4_IDX(loaddr)]);
-	}
-#endif
-
+	/* this should never happen -- a user-level access to kernel memory will be caught by the
+	 * virtual memory layer, and all kernel memory should always be mapped */
 	if(vaddr >= KERNEL_REGION_START) {
 		panic("object space fault to kernel memory (oaddr=%lx, vaddr=%lx, flags=%x, ip=%lx)",
 		  loaddr,
@@ -217,15 +207,8 @@ void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t loaddr, uintptr_t vaddr
 
 	struct object *obj = fault_get_object(vaddr);
 	if(!obj) {
-		panic("A :userspace fault to object not mapped");
+		panic("objspace fault to unmapped object");
 	}
-#if 0
-	printk("%ld :: %x fault object: " IDFMT " (%d)\n",
-	  current_thread->id,
-	  flags,
-	  IDPR(obj->id),
-	  obj->kso_type);
-#endif
 
 	size_t pagenr = (vaddr % OBJ_MAXSIZE) / mm_page_size(0);
 	if(pagenr == 0) {

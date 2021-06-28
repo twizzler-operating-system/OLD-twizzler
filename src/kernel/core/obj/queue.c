@@ -15,7 +15,6 @@ int kernel_queue_wait_on(struct object *obj __unused, void *p __unused, uint64_t
 int kernel_queue_wake_up(struct object *obj, void *p, uint64_t v)
 {
 	return thread_wake_object(obj, (long)p % OBJ_MAXSIZE, v);
-	//	return thread_sync_single(THREAD_SYNC_WAKE, p, v, NULL);
 }
 
 int kernel_queue_submit(struct object *obj, struct queue_hdr *hdr, struct queue_entry *qe)

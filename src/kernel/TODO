@@ -1,0 +1,52 @@
+Major Breaking Changes
+----------------------
+ * Update interfaces:
+   - ocreate: should take a list of copy ranges for copy-from multiple
+   - ocopy: ^
+   - ocreate: let users specify memory type and persistence behavior in smarter ways than "yes/no"
+   - opin: should take a list of ranges for pinning regions of objects
+   - octl: should take a list of ranges to operate on.
+   - octl: should take a list of ranges to expose to devices (or just expose the whole object)
+ * object_copy should allow src == NULL to mean "zero this range of an object"
+
+High Priority
+-------------
+ * Recent work on updating object page management and memory management has broken the security
+   subsystem. We need to hook this back up. This is largely regarding how the kernel reads data from
+   objects (used to be a pointer that you could just access data through, now it's actual read/write
+   function that lock pages during access).
+ * Similar, for the pager subsystem. This will need a changed manner of accessing queue object data
+   from the kernel.
+ * opin and octl syscalls lost functionality in this recent refactoring. This functionality is
+   needed for device drivers.
+ * Paired with above, the device management system is rather simplistic and hacky. We should
+   implement something better.
+ * Part of the refactoring lost the functionality of actually using nvdimms. This is a major thing
+   we need to get back, obviously, but while we're at it, we should design a better "filesystem" for
+   storing object data on nvdimms.
+
+Medium Priority
+---------------
+ * The printk system is overly simple. It should write into per-cpu buffers and read by a userspace
+   logger (and/or echo'd to consoles like the serial port).
+ * Scheduling needs an overhaul -- right now, the scheduler is _too_ simple to work well, and it
+   can't move threads between cores. We can probably implement something like the freebsd scheduler
+   and core migration and be fine for a while.
+ * Scheduling only handles scheduling user threads, and sort-of "manually" runs certain system
+   operations here and there. We should assign these tasks (like getting completions from the pager,
+   zero-ing pages in the background, etc) as schedulable entities.
+ * Time management -- timers and checking timers is probably too expensive. We could make this much
+   cheaper.
+ * Move to new red-black tree implementation from Miles
+
+Low Priority
+------------
+
+Optimizations
+-------------
+ * Before we do much optimization, we should implement an instrumentation mechanism that will let us
+   dynamically time functions in the kernel.
+
+Cleanup
+-------
+ * x86 subsystem code could use reorganization, especially init.c
