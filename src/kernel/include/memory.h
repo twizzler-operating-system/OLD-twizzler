@@ -29,11 +29,9 @@ enum memory_subtype {
 struct memregion {
 	uintptr_t start;
 	size_t length;
-	int flags;
 	enum memory_type type;
 	enum memory_subtype subtype;
 	struct list entry;
-	size_t off;
 	struct spinlock lock;
 };
 

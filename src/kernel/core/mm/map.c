@@ -1,3 +1,4 @@
+#include <kso.h>
 #include <lib/iter.h>
 #include <lib/list.h>
 #include <lib/rb.h>

@@ -2,6 +2,7 @@
 #include <debug.h>
 #include <device.h>
 #include <init.h>
+#include <kso.h>
 #include <memory.h>
 #include <object.h>
 #include <page.h>
@@ -12,6 +13,7 @@
 #include <twz/sys/dev/bus.h>
 #include <twz/sys/dev/device.h>
 #include <twz/sys/dev/system.h>
+#include <vmm.h>
 
 #include <twz/meta.h>
 #include <twz/objid.h>

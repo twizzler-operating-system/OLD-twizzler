@@ -1,6 +1,7 @@
 #include <clksrc.h>
 #include <debug.h>
 #include <kalloc.h>
+#include <kso.h>
 #include <lib/iter.h>
 #include <limits.h>
 #include <object.h>

@@ -1,4 +1,5 @@
 #include <device.h>
+#include <kso.h>
 #include <machine/isa.h>
 #include <spinlock.h>
 

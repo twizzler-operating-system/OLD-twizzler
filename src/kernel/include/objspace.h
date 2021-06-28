@@ -66,3 +66,21 @@ void arch_objspace_map(struct object_space *space,
   struct page *pages[],
   size_t,
   uint64_t flags);
+
+#define OBJSPACE_FAULT_READ 1
+#define OBJSPACE_FAULT_WRITE 2
+#define OBJSPACE_FAULT_EXEC 4
+
+#define OBJSPACE_READ 1
+#define OBJSPACE_WRITE 2
+#define OBJSPACE_EXEC_U 4
+#define OBJSPACE_EXEC_S 8
+#define OBJSPACE_SET_FLAGS                                                                         \
+	0x1000 /* allow changing the permissions of a page, as long as phys matches */
+#define OBJSPACE_UC 0x2000
+#define OBJSPACE_WB 0
+#define OBJSPACE_WT 0x4000
+#define OBJSPACE_WC 0x8000
+#define OBJSPACE_WP 0x10000
+
+void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t phys, uintptr_t vaddr, uint32_t flags);

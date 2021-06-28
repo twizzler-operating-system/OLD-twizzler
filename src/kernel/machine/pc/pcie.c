@@ -3,6 +3,7 @@
 #include <device.h>
 #include <init.h>
 #include <kalloc.h>
+#include <kso.h>
 #include <machine/pc-pcie.h>
 #include <memory.h>
 #include <page.h>

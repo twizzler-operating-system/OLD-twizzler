@@ -1,4 +1,5 @@
 #include <kalloc.h>
+#include <kso.h>
 #include <nvdimm.h>
 #include <object.h>
 #include <page.h>

@@ -1,5 +1,6 @@
 #include <device.h>
 #include <kalloc.h>
+#include <kso.h>
 #include <limits.h>
 #include <memory.h>
 #include <object.h>

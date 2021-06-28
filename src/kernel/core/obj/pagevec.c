@@ -1,5 +1,6 @@
 #include <object.h>
 #include <page.h>
+#include <pagevec.h>
 #include <slab.h>
 #include <spinlock.h>
 

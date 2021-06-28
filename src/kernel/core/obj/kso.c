@@ -1,9 +1,11 @@
 #include <device.h>
+#include <kso.h>
 #include <object.h>
 #include <spinlock.h>
 #include <twz/sys/dev/bus.h>
 #include <twz/sys/kso.h>
 #include <twz/sys/thread.h>
+#include <vmm.h>
 /* TODO: better system for tracking slots in the array */
 static _Atomic size_t idx = 0;
 static struct spinlock lock = SPINLOCK_INIT;
@@ -90,4 +92,19 @@ void kso_view_write(struct object *obj, size_t slot, struct viewentry *ve)
 {
 	obj_write_data(
 	  obj, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), ve);
+}
+
+void *object_get_kso_data_checked(struct object *obj, enum kso_type kt)
+{
+	if(obj->kso_type == kt)
+		return obj->kso_data;
+	if(obj->kso_type == KSO_NONE) {
+		spinlock_acquire_save(&obj->lock);
+		if(obj->kso_type == KSO_NONE) {
+			object_init_kso_data(obj, kt);
+		}
+		spinlock_release_restore(&obj->lock);
+		return obj->kso_data;
+	}
+	return NULL;
 }

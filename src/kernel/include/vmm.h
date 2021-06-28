@@ -33,8 +33,6 @@ struct vmap {
 	struct object *obj;
 	size_t slot;
 	uint32_t flags;
-	int status;
-
 	struct rbnode node;
 };
 

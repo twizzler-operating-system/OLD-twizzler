@@ -4,57 +4,13 @@
 #include <krc.h>
 #include <lib/inthash.h>
 #include <lib/rb.h>
+#include <lib/vector.h>
 #include <rwlock.h>
 #include <spinlock.h>
 #include <twz/obj.h>
 #include <twz/sys/kso.h>
+#include <twz/sys/obj.h>
 #include <workqueue.h>
-
-void obj_print_stats(void);
-
-struct kso_view {
-	struct list contexts;
-	int init;
-};
-
-struct kso_throbj {
-	struct thread *thread;
-};
-
-struct kso_sctx {
-	struct sctx *sc;
-};
-
-struct kso_invl_args {
-	objid_t id;
-	uint64_t offset;
-	uint32_t length;
-	uint16_t flags;
-	uint16_t result;
-};
-
-struct object;
-struct thread;
-struct kso_calls {
-	bool (*attach)(struct object *parent, struct object *child, int flags);
-	bool (*detach)(struct object *parent, struct object *child, int sysc, int flags);
-	bool (*detach_event)(struct thread *thr, bool, int);
-	void (*ctor)(struct object *);
-	void (*dtor)(struct object *);
-	bool (*invl)(struct object *, struct kso_invl_args *);
-};
-
-void kso_register(int t, struct kso_calls *);
-// struct kso_calls *kso_lookup_calls(int t);
-void kso_detach_event(struct thread *thr, bool entry, int sysc);
-int kso_root_attach(struct object *obj, uint64_t flags, int type);
-void kso_root_detach(int idx);
-void kso_attach(struct object *parent, struct object *child, size_t);
-void kso_setname(struct object *obj, const char *name);
-struct object *get_system_object(void);
-
-struct slot;
-struct vmap;
 
 struct object_tie {
 	struct object *child;
@@ -74,30 +30,23 @@ struct object_tie {
 #define OF_PAGER 0x200
 #define OF_PARTIAL 0x400
 
-struct derivation_info {
-	objid_t id;
-	struct list entry;
-};
-
-struct nv_region;
 struct object {
 	uint128_t id;
-
 	struct krc refs;
-
-	/* TODO: clean all this  up */
 	_Atomic uint64_t flags;
+
 	uint32_t cache_mode;
 	uint32_t cached_pflags;
 
 	_Atomic enum kso_type kso_type;
 	void *kso_data;
 	struct kso_calls *kso_calls;
-
 	long (*kaction)(struct object *, long, long);
 
 	/* general object lock */
 	struct spinlock lock;
+
+	/* lock for object contents */
 	struct rwlock rwlock;
 
 	/* lock for thread-sync operations */
@@ -107,204 +56,44 @@ struct object {
 	struct list sleepers;
 
 	struct rbroot tstable_root, page_requests_root;
-
 	struct rbroot range_tree, omap_root;
-
-	struct rbnode node;
-
 	struct rbroot ties_root;
+	struct rbnode node;
 };
 
-void object_init_kso_data(struct object *, enum kso_type);
-static inline void *object_get_kso_data_checked(struct object *obj, enum kso_type kt)
-{
-	if(obj->kso_type == kt)
-		return obj->kso_data;
-	if(obj->kso_type == KSO_NONE) {
-		spinlock_acquire_save(&obj->lock);
-		if(obj->kso_type == KSO_NONE) {
-			object_init_kso_data(obj, kt);
-		}
-		spinlock_release_restore(&obj->lock);
-		return obj->kso_data;
-	}
-	return NULL;
-}
+void obj_print_stats(void);
 
-struct page;
-#define OBJPAGE_MAPPED 1
-#define OBJPAGE_COW 2
-struct objpage {
-	size_t idx, srcidx;
-	_Atomic uint64_t flags;
-	struct page *page;
-	struct krc refs;
-	struct rbnode node, idx_map_node;
-	struct spinlock lock;
-	struct object *obj; /* weak */
-};
-
-struct object_space;
 struct object *obj_create(uint128_t id, enum kso_type);
-void obj_system_init(void);
-void obj_system_init_objpage(void);
 struct object *obj_create_clone(uint128_t id, struct object *, enum kso_type ksot);
 
 #define OBJ_LOOKUP_HIDDEN 1
 struct object *obj_lookup(uint128_t id, int flags);
-
 bool obj_verify_id(struct object *obj, bool cache_result, bool uncache);
-struct slot *obj_alloc_slot(struct object *obj);
-void obj_alloc_kernel_slot(struct object *obj);
-struct object *obj_lookup_slot(uintptr_t oaddr, struct slot **);
-void obj_cache_page(struct object *obj, size_t idx, struct page *);
-void obj_kso_init(struct object *obj, enum kso_type ksot);
-void obj_put_page(struct objpage *p);
-
-enum obj_get_page_result {
-	GETPAGE_OK,
-	GETPAGE_PAGER,
-	GETPAGE_NOENT,
-};
-
-#define OBJ_GET_PAGE_PAGEROK 1
-#define OBJ_GET_PAGE_ALLOC 2
-#define OBJ_GET_PAGE_TEST 4
-
-enum obj_get_page_result obj_get_page(struct object *obj, size_t idx, struct objpage **, int);
 void obj_put(struct object *o);
 void obj_assign_id(struct object *obj, objid_t id);
 objid_t obj_compute_id(struct object *obj);
 void obj_init(struct object *obj);
-void obj_system_init(void);
-void obj_release_slot(struct object *obj);
 void obj_tie(struct object *, struct object *);
 void obj_tie_free(struct object *obj);
 int obj_untie(struct object *parent, struct object *child);
 
-bool obj_kaddr_valid(struct object *obj, void *kaddr, size_t);
-void obj_release_kaddr(struct object *obj);
-void *obj_get_kaddr(struct object *obj);
-int obj_copy_pages(struct object *dest, struct object *src, size_t doff, size_t soff, size_t len);
-
-#define OBJPAGE_RELEASE_OBJLOCKED 2
-void objpage_release(struct objpage *op, int);
-
 void obj_write_data(struct object *obj, size_t start, size_t len, void *ptr);
 void obj_read_data(struct object *obj, size_t start, size_t len, void *ptr);
 void obj_write_data_atomic64(struct object *obj, size_t off, uint64_t val);
-void objpage_do_cow_write(struct objpage *p);
 bool obj_get_pflags(struct object *obj, uint32_t *pf);
 int obj_check_permission(struct object *obj, uint64_t flags);
 int obj_check_permission_ip(struct object *obj, uint64_t flags, uint64_t ip);
-void obj_free_kaddr(struct object *obj);
-
-struct slot;
-void arch_object_map_slot(struct object_space *, struct object *obj, struct slot *, uint64_t flags);
-void arch_object_unmap_slot(struct object_space *space, struct slot *slot);
-void arch_object_unmap_page(struct object *obj, size_t idx);
-void arch_object_unmap_all(struct object *obj);
-bool arch_object_map_flush(struct object *obj, size_t idx);
-bool arch_object_premap_page(struct object *obj, int idx, int level);
-void arch_object_page_remap_cow(struct objpage *op);
-bool arch_object_getmap(struct object *obj,
-  uintptr_t off,
-  uintptr_t *phys,
-  int *level,
-  uint64_t *flags);
-void arch_object_remap_cow(struct object *obj);
-
-#define OBJSPACE_FAULT_READ 1
-#define OBJSPACE_FAULT_WRITE 2
-#define OBJSPACE_FAULT_EXEC 4
-
-#define OBJSPACE_READ 1
-#define OBJSPACE_WRITE 2
-#define OBJSPACE_EXEC_U 4
-#define OBJSPACE_EXEC_S 8
-#define OBJSPACE_SET_FLAGS                                                                         \
-	0x1000 /* allow changing the permissions of a page, as long as phys matches */
-#define OBJSPACE_UC 0x2000
-#define OBJSPACE_WB 0
-#define OBJSPACE_WT 0x4000
-#define OBJSPACE_WC 0x8000
-#define OBJSPACE_WP 0x10000
-
-void kernel_objspace_fault_entry(uintptr_t ip, uintptr_t phys, uintptr_t vaddr, uint32_t flags);
-bool arch_objspace_getmap(uintptr_t v, uintptr_t *p, int *level, uint64_t *flags);
-
-void obj_clone_cow(struct object *src, struct object *nobj);
-
-#include <lib/vector.h>
-
-#define GET_PAGE_BLOCK 1
-
-struct blocklist;
-struct page_entry {
-	struct page *page;
-	struct blocklist *blocks;
-};
-
-struct pagevec {
-	_Atomic size_t refs;
-	struct spinlock lock;
-	struct vector pages;
-	struct list ranges;
-};
-
-struct range {
-	size_t start;
-	size_t len;
-	size_t pv_offset;
-	struct spinlock lock;
-	struct pagevec *pv;
-	struct object *obj;
-	struct rbnode node;
-	struct list entry;
-};
-
-size_t range_pv_idx(struct range *, size_t);
-struct range *range_split(struct range *, size_t);
-void range_cut_half(struct range *range, size_t len);
-void range_toss(struct range *range);
-void range_free(struct range *range);
-
-void range_clone(struct range *);
-int pagevec_get_page(struct pagevec *, size_t, struct page **, int flags);
-size_t pagevec_len(struct pagevec *);
-void pagevec_set_page(struct pagevec *pv, size_t idx, struct page *page);
-void pagevec_free(struct pagevec *pv);
-struct range *object_add_range(struct object *, struct pagevec *, size_t, size_t, size_t);
-struct pagevec *object_new_pagevec(struct object *, size_t, size_t *);
-struct range *object_find_range(struct object *, size_t);
-bool arch_object_map_page(struct object *obj, size_t, struct page *, int);
-
-void pagevec_append_page(struct pagevec *pv, struct page *page);
-void pagevec_combine(struct pagevec *a, struct pagevec *b);
-struct pagevec *pagevec_new(void);
-void pagevec_lock(struct pagevec *);
-void pagevec_unlock(struct pagevec *);
-
-#define PAGE_MAP_COW 1
-
-struct copy_args {
-	struct object *src;
-	size_t src_start;
-	size_t dst_start;
-	size_t length;
-};
 
 #define OP_LP_ZERO_OK 1
 #define OP_LP_DO_COPY 2
-int object_copy_pages(struct object *dst, struct copy_args *args, size_t nr_args);
+struct page;
 int object_operate_on_locked_page(struct object *obj,
   size_t page,
   int flags,
   void (*fn)(struct object *obj, size_t, struct page *page, void *data, uint64_t),
   void *data);
-void object_map_page(struct object *obj, size_t pagenr, struct page *page, uint64_t flags);
+
 void object_insert_page(struct object *obj, size_t pagenr, struct page *page);
-struct range *object_find_next_range(struct object *obj, size_t pagenr);
 
 struct object_copy_spec {
 	struct object *src;
@@ -314,6 +103,3 @@ struct object_copy_spec {
 };
 
 void object_copy(struct object *dest, struct object_copy_spec *specs, size_t count);
-
-struct viewentry;
-void kso_view_write(struct object *obj, size_t idx, struct viewentry *ve);

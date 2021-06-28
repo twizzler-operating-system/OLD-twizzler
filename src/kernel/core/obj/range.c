@@ -1,5 +1,7 @@
 #include <object.h>
 #include <page.h>
+#include <pagevec.h>
+#include <range.h>
 #include <slab.h>
 
 static void __range_init(void *d __unused, void *obj)

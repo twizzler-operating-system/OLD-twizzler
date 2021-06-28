@@ -4,6 +4,8 @@
 #include <object.h>
 #include <objspace.h>
 #include <page.h>
+#include <pagevec.h>
+#include <range.h>
 
 static size_t cow_range(struct object *dest,
   struct range *srcrange,

@@ -1,6 +1,7 @@
 #include <device.h>
 #include <init.h>
 #include <interrupt.h>
+#include <kso.h>
 #include <machine/isa.h>
 #include <object.h>
 #include <processor.h>

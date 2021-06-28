@@ -11,3 +11,5 @@
 #define MAP_ZERO 0x100
 
 #define PAGEVEC_MAX_IDX 4096
+
+#define PAGE_MAP_COW 1

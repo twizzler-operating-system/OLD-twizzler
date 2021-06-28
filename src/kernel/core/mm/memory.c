@@ -50,10 +50,8 @@ void mm_init_region(struct memregion *reg,
 {
 	reg->start = start;
 	reg->length = len;
-	reg->flags = 0;
 	reg->type = type;
 	reg->subtype = st;
-	reg->off = 0;
 }
 
 size_t mm_early_count = 0;

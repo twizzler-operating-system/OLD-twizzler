@@ -3,6 +3,7 @@
 #include <device.h>
 #include <instrument.h>
 #include <interrupt.h>
+#include <kso.h>
 #include <machine/isa.h>
 #include <machine/machine.h>
 #include <processor.h>

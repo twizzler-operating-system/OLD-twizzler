@@ -7,6 +7,7 @@
 #include <init.h>
 #include <kc.h>
 #include <kheap.h>
+#include <kso.h>
 #include <machine/machine.h>
 #include <machine/memory.h>
 #include <machine/pc-multiboot.h>

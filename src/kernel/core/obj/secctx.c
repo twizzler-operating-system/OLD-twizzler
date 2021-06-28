@@ -1,4 +1,5 @@
 #include <kalloc.h>
+#include <kso.h>
 #include <object.h>
 #include <objspace.h>
 #include <page.h>
@@ -190,7 +191,6 @@ static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, s
 	struct key_hdr *hdr = NULL; // obj_get_kbase(ko);
 	if(hdr->type != etype) {
 		EPRINTK("hdr->type != cap->etype\n");
-		obj_release_kaddr(ko);
 		return NULL;
 	}
 
@@ -210,12 +210,10 @@ static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, s
 	int e;
 	if((e = base64_decode((const unsigned char *)k, sz, keydata, kdout)) != CRYPT_OK) {
 		EPRINTK("base64 decode error: %s\n", error_to_string(e));
-		obj_release_kaddr(ko);
 		kfree(keydata);
 		keydata = NULL;
 	}
 
-	obj_release_kaddr(ko);
 	return keydata;
 }
 
@@ -416,17 +414,21 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 
 	struct sccap *cap;
 
-	char *kaddr = obj_get_kaddr(obj);
+	// char *kaddr = obj_get_kaddr(obj);
+	panic("A");
+	char *kaddr = NULL;
 
 	cap = (void *)(kaddr + off);
 	uint32_t ret = 0;
-	if(!obj_kaddr_valid(obj, cap, sizeof(*cap))) {
+	// if(!obj_kaddr_valid(obj, cap, sizeof(*cap))) {
+	if(0) {
 		printk("[sctx]: warning - invalid offset specified for bucket\n");
 	} else {
 		if(cap->magic == SC_CAP_MAGIC) {
 			char *data = kaddr + off + sizeof(struct sccap);
 			/* TODO: overflow */
-			if(!obj_kaddr_valid(obj, cap, sizeof(*cap) + cap->slen)) {
+			if(0) {
+				// if(!obj_kaddr_valid(obj, cap, sizeof(*cap) + cap->slen)) {
 				printk("[sctx]: warning - invalid cap length (%ld) in context " IDFMT
 				       " for target " IDFMT "\n",
 				  cap->slen + sizeof(*cap),
@@ -441,7 +443,8 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 			/* TODO: overflow */
 			size_t rem = dlg->slen + dlg->dlen;
 			/* TODO: overflow */
-			if(!obj_kaddr_valid(obj, dlg, sizeof(*dlg) + rem)) {
+			if(0) {
+				// if(!obj_kaddr_valid(obj, dlg, sizeof(*dlg) + rem)) {
 				printk("[sctx]: warning - invalid dlg length (%ld) in context " IDFMT
 				       " for target " IDFMT "\n",
 				  rem + sizeof(*dlg),
@@ -456,7 +459,6 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 		}
 	}
 
-	obj_release_kaddr(obj);
 	return ret;
 }
 
@@ -602,8 +604,6 @@ static void __lookup_perms(struct sctx *sc,
 	}
 	sctx_cache_insert(sc, target->id, perms | dfl, gatelist, gatepos);
 	spinlock_release_restore(&sc->cache_lock);
-
-	obj_release_kaddr(sc->obj);
 }
 
 #if 0

@@ -1,4 +1,5 @@
 #include <kalloc.h>
+#include <kso.h>
 #include <lib/iter.h>
 #include <lib/list.h>
 #include <limits.h>
