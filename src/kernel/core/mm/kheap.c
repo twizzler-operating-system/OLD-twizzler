@@ -5,7 +5,7 @@
 #include <spinlock.h>
 #include <vmm.h>
 
-#define KHEAP_SIZE 1024 * 1024 * 1024ul
+#define KHEAP_SIZE 1024 * 1024 * 1024ul /* 1 GB */
 
 static _Atomic uintptr_t kheap_start = KERNEL_VIRTUAL_HEAP_BASE;
 
@@ -78,6 +78,11 @@ static struct kheap_run *kheap_take_from_bucket(size_t nr, bool quick)
 static void *kheap_allocate_from_end(void)
 {
 	void *p = (void *)atomic_fetch_add(&kheap_top, mm_objspace_region_size());
+	if((uintptr_t)p >= kheap_end) {
+		/* TODO (low): we could try extending the kheap, here, instead of just panicing. Would
+		 * require a small amount of emergency memory to allocate for extending the mappings */
+		panic("out of kheap memory");
+	}
 	uintptr_t oaddr = ((uintptr_t)p - kheap_start) + kheap_oaddr_start;
 	mm_objspace_kernel_fill(oaddr,
 	  NULL,
@@ -173,7 +178,7 @@ struct kheap_run *kheap_allocate(size_t len)
 				kheap_split_run(run, np);
 			}
 			assert(run->nr_pages >= np);
-			/* TODO: we can avoid this memset sometimes, probably */
+			/* TODO (opt): we can avoid this memset sometimes, probably */
 			memset(run->start, 0, run->nr_pages * mm_page_size(0));
 			return run;
 		}
@@ -185,23 +190,13 @@ struct kheap_run *kheap_allocate(size_t len)
 	run->nr_pages = mm_objspace_region_size() / mm_page_size(0);
 	kheap_split_run(run, np);
 	assert(run->nr_pages >= np);
-	/* TODO: we can avoid this memset sometimes, probably */
+	/* TODO (opt): we can avoid this memset sometimes, probably */
 	memset(run->start, 0, run->nr_pages * mm_page_size(0));
 	return run;
 }
 
 void kheap_free(struct kheap_run *run)
 {
-	/* TODO: coalescing, splitting, bookkeeping */
+	/* TODO (low): coalescing, splitting, bookkeeping */
 	kheap_put_run_somewhere(run);
-}
-
-void *kheap_allocate_pages(size_t len, int flags)
-{
-	panic("A");
-}
-
-void kheap_free_pages(void *p)
-{
-	panic("A");
 }

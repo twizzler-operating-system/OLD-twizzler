@@ -45,6 +45,7 @@ void kso_attach(struct object *parent, struct object *child, size_t);
 void kso_setname(struct object *obj, const char *name);
 struct object *get_system_object(void);
 void obj_kso_init(struct object *, enum kso_type);
+struct kso_calls *kso_lookup_calls(enum kso_type ksot);
 
 void object_init_kso_data(struct object *, enum kso_type);
 void *object_get_kso_data_checked(struct object *obj, enum kso_type kt);

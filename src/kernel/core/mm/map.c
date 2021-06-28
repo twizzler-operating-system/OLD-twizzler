@@ -76,15 +76,6 @@ void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags)
 	arch_mm_map(NULL, addr, oaddr, len, flags);
 }
 
-int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page)
-{
-	struct omap *omap = mm_objspace_get_object_map(obj, page);
-	if(!omap)
-		return -1;
-	panic("A");
-	return 0;
-}
-
 struct vm_context *vm_context_create(void)
 {
 	return slabcache_alloc(&sc_vm_context, NULL);
@@ -97,8 +88,6 @@ void vm_context_free(struct vm_context *ctx)
 	assert(view);
 	list_remove(&ctx->entry);
 	rwlock_wunlock(&res);
-	// printk("vm_context_free: " IDFMT ": %ld\n", IDPR(ctx->viewobj->id),
-	// ctx->viewobj->refs.count);
 	obj_put(ctx->viewobj);
 	slabcache_free(&sc_vm_context, ctx, NULL);
 }
@@ -143,11 +132,6 @@ static inline bool flag_mismatch(int flags, uint32_t veflags)
 static inline bool fault_is_perm(int flags)
 {
 	return flags & FAULT_ERROR_PERM;
-}
-
-static void raise_fault()
-{
-	panic("A");
 }
 
 static struct vmap *vm_context_lookup_vmap(struct vm_context *ctx, uintptr_t virt)
@@ -207,43 +191,42 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
 	*id = ve.id;
 	*veflags = ve.flags;
-#if 0
-	printk("reading view entry %ld: " IDFMT " %x from %lx (" IDFMT ")\n",
-	  slot,
-	  IDPR(*id),
-	  *veflags,
-	  __VE_OFFSET + slot * sizeof(struct viewentry),
-	  IDPR(view->id));
-#endif
 	return !!(ve.flags & VE_VALID);
 }
 
 void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 {
-	/* TODO: ensure addr is user */
-	// printk("A: %ld %lx %lx %x\n", current_thread->id, ip, addr, flags);
+	assert(current_thread && current_thread->ctx);
+	if(VADDR_IS_USER(ip) && !VADDR_IS_USER(addr)) {
+		struct fault_exception_info fei = twz_fault_build_exception_info((void *)ip,
+		  FAULT_EXCEPTION_SOFTWARE | FAULT_EXCEPTION_PAGEFAULT,
+		  addr,
+		  ((flags & FAULT_EXEC) ? FEI_EXEC : 0) | ((flags & FAULT_WRITE) ? FEI_WRITE : FEI_READ));
+		thread_raise_fault(current_thread, FAULT_EXCEPTION, &fei, sizeof(fei));
+		return;
+	}
 
 	if(fault_is_perm(flags)) {
-		printk("perm fault\n");
-
-		uint32_t veflags;
-		objid_t id;
-		size_t slot = addr / OBJ_MAXSIZE;
-		if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
-			raise_fault();
-			return;
+		spinlock_acquire_save(&current_thread->ctx->lock);
+		struct vmap *vmap = vm_context_lookup_vmap(current_thread->ctx, addr);
+		if(!vmap) {
+			panic("permission fault raised for non-present mapping");
 		}
-		printk("==> " IDFMT " %x\n", IDPR(id), veflags);
-
-		raise_fault();
+		struct fault_object_info foi = twz_fault_build_object_info(vmap->obj->id,
+		  (void *)ip,
+		  (void *)addr,
+		  ((flags & FAULT_WRITE) ? FAULT_OBJECT_WRITE : FAULT_OBJECT_READ)
+		    | ((flags & FAULT_EXEC) ? FAULT_OBJECT_EXEC : 0));
+		spinlock_release_restore(&current_thread->ctx->lock);
+		thread_raise_fault(current_thread, FAULT_OBJECT, &foi, sizeof(foi));
 		return;
 	}
 
 	size_t off = addr % OBJ_MAXSIZE;
 
 	if(off < OBJ_NULLPAGE_SIZE) {
-		printk("null fault\n");
-		raise_fault();
+		struct fault_null_info fni = twz_fault_build_null_info((void *)ip, (void *)addr);
+		thread_raise_fault(current_thread, FAULT_NULL, &fni, sizeof(fni));
 		return;
 	}
 
@@ -251,30 +234,42 @@ void vm_context_fault(uintptr_t ip, uintptr_t addr, int flags)
 	objid_t id;
 	size_t slot = addr / OBJ_MAXSIZE;
 	if(!read_view_entry(current_thread->ctx->viewobj, slot, &id, &veflags)) {
-		printk("failed to read view entry\n");
-		raise_fault();
+		struct fault_object_info foi = twz_fault_build_object_info(0,
+		  (void *)ip,
+		  (void *)addr,
+		  ((flags & FAULT_WRITE) ? FAULT_OBJECT_WRITE : FAULT_OBJECT_READ)
+		    | ((flags & FAULT_EXEC) ? FAULT_OBJECT_EXEC : 0) | FAULT_OBJECT_NOMAP);
+		thread_raise_fault(current_thread, FAULT_OBJECT, &foi, sizeof(foi));
 		return;
 	}
 
 	if(flag_mismatch(flags, veflags)) {
-		printk("mismatch fault\n");
-		raise_fault();
+		struct fault_object_info foi = twz_fault_build_object_info(id,
+		  (void *)ip,
+		  (void *)addr,
+		  ((flags & FAULT_WRITE) ? FAULT_OBJECT_WRITE : FAULT_OBJECT_READ)
+		    | ((flags & FAULT_EXEC) ? FAULT_OBJECT_EXEC : 0));
+		thread_raise_fault(current_thread, FAULT_OBJECT, &foi, sizeof(foi));
 		return;
 	}
 
 	struct object *obj = obj_lookup(id, 0);
 	if(!obj) {
-		printk("no obj\n");
-		raise_fault();
+		struct fault_object_info foi = twz_fault_build_object_info(id,
+		  (void *)ip,
+		  (void *)addr,
+		  ((flags & FAULT_WRITE) ? FAULT_OBJECT_WRITE : FAULT_OBJECT_READ)
+		    | ((flags & FAULT_EXEC) ? FAULT_OBJECT_EXEC : 0) | FAULT_OBJECT_EXIST);
+		thread_raise_fault(current_thread, FAULT_OBJECT, &foi, sizeof(foi));
 		return;
 	}
 
 	struct omap *omap = mm_objspace_get_object_map(obj, off / mm_page_size(0));
 	struct vmap *vmap = vmap_create(addr, omap, veflags);
 
-	// printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
-
+	spinlock_acquire_save(&current_thread->ctx->lock);
 	vm_context_add_vmap(current_thread->ctx, vmap);
+	spinlock_release_restore(&current_thread->ctx->lock);
 	obj_put(obj);
 }
 
@@ -301,7 +296,6 @@ struct object *vm_vaddr_lookup_obj(void *a, uint64_t *off)
 
 		struct omap *omap = mm_objspace_get_object_map(obj, (addr % OBJ_MAXSIZE) / mm_page_size(0));
 		vmap = vmap_create(addr, omap, veflags);
-		// printk("mapping slot %p %ld: %p\n", current_thread->ctx, vmap->slot, vmap);
 		vm_context_add_vmap(current_thread->ctx, vmap);
 	}
 
@@ -326,13 +320,10 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 	t->ctx = vm_context_create();
 	krc_get(&viewobj->refs);
 	struct kso_view *kv = object_get_kso_data_checked(viewobj, KSO_VIEW);
-	/* TODO: better locking */
 	struct rwlock_result res = rwlock_wlock(&viewobj->rwlock, 0);
 	list_insert(&kv->contexts, &t->ctx->entry);
 	t->ctx->viewobj = viewobj;
 	rwlock_wunlock(&res);
-
-	// printk("set view: " IDFMT ": %ld\n", IDPR(viewobj->id), viewobj->refs.count);
 
 	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 		if(t->backup_views[i].id == 0) {
@@ -364,7 +355,7 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 
 		struct rbnode *node;
 		for(; slot_start < slot_end; slot_start++) {
-			/* TODO: make this faster */
+			/* TODO (opt): make this faster, with a "search next" type lookup */
 			node = rb_search(&ctx->root, slot_start, struct vmap, node, vmap_compar_key);
 			if(node) {
 				break;
@@ -375,7 +366,6 @@ static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
 		for(; node && slot_start < slot_end; node = next) {
 			next = rb_next(node);
 			struct vmap *vmap = rb_entry(node, struct vmap, node);
-			// printk("invl " IDFMT "\n", IDPR(vmap->obj->id));
 			if(vmap->slot < slot_end) {
 				vm_context_remove_vmap(ctx, vmap);
 				arch_mm_virtual_invalidate(

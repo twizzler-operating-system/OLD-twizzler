@@ -90,9 +90,6 @@ static struct page *fallback_page_alloc(void)
 
 struct page *mm_page_fake_create(uintptr_t phys, int flags)
 {
-	if(phys > 0xffff000000000000ul) {
-		panic("A what2");
-	}
 	spinlock_acquire_save_recur(&lock);
 	struct page *page = get_new_page_struct();
 	spinlock_release_restore(&lock);
@@ -238,9 +235,6 @@ struct page *mm_page_alloc(int flags)
 	if((flags & PAGE_ZERO) && !(page->flags & PAGE_ZERO)) {
 		mm_page_zero(page);
 	}
-	if(page->addr > 0xffff000000000000ul) {
-		panic("A what");
-	}
 	return page;
 }
 
@@ -257,10 +251,10 @@ uintptr_t mm_page_alloc_addr(int flags)
 
 void mm_page_print_stats(void)
 {
-	printk("TODO: page stats\n");
+	/* TODO (low): print page stats */
 }
 
 void mm_page_idle_zero(void)
 {
-	/* TODO A */
+	/* TODO (opt): background-zero pages */
 }

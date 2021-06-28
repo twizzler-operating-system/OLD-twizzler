@@ -75,40 +75,6 @@ static void _obj_dtor(void *_u, void *ptr)
 
 static DECLARE_SLABCACHE(sc_objs, sizeof(struct object), _obj_init, NULL, _obj_dtor, NULL, NULL);
 
-static struct kso_calls *_kso_calls[KSO_MAX];
-
-void kso_register(int t, struct kso_calls *c)
-{
-	_kso_calls[t] = c;
-}
-
-void kso_detach_event(struct thread *thr, bool entry, int sysc)
-{
-	for(size_t i = 0; i < KSO_MAX; i++) {
-		if(_kso_calls[i] && _kso_calls[i]->detach_event) {
-			_kso_calls[i]->detach_event(thr, entry, sysc);
-		}
-	}
-}
-
-void obj_kso_init(struct object *obj, enum kso_type ksot)
-{
-	obj->kso_type = ksot;
-	obj->kso_calls = _kso_calls[ksot];
-	if(obj->kso_calls && obj->kso_calls->ctor) {
-		obj->kso_calls->ctor(obj);
-	}
-}
-
-void object_init_kso_data(struct object *obj, enum kso_type kt)
-{
-	obj->kso_type = kt;
-	obj->kso_calls = _kso_calls[kt];
-	if(obj->kso_calls && obj->kso_calls->ctor) {
-		obj->kso_calls->ctor(obj);
-	}
-}
-
 static inline struct object *__obj_alloc(enum kso_type ksot, objid_t id)
 {
 	struct object *obj = slabcache_alloc(&sc_objs, NULL);

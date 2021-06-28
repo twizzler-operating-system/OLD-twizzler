@@ -50,7 +50,6 @@ struct object *vm_context_lookup_object(struct vm_context *ctx, uintptr_t virt);
 void kernel_fault_entry(uintptr_t ip, uintptr_t addr, int flags);
 
 void arch_mm_unmap(struct vm_context *ctx, uintptr_t virt, size_t len);
-int mm_map_object_vm(struct vm_context *vm, struct object *obj, size_t page);
 void mm_map(uintptr_t addr, uintptr_t oaddr, size_t len, int flags);
 int arch_mm_map(struct vm_context *ctx,
   uintptr_t virt,

@@ -3,11 +3,6 @@
 struct page;
 void kheap_start_dynamic(void);
 
-/* TODO: deprecate */
-void *kheap_allocate_pages(size_t len, int flags);
-/* TODO: deprecate */
-void kheap_free_pages(void *p);
-
 struct kheap_run {
 	void *start;
 	size_t nr_pages;

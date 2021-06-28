@@ -20,7 +20,7 @@
 #define SYS_OPIN 12
 #define SYS_OCTL 13
 #define SYS_KCONF 14
-#define SYS_VMAP 15 /* TODO: remove */
+#define SYS_DEPRECATED_1 15
 #define SYS_OTIE 16
 #define SYS_OCOPY 17
 #define SYS_KQUEUE 18

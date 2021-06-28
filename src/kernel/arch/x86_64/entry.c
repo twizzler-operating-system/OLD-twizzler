@@ -107,7 +107,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 		} else if(frame->int_no < 32) {
 			if(was_userspace) {
 				struct fault_exception_info info = twz_fault_build_exception_info(
-				  (void *)frame->rip, frame->int_no, frame->err_code);
+				  (void *)frame->rip, frame->int_no, frame->err_code, 0);
 				if(frame->int_no == 19) {
 					/* SIMD exception; get info from MXCSR */
 					asm volatile("stmxcsr %0" : "=m"(info.arg0));
@@ -274,7 +274,7 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 	  thread->arch.was_syscall ? thread->arch.syscall.rcx : thread->arch.exception.rip;
 	if(!VADDR_IS_USER(return_addr)) {
 		struct fault_exception_info fei =
-		  twz_fault_build_exception_info((void *)return_addr, 14, 1);
+		  twz_fault_build_exception_info((void *)return_addr, 14, 1, 0);
 		thread_raise_fault(thread, FAULT_EXCEPTION, &fei, sizeof(fei));
 	}
 

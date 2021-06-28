@@ -60,6 +60,8 @@ long syscall_ostat(uint64_t idlo, uint64_t idhi, int stat_type, uint64_t arg, vo
 {
 	objid_t id = MKID(idhi, idlo);
 
+	/* TODO (med): implement object stat */
+	return -ENOSYS;
 #if 0
 	struct object *obj = obj_lookup(id, OBJ_LOOKUP_HIDDEN);
 	if(!obj) {
@@ -134,11 +136,10 @@ long syscall_ostat(uint64_t idlo, uint64_t idhi, int stat_type, uint64_t arg, vo
 	}
 	obj_put(obj);
 #endif
-	panic("A");
-
 	return 0;
 }
 
+/* TODO (breaking): change interface to copy_args list */
 long syscall_ocopy(objid_t *destid,
   objid_t *srcid,
   size_t doff,
@@ -147,7 +148,6 @@ long syscall_ocopy(objid_t *destid,
   int flags __unused)
 {
 	/* TODO: check permissions */
-	// printk("OCOPY: --> %lx %lx %lx\n", doff, soff, len);
 	if(doff & (mm_page_size(0) - 1))
 		return -EINVAL;
 	if(soff & (mm_page_size(0) - 1))
@@ -177,14 +177,11 @@ long syscall_ocopy(objid_t *destid,
 		.length = len / mm_page_size(0),
 	};
 	object_copy(dest, &spec, 1);
-	// int r = obj_copy_pages(dest, src, doff, soff, len);
-	int r = 0;
-
 	obj_put(dest);
 	if(src)
 		obj_put(src);
 
-	return r;
+	return 0;
 }
 
 long syscall_otie(uint64_t pidlo, uint64_t pidhi, uint64_t cidlo, uint64_t cidhi, int flags)
@@ -224,22 +221,6 @@ done:
 		obj_put(child);
 
 	return ret;
-}
-
-long syscall_vmap(const void *restrict p, int cmd, long arg)
-{
-	panic("A");
-#if 0
-	switch(cmd) {
-		case TWZ_SYS_VMAP_WIRE:
-			(void)arg;
-			return vm_context_wire(p);
-			break;
-		default:
-			return -EINVAL;
-	}
-	return 0;
-#endif
 }
 
 long syscall_kaction(size_t count, struct sys_kaction_args *args)
@@ -379,14 +360,11 @@ long syscall_detach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 	if(child && child->kso_calls && child->kso_calls->detach) {
 		ret = child->kso_calls->detach(parent, child, sysc, flags) ? 0 : -EINVAL;
 	} else if(!child) {
-		printk("TODO: A handle detach with no child\n");
-		/*
 		struct kso_calls *kc = kso_lookup_calls(type);
 		bool (*c)(struct object *, struct object *, int, int) = kc ? kc->detach : NULL;
 		if(c) {
-		    ret = c(parent, child, sysc, flags) ? 0 : -EINVAL;
-		}*/
-		// panic("A");
+			ret = c(parent, child, sysc, flags) ? 0 : -EINVAL;
+		}
 	}
 
 	if(child)
@@ -447,17 +425,6 @@ long syscall_ocreate(uint64_t kulo,
 		object_copy(o, &spec, 1);
 	}
 
-#if 0
-	if(flags & TWZ_SYS_OC_PERSIST_) {
-		o->flags |= OF_PERSIST;
-		o->preg = nv_region_select();
-		if(!o->preg) {
-			/* TODO: cleanup */
-			return -ENOSPC;
-		}
-	}
-#endif
-
 	struct metainfo mi = {
 		.magic = MI_MAGIC,
 		.p_flags =
@@ -476,13 +443,7 @@ long syscall_ocreate(uint64_t kulo,
 	objid_t id = obj_compute_id(o);
 	obj_assign_id(o, id);
 
-#if 0
-	if(o->flags & OF_PERSIST) {
-		nv_region_persist_obj_meta(o);
-	}
-#endif
-
-#if CONFIG_DEBUG_OBJECT_LIFE || 0
+#if CONFIG_DEBUG_OBJECT_LIFE
 	if(srcid)
 		printk("CREATE OBJECT: " IDFMT " from srcobj " IDFMT "\n", IDPR(id), IDPR(srcid));
 	else
@@ -530,7 +491,8 @@ long syscall_odelete(uint64_t olo, uint64_t ohi, uint64_t flags)
 
 long syscall_opin(uint64_t lo, uint64_t hi, uint64_t *addr, int flags)
 {
-	panic("A");
+	/* TODO (breaking): change this interface to support pinning ranges of objects */
+	return -ENOSYS;
 #if 0
 	objid_t id = MKID(hi, lo);
 	struct object *o = obj_lookup(id, 0);
@@ -556,6 +518,9 @@ long syscall_opin(uint64_t lo, uint64_t hi, uint64_t *addr, int flags)
 #include <page.h>
 long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long arg3)
 {
+	/* TODO (breaking): change this interface to operate on ranges of address in objects, and
+	 * implement a better "expose this object to a given device" interface */
+	return -ENOSYS;
 #if 0
 	objid_t id = MKID(hi, lo);
 	struct object *o = obj_lookup(id, 0);
@@ -626,5 +591,4 @@ long syscall_octl(uint64_t lo, uint64_t hi, int op, long arg1, long arg2, long a
 	obj_put(o);
 	return r;
 #endif
-	panic("A");
 }

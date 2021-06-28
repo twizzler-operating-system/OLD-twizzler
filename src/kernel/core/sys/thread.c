@@ -222,7 +222,6 @@ static long __syscall_become_return(long a0, long *arg_stack)
 	}
 
 	slabcache_free(&_sc_frame, frame, NULL);
-	// kfree(frame);
 	return a0;
 }
 
@@ -242,81 +241,46 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 	}
 	struct arch_syscall_become_args ba;
 	memcpy(&ba, _ba, sizeof(ba));
-	// long _a = rdtsc();
 	struct thread_become_frame *oldframe = slabcache_alloc(&_sc_frame, NULL);
-	// struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
 	oldframe->view = NULL;
 	struct object *target_view = NULL;
-	// long a = rdtsc();
-	//	long a_1, a2, a3;
 	if(ba.target_view) {
 		oldframe->view = current_thread->ctx->viewobj;
 		krc_get(&oldframe->view->refs);
-		bool early_find = false;
-#if 1
+		struct vm_context *early_find_ctx = NULL;
 		for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 			if(current_thread->backup_views[i].id == ba.target_view) {
-				early_find = true;
 				target_view = current_thread->backup_views[i].ctx->viewobj;
-				panic("A");
-				current_thread->ctx = current_thread->backup_views[i].ctx; // TODO: cleanup
+				early_find_ctx = current_thread->backup_views[i].ctx;
 				break;
 			}
 		}
-#endif
-		if(!early_find) {
+		if(early_find_ctx) {
+			current_thread->ctx = early_find_ctx;
+		} else {
 			target_view = obj_lookup(ba.target_view, 0);
 			if(!target_view) {
-				/* TODO: cleanup oldframe */
-				//		kfree(oldframe);
+				slabcache_free(&_sc_frame, oldframe, NULL);
 				return -ENOENT;
 			}
-
 			if(!obj_verify_id(target_view, true, false)) {
-				/* TODO: undo things? */
+				slabcache_free(&_sc_frame, oldframe, NULL);
 				return -ENOENT;
 			}
-			//	a_1 = rdtsc();
-			//	struct object *obj = kso_get_obj(current_thread->ctx->view, view);
-			//	oldframe->view = obj;
-
-			//	a2 = rdtsc();
 			vm_setview(current_thread, target_view);
-
-			if(target_view) {
-				obj_put(target_view);
-			}
+			obj_put(target_view);
 		}
 		arch_mm_switch_context(current_thread->ctx);
-		// a3 = rdtsc();
 		// vm_context_fault(ba.target_rip, ba.target_rip, FAULT_ERROR_PRES | FAULT_EXEC);
 	}
-	// long b = rdtsc();
 	arch_thread_become(&ba, oldframe, a1 & SYS_BECOME_INPLACE);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
-	// long c = rdtsc();
-	/* TODO: call check_fault directly, use IP target */
 	int r;
-
-#if 0
-	/* TODO (sec): use current IP if INPLACE. */
-	if((r = obj_check_permission_ip(target_view, SCP_USE, ba.target_rip))) {
-		__syscall_become_return(0);
-		return r;
-	}
-#endif
-
 	if((r = secctx_check_permissions_hint(
 	      (void *)ba.target_rip, target_view, SCP_USE, ba.sctx_hint))) {
 		__syscall_become_return(0, NULL);
-		printk("RETURN HERE %d\n", r);
 		return r;
 	}
-
-	// long d = rdtsc();
-	// printk("become: %ld %ld %ld %ld\n", _a - a, b - a, c - b, d - c);
-	// printk("    %ld %ld %ld %ld\n", a_1 - a, a2 - a_1, a3 - a2, b - a3);
-
 	return 0;
 }
 

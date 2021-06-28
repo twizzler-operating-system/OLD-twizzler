@@ -77,23 +77,32 @@ static inline struct fault_null_info twz_fault_build_null_info(void *ip, void *a
 	return fi;
 }
 
-/* exception faults: occur due to CPU exceptions (GPF, DIV0, etc). */
+/* exception faults: occur due to CPU exceptions (GPF, DIV0, etc) or unhandled page faults. */
 
 struct fault_exception_info {
 	void *ip;
 	uint64_t code; /* architecture specific */
 	uint64_t arg0; /* architecture specific */
-	uint64_t pad;
+	uint64_t flags;
 } __attribute__((packed));
+
+#define FEI_READ 1
+#define FEI_WRITE 2
+#define FEI_EXEC 4
+
+#define FAULT_EXCEPTION_SOFTWARE (1ul << 63)
+#define FAULT_EXCEPTION_PAGEFAULT 1
 
 static inline struct fault_exception_info twz_fault_build_exception_info(void *ip,
   uint64_t code,
-  uint64_t arg0)
+  uint64_t arg0,
+  uint64_t flags)
 {
 	struct fault_exception_info fi;
 	fi.ip = ip;
 	fi.code = code;
 	fi.arg0 = arg0;
+	fi.flags = flags;
 	return fi;
 }
 
