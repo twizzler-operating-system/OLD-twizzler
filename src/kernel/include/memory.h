@@ -30,7 +30,6 @@ struct memregion {
 	uintptr_t start;
 	size_t length;
 	int flags;
-	bool ready; /* TODO: move this to flags */
 	enum memory_type type;
 	enum memory_subtype subtype;
 	struct list entry;
@@ -40,6 +39,8 @@ struct memregion {
 
 void mm_init_phase_2(void);
 void arch_mm_init(void);
+bool mm_is_ready(void);
+
 void mm_register_region(struct memregion *reg);
 void mm_init_region(struct memregion *reg,
   uintptr_t start,
@@ -47,6 +48,8 @@ void mm_init_region(struct memregion *reg,
   enum memory_type type,
   enum memory_subtype);
 
+#define REGION_ALLOC_BOOTSTRAP 1
+uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags);
 void mm_early_alloc(uintptr_t *phys, void **virt, size_t len, size_t align);
 void *mm_early_ptov(uintptr_t phys);
 
@@ -55,20 +58,3 @@ struct page_stats;
 int page_build_stats(struct page_stats *stats, int idx);
 void mm_print_stats(void);
 void mm_print_kalloc_stats(void);
-bool mm_is_ready(void);
-
-#define MAP_WIRE 1
-#define MAP_GLOBAL 2
-#define MAP_KERNEL 4
-#define MAP_READ 8
-#define MAP_WRITE 0x10
-#define MAP_EXEC 0x20
-#define MAP_TABLE_PREALLOC 0x40
-#define MAP_REPLACE 0x80
-#define MAP_ZERO 0x100
-struct page;
-
-#define REGION_ALLOC_BOOTSTRAP 1
-uintptr_t mm_region_alloc_raw(size_t len, size_t align, int flags);
-
-#define PAGEVEC_MAX_IDX 4096

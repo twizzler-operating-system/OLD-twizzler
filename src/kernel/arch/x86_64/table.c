@@ -1,3 +1,4 @@
+#include <__mm_bits.h>
 #include <kheap.h>
 #include <memory.h>
 #include <slab.h>
