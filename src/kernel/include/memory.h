@@ -4,7 +4,6 @@
 #include <machine/memory.h>
 #include <spinlock.h>
 #include <string.h>
-#include <workqueue.h>
 
 #define VADDR_IS_KERNEL(x) ({ (x) >= KERNEL_REGION_START; })
 #define VADDR_IS_USER(x) ({ (x) >= USER_REGION_START && (x) < USER_REGION_END; })

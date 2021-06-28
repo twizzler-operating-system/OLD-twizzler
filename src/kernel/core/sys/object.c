@@ -5,7 +5,6 @@
 #include <page.h>
 #include <processor.h>
 #include <rand.h>
-#include <slots.h>
 #include <syscall.h>
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>

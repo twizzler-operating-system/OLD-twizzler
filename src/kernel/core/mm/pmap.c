@@ -2,7 +2,6 @@
 #include <object.h>
 #include <objspace.h>
 #include <pmap.h>
-#include <slots.h>
 #include <spinlock.h>
 #include <twz/sys/dev/memory.h>
 #include <vmm.h>

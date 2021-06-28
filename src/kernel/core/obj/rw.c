@@ -1,6 +1,5 @@
 #include <object.h>
 #include <page.h>
-#include <slots.h>
 #include <tmpmap.h>
 
 struct io {

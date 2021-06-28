@@ -1,7 +1,6 @@
 #include <interrupt.h>
 #include <processor.h>
 #include <thread.h>
-#include <trace.h>
 
 int trace_indent_level = 0;
 

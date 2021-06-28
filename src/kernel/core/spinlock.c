@@ -1,4 +1,3 @@
-#include <instrument.h>
 #include <interrupt.h>
 #include <processor.h>
 #include <spinlock.h>

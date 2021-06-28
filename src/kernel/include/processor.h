@@ -4,7 +4,6 @@
 #include <interrupt.h>
 #include <lib/list.h>
 #include <thread.h>
-#include <workqueue.h>
 
 #define PROCESSOR_UP 1
 #define PROCESSOR_BSP 4
@@ -36,7 +35,6 @@ struct processor {
 	void *percpu;
 	struct proc_stats stats;
 	struct object *obj;
-	struct workqueue wq;
 
 	long ctr;
 };

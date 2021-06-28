@@ -10,7 +10,6 @@
 #include <twz/obj.h>
 #include <twz/sys/kso.h>
 #include <twz/sys/obj.h>
-#include <workqueue.h>
 
 struct object_tie {
 	struct object *child;

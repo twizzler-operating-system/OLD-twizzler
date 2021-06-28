@@ -3,7 +3,6 @@
 #include <objspace.h>
 #include <pmap.h>
 #include <processor.h>
-#include <slots.h>
 #include <spinlock.h>
 #include <tmpmap.h>
 #include <twz/sys/dev/memory.h>

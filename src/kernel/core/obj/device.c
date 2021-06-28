@@ -5,7 +5,6 @@
 #include <memory.h>
 #include <object.h>
 #include <page.h>
-#include <slots.h>
 #include <syscall.h>
 #include <thread.h>
 #include <twz/meta.h>

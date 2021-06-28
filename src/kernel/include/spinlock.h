@@ -1,5 +1,4 @@
 #pragma once
-#include <guard.h>
 #include <stdatomic.h>
 
 struct thread;

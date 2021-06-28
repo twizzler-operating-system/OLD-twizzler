@@ -5,7 +5,6 @@
 #include <object.h>
 #include <page.h>
 #include <pmap.h>
-#include <slots.h>
 #include <thread.h>
 #include <tmpmap.h>
 #include <vmm.h>

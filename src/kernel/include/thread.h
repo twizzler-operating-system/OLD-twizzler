@@ -7,7 +7,6 @@
 #include <spinlock.h>
 #include <thread-bits.h>
 #include <time.h>
-#include <workqueue.h>
 
 #include <twz/sys/fault.h>
 #include <twz/sys/thread.h>
@@ -54,22 +53,21 @@ struct thread {
 	struct arch_thread arch;
 	struct spinlock lock;
 	unsigned long id;
+	objid_t thrid;
 	_Atomic enum thread_state state;
+
 	uint64_t timeslice_expire;
 	int priority;
-	_Atomic bool page_alloc;
-	// struct krc refs;
-	objid_t thrid;
-
 	struct processor *processor;
-	struct vm_context *ctx;
 
+	struct vm_context *ctx;
 	struct thread_view backup_views[MAX_BACK_VIEWS];
 
 	struct spinlock sc_lock;
 	struct sctx *active_sc;
 	struct thread_sctx_entry *sctx_entries;
 
+	struct object *thrctrl;
 	struct object *reprobj;
 	int kso_attachment_num;
 
@@ -77,20 +75,18 @@ struct thread {
 	struct sleep_entry *sleep_entries;
 	size_t sleep_count;
 	_Atomic bool sleep_restart;
-	struct task free_task;
+
 	/* pager info */
 	objid_t pager_obj_req;
 	ssize_t pager_page_req;
-	uintptr_t _last_oaddr; // TODO: remove
-	uint32_t _last_flags;
-	uint32_t _last_count;
+
 	void *pending_fault_info;
 	int pending_fault;
 	size_t pending_fault_infolen;
+
 	struct timer sleep_timer;
 
 	struct list become_stack;
-	struct object *thrctrl;
 };
 
 struct arch_syscall_become_args;

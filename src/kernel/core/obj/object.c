@@ -14,7 +14,6 @@
 #include <processor.h>
 #include <range.h>
 #include <slab.h>
-#include <slots.h>
 #include <tmpmap.h>
 #include <twz/meta.h>
 #include <twz/sys/syscall.h>

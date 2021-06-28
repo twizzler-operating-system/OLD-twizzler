@@ -63,13 +63,6 @@ static void vm_map_disestablish(struct vm_context *ctx, struct vmap *map)
 	slabcache_free(&sc_vmap, map);
 }
 
-static void __vm_context_finish_destroy(void *_v)
-{
-	struct vm_context *v = _v;
-	arch_mm_context_destroy(v);
-	slabcache_free(&sc_vmctx, v);
-}
-
 void vm_context_destroy(struct vm_context *v)
 {
 	struct object *obj = kso_get_obj(v->view, view);
@@ -99,7 +92,8 @@ void vm_context_destroy(struct vm_context *v)
 	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
 	obj_put(obj);
 
-	workqueue_insert(&current_processor->wq, &v->free_task, __vm_context_finish_destroy, v);
+	arch_mm_context_destroy(v);
+	slabcache_free(&sc_vmctx, v);
 }
 
 void vm_context_put(struct vm_context *v)

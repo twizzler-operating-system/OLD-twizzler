@@ -48,7 +48,6 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 
 	while(true) {
 		pager_idle_task();
-		workqueue_dowork(&proc->wq);
 		uint64_t rem_time = timer_check_timers();
 		spinlock_acquire(&proc->sched_lock);
 

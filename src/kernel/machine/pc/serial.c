@@ -1,7 +1,6 @@
 #include <arch/x86_64-io.h>
 #include <debug.h>
 #include <device.h>
-#include <instrument.h>
 #include <interrupt.h>
 #include <kso.h>
 #include <machine/isa.h>

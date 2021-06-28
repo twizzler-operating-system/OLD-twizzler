@@ -6,7 +6,6 @@
 #include <range.h>
 #include <rwlock.h>
 #include <secctx.h>
-#include <slots.h>
 #include <thread.h>
 #include <tmpmap.h>
 #include <twz/meta.h>

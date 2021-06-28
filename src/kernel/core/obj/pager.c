@@ -4,7 +4,6 @@
 #include <pager.h>
 #include <processor.h>
 #include <slab.h>
-#include <slots.h>
 #include <syscall.h>
 #include <thread.h>
 #include <tmpmap.h>
