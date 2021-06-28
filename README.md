@@ -3,7 +3,7 @@
 Twizzler is a research operating system designed to explore novel programming models for new memory
 hierarchy designs. In particular, we are focused on the opportunities presented by byte-addressable
 non-volatile memory technologies. Twizzler provides a data-centric programming environment that
-allows programmers to operate on persistent data like it's memory -- because it is!
+lets programmers to work with persistent data like it's memory -- because persistent data _is_ memory.
 
 This repo contains source code for the kernel and userspace, along with a build system that
 bootstraps a Twizzler userspace (including porting existing POSIX software). You can write code for

@@ -52,9 +52,9 @@ Medium Priority
    - out of objspace regions / space (requires reclaiming these from objects)
    - out of memory (requires reclaiming pages from objects, or from kernel cached allocations in
 	 slabs, or from kheap runs(?))
-
-Low Priority
-------------
+ * Implement kernel debugging. Currently there is some very basic support for getting symbol
+   addresses out of the loaded kernel ELF file, but we could do a lot better.
+ * Implement support for userspace debuggers.
 
 Optimizations
 -------------
