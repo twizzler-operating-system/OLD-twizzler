@@ -17,6 +17,7 @@ High Priority
    function that lock pages during access).
  * Similar, for the pager subsystem. This will need a changed manner of accessing queue object data
    from the kernel.
+ * Similar, for in-kernel device drivers and device creation (eg the pcie and iommu code).
  * opin and octl syscalls lost functionality in this recent refactoring. This functionality is
    needed for device drivers.
  * Paired with above, the device management system is rather simplistic and hacky. We should
@@ -24,6 +25,15 @@ High Priority
  * Part of the refactoring lost the functionality of actually using nvdimms. This is a major thing
    we need to get back, obviously, but while we're at it, we should design a better "filesystem" for
    storing object data on nvdimms.
+ * Make sure tables (in the x86 subsystem) are managed properly, count-wise.
+   - We could also lift this out of arch-specific code, as page-tables are very common (but this is
+	 low priority)
+ * The refactoring was designed to have objects have a "range tree" that refers to ranges of pages
+   in objects, where each range refers to a (possibly shared with another object) pagevec, that
+   contains a contiguous range of pages. The idea is that these data structures can by dynamically
+   compacted (or appended to). Right now, though, we often create new ranges and pagevecs even if we
+   could extend an existing one. A major optimization is to try to use existing ones and extending
+   them. This should speed things up a lot as well as save memory.
 
 Medium Priority
 ---------------
@@ -38,6 +48,10 @@ Medium Priority
  * Time management -- timers and checking timers is probably too expensive. We could make this much
    cheaper.
  * Move to new red-black tree implementation from Miles
+ * Handle out-of-resources situations:
+   - out of objspace regions / space (requires reclaiming these from objects)
+   - out of memory (requires reclaiming pages from objects, or from kernel cached allocations in
+	 slabs, or from kheap runs(?))
 
 Low Priority
 ------------
@@ -46,6 +60,9 @@ Optimizations
 -------------
  * Before we do much optimization, we should implement an instrumentation mechanism that will let us
    dynamically time functions in the kernel.
+ * The rwlock code is not particularly good -- it's unfair, it's not queued, etc. It could be
+   dramatically improved.
+ * Memory allocation could be done per-cpu to avoid conflicts. Currently, it's pretty lock-y.
 
 Cleanup
 -------

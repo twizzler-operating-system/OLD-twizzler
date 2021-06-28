@@ -330,13 +330,5 @@ void arch_object_space_init(struct object_space *space)
 
 void arch_object_space_fini(struct object_space *space)
 {
-	panic("A");
-	/*
-	for(int i = 0; i < 512; i++) {
-	    if(space->arch.root.children[i] && !_bootstrap_object_space.arch.root.children[i]) {
-	        table_free_downward(space->arch.root.children[i]);
-	        space->arch.root.children[i] = NULL;
-	    }
-	    space->arch.root.table[i] = 0;
-	}*/
+	table_level_destroy(&space->arch.root);
 }

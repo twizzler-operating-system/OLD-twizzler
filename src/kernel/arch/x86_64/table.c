@@ -59,9 +59,8 @@ static void table_level_ctor(void *_p, void *obj)
 	}
 }
 
-static void table_level_fini(__unused void *_p, void *obj)
+void table_level_destroy(struct table_level *tl)
 {
-	struct table_level *tl = obj;
 	if(tl->table_run) {
 		kheap_free(tl->table_run);
 	}
@@ -69,6 +68,11 @@ static void table_level_fini(__unused void *_p, void *obj)
 		kheap_free(tl->children_run);
 	}
 	memset(tl, 0, sizeof(*tl));
+}
+
+static void table_level_fini(__unused void *_p, void *obj)
+{
+	table_level_destroy(obj);
 }
 
 static DECLARE_SLABCACHE(sc_table_level_virt,

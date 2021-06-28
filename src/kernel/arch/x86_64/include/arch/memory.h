@@ -80,6 +80,7 @@ void table_print_recur(struct table_level *table, int level, int indent, uintptr
 struct object_space;
 void arch_object_space_init_bootstrap(struct object_space *space);
 struct table_level *table_level_new(bool);
+void table_level_destroy(struct table_level *tl);
 
 #define PML4_IDX(v) (((v) >> 39) & 0x1FF)
 #define PDPT_IDX(v) (((v) >> 30) & 0x1FF)

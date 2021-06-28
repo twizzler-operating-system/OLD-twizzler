@@ -128,7 +128,7 @@ static void __alloc_bar(struct object *obj,
 		    amount = mm_page_size(0);
 		}
 		*/
-		panic("A");
+		panic("TODO: hook this back up");
 		// obj_cache_page(obj, start, pg);
 		/*
 		if(sz < amount)

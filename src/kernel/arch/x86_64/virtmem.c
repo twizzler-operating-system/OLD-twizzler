@@ -114,7 +114,7 @@ void x86_64_vm_kernel_context_init(void)
 
 void arch_mm_context_destroy(struct vm_context *ctx)
 {
-	panic("A");
+	table_level_destroy(&ctx->arch.root);
 }
 
 static _Atomic int context_id = 0;
