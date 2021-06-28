@@ -1,5 +1,4 @@
 #include <debug.h>
-#include <ksymbol.h>
 #include <system.h>
 #include <thread.h>
 #if FEATURE_SUPPORTED_UNWIND
