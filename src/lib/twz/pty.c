@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Daniel Bittman <danielbittman1@gmail.com>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 #include <string.h>
 #include <twz/alloc.h>
 #include <twz/meta.h>

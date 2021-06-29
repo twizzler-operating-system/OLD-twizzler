@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Daniel Bittman <danielbittman1@gmail.com>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 /* We're going to assume, since we're x86_64, that the APIC exists. If
  * it doesn't, buy a better computer.
  */

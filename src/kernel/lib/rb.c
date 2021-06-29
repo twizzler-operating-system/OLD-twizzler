@@ -1,3 +1,9 @@
+/*
+ * SPDX-FileCopyrightText: 2021 Daniel Bittman <danielbittman1@gmail.com>
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
 /* this red-black tree code has been modified from the Linux kernel rbtree implementation to fit our
  * needs. This file retains the GPL-2 License */
 
