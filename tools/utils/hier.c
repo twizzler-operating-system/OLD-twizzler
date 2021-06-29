@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <twz/hier.h>
+#include <twz/obj/hier.h>
 #include <unistd.h>
 
 #include "common.h"

@@ -4,7 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/syscall.h>
-#include <twz/_objid.h>
+#include <twz/meta.h>
+#include <twz/obj.h>
+#include <twz/objid.h>
+#include <twz/sys/ptr.h>
+#include <twz/sys/view.h>
 #include <unistd.h>
 
 ssize_t __copy_file_range(int infd,

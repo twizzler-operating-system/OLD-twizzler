@@ -10,7 +10,8 @@
 #include <unistd.h>
 
 #include "blake2.h"
-#include <twz/_obj.h>
+#include <twz/obj.h>
+#include <twz/sys/obj.h>
 
 #include "common.h"
 bool show_only_id = false;

@@ -6,10 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <twz/_obj.h>
-#include <twz/keyring.h>
 #include <twz/obj.h>
-#include <twz/user.h>
+#include <twz/obj/keyring.h>
+#include <twz/obj/user.h>
+#include <twz/sys/obj.h>
 
 #include "common.h"
 

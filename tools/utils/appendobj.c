@@ -10,7 +10,9 @@
 #include <unistd.h>
 
 #include "blake2.h"
-#include <twz/_obj.h>
+#include <twz/meta.h>
+#include <twz/obj.h>
+#include <twz/sys/obj.h>
 
 struct ustar_header {
 	char name[100];

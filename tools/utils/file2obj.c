@@ -8,7 +8,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include <twz/_obj.h>
+#include <twz/obj.h>
+#include <twz/sys/obj.h>
 
 #include "common.h"
 
@@ -183,6 +184,7 @@ int parse_fotentry(struct fotentry *fe, char *s, char **name)
 				break;
 		}
 	}
+#define _FE_VALID 0x20000 /* TODO: get this from a header */
 	fe->flags = fl | _FE_VALID;
 
 	char *res = strtok(NULL, "");

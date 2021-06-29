@@ -34,9 +34,9 @@ The following components will be build:
  * The userspace (under src/)
    * musl: This is a C library designed for Linux. Twizzler presents a system-call-level compatible
      Linux interface for POSIX programs (see Twix, below).
-   * libtwz: The standard Twizzler library. Contains the libos, default fault handing logic, and
+   * lib/twz: The standard Twizzler library. Contains the libos, default fault handing logic, and
 	 functions to work with Twizzler concepts.
-   * twix: emulation for unix (presents a Linux syscall interface).
+   * lib/twix: emulation for unix (presents a Linux syscall interface).
    * bin/, drivers/: a collection of Twizzler utilities (login, init, etc) and drivers.
  * ports (under ports): a set of software projects ported to Twizzler.
 
@@ -122,9 +122,9 @@ First, cd into the ports directory:
 
    cd ports
 
-Configure them. This requires the same cmake options as part 2:
+Configure them. This requires similar options as part 2:
 
-   cmake .. -G Ninja -DTWZ_TARGET=x86_64 -DCMAKE_TOOLCHAIN_FILE=cmake.toolchain -DCMAKE_BUILD_TYPE=Release
+   cmake ../../ports -G Ninja -DTWZ_TARGET=x86_64 -DCMAKE_TOOLCHAIN_FILE=../cmake.toolchain -DCMAKE_BUILD_TYPE=Release
 
 And build:
 
@@ -134,7 +134,8 @@ Again, the ports get installed into sysroot as part of the build process.
 
 *Epilogue -- Making an ISO*
 
-Now that we've built the sysroot, we can make an ISO image that will actually boot:
+Now that we've built the sysroot, we can make an ISO image that will actually boot. Run this in
+build/:
 
    ninja bootiso
 
