@@ -1,6 +1,6 @@
 #include <object.h>
 #include <slab.h>
-static DECLARE_SLABCACHE(sc_objtie, sizeof(struct object_tie), NULL, NULL, NULL);
+static DECLARE_SLABCACHE(sc_objtie, sizeof(struct object_tie), NULL, NULL, NULL, NULL, NULL);
 
 static int __objtie_compar_key(struct object_tie *a, objid_t n)
 {
@@ -33,7 +33,7 @@ int obj_untie(struct object *parent, struct object *child)
 	if(--tie->count == 0) {
 		rb_delete(&tie->node, &parent->ties_root);
 		rel = tie->child;
-		slabcache_free(&sc_objtie, tie);
+		slabcache_free(&sc_objtie, tie, NULL);
 	}
 
 	spinlock_release_restore(&parent->lock);
@@ -50,7 +50,7 @@ void obj_tie(struct object *parent, struct object *child)
 	  rb_search(&parent->ties_root, child->id, struct object_tie, node, __objtie_compar_key);
 	struct object_tie *tie;
 	if(!node) {
-		tie = slabcache_alloc(&sc_objtie);
+		tie = slabcache_alloc(&sc_objtie, NULL);
 		krc_get(&child->refs);
 		tie->child = child;
 		tie->count = 1;
@@ -70,7 +70,7 @@ void obj_tie_free(struct object *obj)
 		next = rb_next(n);
 
 		struct object_tie *tie = rb_entry(n, struct object_tie, node);
-#if CONFIG_DEBUG_OBJECT_LIFE
+#if CONFIG_DEBUG_OBJECT_LIFE || 0
 		printk("UNTIE object " IDFMT " from " IDFMT " (%d)\n",
 		  IDPR(tie->child->id),
 		  IDPR(obj->id),
@@ -78,6 +78,6 @@ void obj_tie_free(struct object *obj)
 #endif
 		rb_delete(&tie->node, &obj->ties_root);
 		obj_put(tie->child);
-		slabcache_free(&sc_objtie, tie);
+		slabcache_free(&sc_objtie, tie, NULL);
 	}
 }

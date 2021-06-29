@@ -16,6 +16,18 @@ static inline void list_init(struct list *l)
 
 #define list_empty(l) ((l)->next == (l))
 
+static inline size_t list_len(struct list *list)
+{
+	struct list *start = list;
+	list = list->next;
+	size_t c = 0;
+	while(list != start) {
+		list = list->next;
+		c++;
+	}
+	return c;
+}
+
 static inline void list_insert(struct list *list, struct list *entry)
 {
 #if CONFIG_DEBUG

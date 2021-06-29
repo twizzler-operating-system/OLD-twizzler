@@ -244,7 +244,7 @@ void resetup_queue(long is_thread)
 	// twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
 	objid_t stateid;
-	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &stateid)) {
+	if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE, 0, 0, &stateid)) {
 		abort();
 	}
 
@@ -254,6 +254,8 @@ void resetup_queue(long is_thread)
 	struct twix_conn *conn = twz_object_base(&state_object);
 	conn->bid = bid;
 	conn->qid = qid;
+	// debug_printf(
+	//  "resetup objects: " IDFMT " " IDFMT " " IDFMT "\n", IDPR(stateid), IDPR(bid), IDPR(qid));
 
 	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
 		abort();
@@ -261,6 +263,8 @@ void resetup_queue(long is_thread)
 	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
 		abort();
 
+	twz_object_tie_guid(twz_object_guid(&conn->cmdqueue), stateid, 0);
+	twz_object_delete_guid(stateid, 0);
 	userver.ok = true;
 	userver.inited = true;
 	// debug_printf("AFTER SETUP %p\n", userver.api.hdr);
@@ -446,6 +450,7 @@ long hook_mmap(struct syscall_args *args)
 	objid_t id;
 	int r;
 
+	// debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
 	ssize_t slot = -1;
 	size_t adj = OBJ_NULLPAGE_SIZE;
 	if(addr && (flags & MAP_FIXED)) {
@@ -484,7 +489,6 @@ long hook_mmap(struct syscall_args *args)
 		return tqe.ret;
 	extract_bufdata(&id, sizeof(id), 0);
 	/* TODO: tie object */
-	// twix_log("twix_v2_mmap: " IDFMT "\n", IDPR(id));
 
 	if(slot == -1) {
 		slot = __twix_mmap_get_slot();
@@ -495,7 +499,16 @@ long hook_mmap(struct syscall_args *args)
 	}
 
 	/* TODO: perms */
-	twz_view_set(NULL, slot, id, VE_READ | VE_WRITE | VE_EXEC);
+	long perms = 0;
+	perms |= (prot & PROT_READ) ? VE_READ : 0;
+	perms |= (prot & PROT_WRITE) ? VE_WRITE : 0;
+	perms |= (prot & PROT_EXEC) ? VE_EXEC : 0;
+
+	if(perms == 0) {
+		perms = VE_READ | VE_WRITE; // TODO
+	}
+
+	twz_view_set(NULL, slot, id, perms);
 
 	return (long)SLOT_TO_VADDR(slot) + adj;
 }

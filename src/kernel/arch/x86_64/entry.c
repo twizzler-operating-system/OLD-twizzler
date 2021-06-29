@@ -2,10 +2,12 @@
 #include <arch/x86_64-vmx.h>
 #include <clksrc.h>
 #include <kalloc.h>
+#include <kheap.h>
 #include <processor.h>
 #include <secctx.h>
 #include <syscall.h>
 #include <thread.h>
+#include <vmm.h>
 
 void x86_64_signal_eoi(void);
 
@@ -52,7 +54,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
   bool ignored)
 {
 	// if(frame->int_no != 32)
-	// printk(":: e: %ld\n", frame->int_no);
+	//	printk(":: e: %ld\n", frame->int_no);
 	if(!ignored) {
 		if(was_userspace) {
 			current_thread->arch.was_syscall = false;
@@ -105,7 +107,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 		} else if(frame->int_no < 32) {
 			if(was_userspace) {
 				struct fault_exception_info info = twz_fault_build_exception_info(
-				  (void *)frame->rip, frame->int_no, frame->err_code);
+				  (void *)frame->rip, frame->int_no, frame->err_code, 0);
 				if(frame->int_no == 19) {
 					/* SIMD exception; get info from MXCSR */
 					asm volatile("stmxcsr %0" : "=m"(info.arg0));
@@ -144,6 +146,7 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 	}
 	// printk(":: %ld %d %d :: %lx\n", frame->int_no, was_userspace, ignored, frame->rip);
 	if(was_userspace) {
+		//	printk("returning to userspace from interrupt to %lx\n", frame->rip);
 		thread_schedule_resume();
 	}
 	/* if we aren't in userspace, we just return and the kernel_exception handler will
@@ -153,10 +156,10 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 extern long (*syscall_table[])();
 __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 {
-	// long num = frame->rax;
+	long num = frame->rax;
 	// long xx = krdtsc();
-#if CONFIG_PRINT_SYSCALLS
-	long long a = krdtsc();
+#if CONFIG_PRINT_SYSCALLS || 1
+	// long long a = krdtsc();
 #endif
 	current_thread->arch.was_syscall = true;
 	arch_interrupt_set(true);
@@ -180,14 +183,15 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 	}
 
 #if CONFIG_PRINT_SYSCALLS
-	long long b = krdtsc();
-	if(frame->rax != SYS_DEBUG_PRINT)
-		printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
-		  current_thread->id,
-		  num,
-		  frame->rcx,
-		  frame->rax,
-		  b - a);
+	// long long b = krdtsc();
+	long long b = 0, a = 0;
+	// if(num != SYS_DEBUG_PRINT)
+	printk("%ld: SYSCALL %ld (%lx) -> ret %ld took %lld cyc\n",
+	  current_thread->id,
+	  num,
+	  frame->rcx,
+	  frame->rax,
+	  b - a);
 #endif
 	// long long xxy = krdtsc();
 	// if(num == SYS_BECOME)
@@ -226,7 +230,7 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 	  X86_MSR_KERNEL_GS_BASE, thread->arch.gs & 0xFFFFFFFF, (thread->arch.gs >> 32) & 0xFFFFFFFF);
 
 	if(old && old != thread) {
-		asm volatile("xsave (%0)" ::"r"(old->arch.xsave_region), "a"(7), "d"(0) : "memory");
+		asm volatile("xsave (%0)" ::"r"(old->arch.xsave_run->start), "a"(7), "d"(0) : "memory");
 	}
 
 	if(!thread->arch.fpu_init) {
@@ -243,10 +247,10 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 		asm volatile("sfence; ldmxcsr %0" : "=m"(mxcsr)::"memory");
 		asm volatile("stmxcsr %0" : "=m"(mxcsr)::"memory");
 		/* TODO: fix this: need to properly init the xsave area */
-		asm volatile("xsave (%0)" ::"r"(thread->arch.xsave_region), "a"(7), "d"(0) : "memory");
+		asm volatile("xsave (%0)" ::"r"(thread->arch.xsave_run->start), "a"(7), "d"(0) : "memory");
 	}
 	if(old != thread) {
-		asm volatile("xrstor (%0)" ::"r"(thread->arch.xsave_region), "a"(7), "d"(0) : "memory");
+		asm volatile("xrstor (%0)" ::"r"(thread->arch.xsave_run->start), "a"(7), "d"(0) : "memory");
 		if((!old || old->ctx != thread->ctx) && thread->ctx) {
 			arch_mm_switch_context(thread->ctx);
 		}
@@ -270,7 +274,7 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 	  thread->arch.was_syscall ? thread->arch.syscall.rcx : thread->arch.exception.rip;
 	if(!VADDR_IS_USER(return_addr)) {
 		struct fault_exception_info fei =
-		  twz_fault_build_exception_info((void *)return_addr, 14, 1);
+		  twz_fault_build_exception_info((void *)return_addr, 14, 1, 0);
 		thread_raise_fault(thread, FAULT_EXCEPTION, &fei, sizeof(fei));
 	}
 
@@ -289,8 +293,10 @@ __noinstrument void arch_thread_resume(struct thread *thread, uint64_t timeout)
 		if(thread->state == THREADSTATE_EXITED) {
 			/* thread exited! */
 		}
+		// printk("returning to userspace from syscall to %lx\n", thread->arch.syscall.rcx);
 		x86_64_resume_userspace(&thread->arch.syscall);
 	} else {
+		// printk("returning to us from int to %lx\n", thread->arch.exception.rip);
 		x86_64_resume_userspace_interrupt(&thread->arch.exception);
 	}
 }

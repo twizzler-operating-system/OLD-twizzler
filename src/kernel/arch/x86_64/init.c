@@ -6,6 +6,8 @@
 #include <device.h>
 #include <init.h>
 #include <kc.h>
+#include <kheap.h>
+#include <kso.h>
 #include <machine/machine.h>
 #include <machine/memory.h>
 #include <machine/pc-multiboot.h>
@@ -31,8 +33,6 @@ extern void idt_init_secondary(void);
 struct processor_features x86_features = {};
 
 static struct processor _dummy_proc;
-
-static size_t xsave_region_size = 512;
 
 static void x86_feature_detect(void)
 {
@@ -81,8 +81,6 @@ static void proc_init(void)
 	lo |= X86_MSR_EFER_SYSCALL | X86_MSR_EFER_NX;
 	x86_64_wrmsr(X86_MSR_EFER, lo, hi);
 
-	x86_64_rdmsr(0x1a0, &lo, &hi);
-
 	/* TODO (minor): verify that this setup is "reasonable" */
 	x86_64_rdmsr(X86_MSR_MTRRCAP, &lo, &hi);
 	int mtrrcnt = lo & 0xFF;
@@ -108,8 +106,8 @@ static void proc_init(void)
 	//	if(base + sz > xsave_region_size)
 	//		xsave_region_size = base + sz;
 	//}
-	xsave_region_size = 1024; // TODO
-	align_up(xsave_region_size, 64);
+	// xsave_region_size = 1024; // TODO
+	// align_up(xsave_region_size, 64);
 
 	uint16_t fcw;
 	asm volatile("fstcw %0" : "=m"(fcw));
@@ -189,7 +187,8 @@ static void load_object_data(struct object *obj, char *tardata, size_t tarlen)
 
 		// printk("Loading object " IDFMT "\r", IDPR(obj->id));
 		for(size_t i = idx; i < idx + len / mm_page_size(0); i++) {
-			obj_cache_page(obj, i * mm_page_size(0), page_alloc(PAGE_TYPE_VOLATILE, 0, 0));
+			struct page *pg = mm_page_alloc(PAGE_ZERO);
+			object_insert_page(obj, i * mm_page_size(0), pg);
 		}
 		obj_write_data(obj, idx * mm_page_size(0) - OBJ_NULLPAGE_SIZE, len, data);
 		h = (struct ustar_header *)((char *)h + 512 + reclen);
@@ -316,27 +315,25 @@ static void __late_init_framebuffer(void *a __unused)
 	fb_obj = device_register(DEVICE_BT_MISC, DEVICE_ID_FRAMEBUFFER);
 	kso_setname(fb_obj, "VBE-compatible Framebuffer");
 
-	struct misc_framebuffer *mfb = device_get_devspecific(fb_obj);
-	mfb->height = fbinfo.common.framebuffer_height;
-	mfb->width = fbinfo.common.framebuffer_width;
-	mfb->pitch = fbinfo.common.framebuffer_pitch;
-	mfb->bpp = fbinfo.common.framebuffer_bpp;
-	mfb->type = fbinfo.common.framebuffer_height == MULTIBOOT_FRAMEBUFFER_TYPE_RGB
-	              ? MISC_FRAMEBUFFER_TYPE_GRAPHICAL
-	              : MISC_FRAMEBUFFER_TYPE_UNKNOWN;
-	mfb->offset = mm_page_size(1);
+	struct misc_framebuffer mfb = {
+		.height = fbinfo.common.framebuffer_height,
+		.width = fbinfo.common.framebuffer_width,
+		.pitch = fbinfo.common.framebuffer_pitch,
+		.bpp = fbinfo.common.framebuffer_bpp,
+		.type = fbinfo.common.framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB
+		          ? MISC_FRAMEBUFFER_TYPE_GRAPHICAL
+		          : MISC_FRAMEBUFFER_TYPE_UNKNOWN,
+		.offset = mm_page_size(1),
+	};
+	device_rw_specific(fb_obj, WRITE, &mfb, DEVICE, sizeof(mfb));
 
-	size_t sz = mfb->height * mfb->pitch;
+	size_t sz = mfb.height * mfb.pitch;
 	uintptr_t addr = fbinfo.common.framebuffer_addr;
 	size_t start = mm_page_size(1);
 	while(sz > 0) {
-		struct page *pg = page_alloc_nophys();
-		pg->addr = addr;
-		pg->type = PAGE_TYPE_MMIO;
-		pg->flags |= PAGE_CACHE_WC;
-		pg->level = 1;
-		size_t amount = mm_page_size(1);
-		obj_cache_page(fb_obj, start, pg);
+		struct page *pg = mm_page_fake_create(addr, PAGE_CACHE_WC);
+		object_insert_page(fb_obj, start / mm_page_size(0), pg);
+		size_t amount = mm_page_size(0);
 		if(sz < amount)
 			sz = 0;
 		else
@@ -346,7 +343,6 @@ static void __late_init_framebuffer(void *a __unused)
 	}
 
 	kso_attach(device_get_misc_bus(), fb_obj, DEVICE_ID_FRAMEBUFFER);
-	device_release_headers(fb_obj);
 }
 POST_INIT(__late_init_framebuffer, NULL);
 
@@ -357,126 +353,137 @@ void x86_64_init(uint32_t magic, struct multiboot *mth)
 	x86_feature_detect();
 	proc_init();
 
-	// void (*initrd_hook)(void *) = NULL;
-	if(magic == MULTIBOOT2_BOOTLOADER_MAGIC) {
-		struct multiboot_info *info = (void *)mth;
-		struct multiboot_tag *tag;
-		struct multiboot_tag_mmap *mmap_tag = NULL;
-		struct multiboot_tag_module *module_tag = NULL;
-		for(char *t = info->tags; t < info->tags + (info->total_size - sizeof(*info));
-		    t += align_up(tag->size, 8)) {
-			tag = (void *)t;
-			switch(tag->type) {
-				struct multiboot_tag_old_acpi *acpi_old_tag;
-				struct multiboot_tag_new_acpi *acpi_new_tag;
-				struct multiboot_tag_framebuffer *framebuffer_hdr;
-				case MULTIBOOT_TAG_TYPE_END:
-					/* force loop to exit */
-					t = info->tags + info->total_size;
-					break;
-				case MULTIBOOT_TAG_TYPE_MMAP:
-					mmap_tag = (void *)tag;
-					break;
-				case MULTIBOOT_TAG_TYPE_MODULE:
-					module_tag = (void *)tag;
-					break;
-				case MULTIBOOT_TAG_TYPE_ACPI_OLD:
-					acpi_old_tag = (void *)tag;
-					acpi_set_rsdp(acpi_old_tag->rsdp, tag->size - sizeof(*acpi_old_tag));
-					break;
-				case MULTIBOOT_TAG_TYPE_ACPI_NEW:
-					acpi_new_tag = (void *)tag;
-					acpi_set_rsdp(acpi_new_tag->rsdp, tag->size - sizeof(*acpi_new_tag));
-					break;
-				case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-					framebuffer_hdr = (void *)tag;
-					printk("[boot] multiboot framebuffer: addr=%llx, %d %d %d, bpp=%d, type=%d\n",
-					  framebuffer_hdr->common.framebuffer_addr,
-					  framebuffer_hdr->common.framebuffer_width,
-					  framebuffer_hdr->common.framebuffer_height,
-					  framebuffer_hdr->common.framebuffer_pitch,
-					  framebuffer_hdr->common.framebuffer_bpp,
-					  framebuffer_hdr->common.framebuffer_type);
-					fbinfo = *framebuffer_hdr;
-					found_fbinfo = true;
-					break;
-			}
-		}
-		if(!mmap_tag)
-			panic("multiboot2 information structure did not contain memory maps.");
-
-		/* do the memory map processing later, since we'll need to not report regions taken up by
-		 * the kernel, or by modules */
-		size_t nr_entries = (mmap_tag->size - sizeof(*mmap_tag)) / mmap_tag->entry_size;
-		uintptr_t ks_addr = align_down(PHYS((uintptr_t)&kernel_start), 0x1000);
-		uintptr_t ke_addr = align_up(PHYS((uintptr_t)&kernel_end), 0x1000);
-		uintptr_t ms = module_tag ? align_down(module_tag->mod_start, 0x1000) : 0;
-		uintptr_t me = module_tag ? align_up(module_tag->mod_end, 0x1000) : 0;
-
-		x86_64_register_kernel_region(ks_addr, ke_addr - ks_addr);
-		x86_64_register_initrd_region(ms, me - ms);
-
-		for(size_t i = 0; i < nr_entries; i++) {
-			struct multiboot_mmap_entry *entry =
-			  (void *)((char *)mmap_tag->entries + i * mmap_tag->entry_size);
-
-			if(entry->type == MULTIBOOT_MEMORY_PERSISTENT) {
-				/* we parse the ACPI NFIT table for this */
-				continue;
-			}
-			size_t processed_len;
-			for(size_t off = 0; off < entry->len; off += processed_len) {
-				processed_len = entry->len - off;
-
-				if(module_tag && ms == entry->addr + off) {
-					/* skip to the end of the module */
-					processed_len = me - ms;
-					continue;
-				} else if(module_tag && ms > entry->addr + off && ms < entry->addr + entry->len) {
-					/* start of module is within this region, but there's some free memory here. */
-					processed_len = ms - (off + entry->addr);
-				} else if(module_tag && me > entry->addr + off && me < entry->addr + entry->len) {
-					/* the end of the module is in this region; skip to the end. */
-					processed_len = me - (off + entry->addr);
-					continue;
-				}
-
-				if(ks_addr == entry->addr + off) {
-					/* skip to the end of the module */
-					processed_len = ke_addr - ks_addr;
-					continue;
-				} else if(ks_addr > entry->addr + off && ks_addr < entry->addr + processed_len) {
-					/* start of module is within this region, but there's some free memory here. */
-					processed_len = ks_addr - (off + entry->addr);
-				} else if(ke_addr > entry->addr + off && ke_addr < entry->addr + processed_len) {
-					/* the end of the module is in this region; skip to the end. */
-					processed_len = ke_addr - (off + entry->addr);
-					continue;
-				}
-
-				assert(processed_len > 0);
-
-				if(off + processed_len > entry->len) {
-					processed_len = entry->len - off;
-				}
-
-				x86_64_memory_record(entry->addr + off,
-				  processed_len,
-				  memory_type_map(entry->type),
-				  memory_subtype_map(entry->type));
-			}
-		}
-		if(module_tag) {
-			mod_start = mm_ptov(module_tag->mod_start);
-			mod_len = module_tag->mod_end - module_tag->mod_start;
-		}
-	} else if(magic == 0x2BADB002) {
-		panic("Twizzler no longer supports multiboot 1; please upgrade to multiboot 2");
-	} else {
+	if(magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
 		panic("unknown bootloader type!");
 	}
+	struct multiboot_info *info = (void *)mth;
+	struct multiboot_tag *tag;
+	struct multiboot_tag_mmap *mmap_tag = NULL;
+	struct multiboot_tag_module *module_tag = NULL;
+	struct multiboot_tag_elf_sections *elf_sections = NULL;
+	for(char *t = info->tags; t < info->tags + (info->total_size - sizeof(*info));
+	    t += align_up(tag->size, 8)) {
+		tag = (void *)t;
+		switch(tag->type) {
+			struct multiboot_tag_old_acpi *acpi_old_tag;
+			struct multiboot_tag_new_acpi *acpi_new_tag;
+			struct multiboot_tag_framebuffer *framebuffer_hdr;
+			case MULTIBOOT_TAG_TYPE_END:
+				/* force loop to exit */
+				t = info->tags + info->total_size;
+				break;
+			case MULTIBOOT_TAG_TYPE_MMAP:
+				mmap_tag = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_MODULE:
+				module_tag = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_ACPI_OLD:
+				acpi_old_tag = (void *)tag;
+				acpi_set_rsdp(acpi_old_tag->rsdp, tag->size - sizeof(*acpi_old_tag));
+				break;
+			case MULTIBOOT_TAG_TYPE_ACPI_NEW:
+				acpi_new_tag = (void *)tag;
+				acpi_set_rsdp(acpi_new_tag->rsdp, tag->size - sizeof(*acpi_new_tag));
+				break;
+			case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
+				elf_sections = (void *)tag;
+				break;
+			case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
+				framebuffer_hdr = (void *)tag;
+				printk("[boot] multiboot framebuffer: addr=%llx, %d %d %d, bpp=%d, type=%d\n",
+				  framebuffer_hdr->common.framebuffer_addr,
+				  framebuffer_hdr->common.framebuffer_width,
+				  framebuffer_hdr->common.framebuffer_height,
+				  framebuffer_hdr->common.framebuffer_pitch,
+				  framebuffer_hdr->common.framebuffer_bpp,
+				  framebuffer_hdr->common.framebuffer_type);
+				fbinfo = *framebuffer_hdr;
+				found_fbinfo = true;
+				break;
+		}
+	}
+	if(!mmap_tag)
+		panic("multiboot2 information structure did not contain memory maps.");
 
-	kernel_early_init();
+	/* do the memory map processing later, since we'll need to not report regions taken up by
+	 * the kernel, or by modules */
+	size_t nr_entries = (mmap_tag->size - sizeof(*mmap_tag)) / mmap_tag->entry_size;
+	uintptr_t ks_addr = align_down(PHYS((uintptr_t)&kernel_start), 0x1000);
+	uintptr_t ke_addr = align_up(PHYS((uintptr_t)&kernel_end), 0x1000);
+	uintptr_t ms = module_tag ? align_down(module_tag->mod_start, 0x1000) : 0;
+	uintptr_t me = module_tag ? align_up(module_tag->mod_end, 0x1000) : 0;
+
+	x86_64_register_kernel_region(ks_addr, ke_addr - ks_addr);
+	x86_64_register_initrd_region(ms, me - ms);
+
+	for(size_t i = 0; i < nr_entries; i++) {
+		struct multiboot_mmap_entry *entry =
+		  (void *)((char *)mmap_tag->entries + i * mmap_tag->entry_size);
+
+		if(entry->type == MULTIBOOT_MEMORY_PERSISTENT) {
+			/* we parse the ACPI NFIT table for this */
+			continue;
+		}
+		size_t processed_len;
+		for(size_t off = 0; off < entry->len; off += processed_len) {
+			processed_len = entry->len - off;
+
+			if(module_tag && ms == entry->addr + off) {
+				/* skip to the end of the module */
+				processed_len = me - ms;
+				continue;
+			} else if(module_tag && ms > entry->addr + off && ms < entry->addr + entry->len) {
+				/* start of module is within this region, but there's some free memory here. */
+				processed_len = ms - (off + entry->addr);
+			} else if(module_tag && me > entry->addr + off && me < entry->addr + entry->len) {
+				/* the end of the module is in this region; skip to the end. */
+				processed_len = me - (off + entry->addr);
+				continue;
+			}
+
+			if(ks_addr == entry->addr + off) {
+				/* skip to the end of the module */
+				processed_len = ke_addr - ks_addr;
+				continue;
+			} else if(ks_addr > entry->addr + off && ks_addr < entry->addr + processed_len) {
+				/* start of module is within this region, but there's some free memory here. */
+				processed_len = ks_addr - (off + entry->addr);
+			} else if(ke_addr > entry->addr + off && ke_addr < entry->addr + processed_len) {
+				/* the end of the module is in this region; skip to the end. */
+				processed_len = ke_addr - (off + entry->addr);
+				continue;
+			}
+
+			assert(processed_len > 0);
+
+			if(off + processed_len > entry->len) {
+				processed_len = entry->len - off;
+			}
+
+			x86_64_memory_record(entry->addr + off,
+			  processed_len,
+			  memory_type_map(entry->type),
+			  memory_subtype_map(entry->type));
+		}
+	}
+	if(module_tag) {
+		mod_start = mm_early_ptov(module_tag->mod_start);
+		mod_len = module_tag->mod_end - module_tag->mod_start;
+	}
+
+	arch_mm_init();
+
+	if(elf_sections) {
+		debug_elf_register_sections((Elf64_Shdr *)elf_sections->sections,
+		  elf_sections->num,
+		  elf_sections->entsize,
+		  elf_sections->shndx);
+	}
+
+	processor_percpu_regions_init();
+	processor_early_init();
+
 	x86_64_lapic_init_percpu();
 
 	/* need to wait on this until here because this requires memory allocation */
@@ -575,7 +582,8 @@ void x86_64_processor_post_vm_init(struct processor *proc)
 
 	if(proc->flags & PROCESSOR_BSP)
 		kernel_init();
-	proc->arch.kernel_stack = mm_memory_alloc(KERNEL_STACK_SIZE, PM_TYPE_DRAM, true);
+	struct kheap_run *run = kheap_allocate(KERNEL_STACK_SIZE);
+	proc->arch.kernel_stack = run->start;
 	asm volatile("mov %%rax, %%rsp; call processor_perproc_init;" ::"a"(
 	               proc->arch.kernel_stack + KERNEL_STACK_SIZE),
 	             "D"(proc)
@@ -587,11 +595,11 @@ void arch_processor_early_init(struct processor *proc)
 {
 	/* TODO: some of this can be free'd later. Implement a system to free early_memory. Add it to a
 	 * list, and then after init call some function that converts these to usable pages? */
-	proc->arch.hyper_stack = mm_virtual_early_alloc();
-	proc->arch.kernel_stack = mm_virtual_early_alloc();
-	proc->arch.veinfo = mm_virtual_early_alloc();
-	proc->arch.vmcs = mm_physical_early_alloc();
-	proc->arch.vmxon_region = mm_physical_early_alloc();
+	mm_early_alloc(NULL, &proc->arch.hyper_stack, 0x1000, 0);
+	mm_early_alloc(NULL, &proc->arch.kernel_stack, 0x1000, 0);
+	mm_early_alloc(&proc->arch.veinfo_phys, (void **)&proc->arch.veinfo, 0x1000, 0x1000);
+	mm_early_alloc(&proc->arch.vmcs, NULL, 0x1000, 0x1000);
+	mm_early_alloc(&proc->arch.vmxon_region, NULL, 0x1000, 0x1000);
 }
 
 void arch_processor_init(struct processor *proc)
@@ -601,32 +609,4 @@ void arch_processor_init(struct processor *proc)
 	uint64_t gs = (uint64_t)&proc->arch;
 	x86_64_wrmsr(X86_MSR_GS_BASE, gs & 0xFFFFFFFF, gs >> 32);
 	// x86_64_start_vmx(proc);
-}
-
-void arch_thread_init(struct thread *thread,
-  void *entry,
-  void *arg,
-  void *stack,
-  size_t stacksz,
-  void *tls,
-  size_t thrd_ctrl_slot)
-{
-	memset(&thread->arch.syscall, 0, sizeof(thread->arch.syscall));
-	thread->arch.syscall.rcx = (uint64_t)entry;
-	thread->arch.syscall.rsp = (uint64_t)stack + stacksz - 8;
-	thread->arch.syscall.rdi = (uint64_t)arg;
-	thread->arch.syscall.rsi = ID_LO(thread->thrid);
-	thread->arch.syscall.rdx = ID_HI(thread->thrid);
-	thread->arch.was_syscall = 1;
-	thread->arch.fs = (long)tls; /* TODO: only set one of these */
-	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
-	if(xsave_region_size > 0x1000)
-		panic("NI - HUGE xsave region");
-	thread->arch.xsave_region = (void *)mm_memory_alloc(0x1000, PM_TYPE_DRAM, true);
-}
-
-void arch_thread_destroy(struct thread *thread)
-{
-	/* TODO: maybe save this for the next thread? */
-	mm_memory_dealloc(thread->arch.xsave_region);
 }

@@ -75,7 +75,7 @@ long hook_clone(struct syscall_args *args)
 	      NULL,
 	      NULL,
 	      OBJ_VOLATILE,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 	}
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
@@ -115,6 +115,9 @@ long hook_clone(struct syscall_args *args)
 	if(flags & CLONE_PARENT_SETTID) {
 		*ptid = tqe.ret;
 	}
+
+	twz_object_delete(&thread, 0);
+	twz_object_release(&thread);
 
 	return tqe.ret;
 }
@@ -183,9 +186,13 @@ long hook_fork(struct syscall_args *args)
 	      NULL,
 	      NULL,
 	      OBJ_VOLATILE,
-	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		goto cleanup_view;
 	}
+
+	twz_object_tie(&new_view, &thread, 0);
+	twz_object_delete(&thread, 0);
+
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
@@ -207,6 +214,8 @@ long hook_fork(struct syscall_args *args)
 		goto cleanup_thread;
 	}
 	twz_view_set(&new_view, TWZSLOT_STACK, twz_object_guid(&new_stack), VE_READ | VE_WRITE);
+	twz_object_tie(&thread, &new_stack, 0);
+	twz_object_delete(&new_stack, 0);
 
 	size_t slots_to_copy[] = {
 		1, TWZSLOT_UNIX, 0x10004, 0x10006 /* mmap */
@@ -255,6 +264,7 @@ long hook_fork(struct syscall_args *args)
 			twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
+		twz_object_delete_guid(nid, 0);
 		//	if(twz_object_delete_guid(nid, 0) < 0)
 		//		abort();
 	}
@@ -290,8 +300,8 @@ long hook_fork(struct syscall_args *args)
 			twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
-		//	if(twz_object_delete_guid(nid, 0) < 0)
-		//		abort();
+		if(twz_object_delete_guid(nid, 0) < 0)
+			abort();
 	}
 
 	struct twix_queue_entry tqe = build_tqe(TWIX_CMD_CLONE,
@@ -325,6 +335,12 @@ long hook_fork(struct syscall_args *args)
 
 	struct twix_queue_entry tqe2 = build_tqe(TWIX_CMD_WAIT_READY, 0, 0, 1, tqe.ret);
 	twix_sync_command(&tqe2);
+
+	// debug_printf(":: NEW VIEW IS " IDFMT "\n", IDPR(twz_object_guid(&new_view)));
+	twz_object_delete(&new_view, 0);
+	twz_object_release(&thread);
+	twz_object_release(&new_view);
+	twz_object_release(&new_stack);
 
 	return tqe.ret;
 

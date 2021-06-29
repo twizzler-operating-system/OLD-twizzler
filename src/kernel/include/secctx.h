@@ -9,6 +9,7 @@
 #include <lib/rb.h>
 
 #include <twz/sys/sctx.h>
+
 struct sctx_cache_entry {
 	objid_t id;
 	struct scgates *gates;
@@ -17,8 +18,9 @@ struct sctx_cache_entry {
 	uint32_t perms;
 };
 
+struct object_space;
 struct sctx {
-	struct object_space space;
+	struct object_space *space;
 	struct object *obj;
 	struct krc refs;
 	struct rbroot cache;

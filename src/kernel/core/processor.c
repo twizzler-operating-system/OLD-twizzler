@@ -1,5 +1,5 @@
-#include <guard.h>
 #include <init.h>
+#include <kalloc.h>
 #include <memory.h>
 #include <processor.h>
 #include <slab.h>
@@ -9,11 +9,6 @@ void kernel_main(struct processor *);
 
 static struct processor processors[PROCESSOR_MAX_CPUS];
 
-__noinstrument struct processor *processor_get_current(void)
-{
-	return &processors[arch_processor_current_id()];
-}
-
 static struct processor *proc_bsp = NULL;
 static _Atomic unsigned int processor_count = 0;
 extern int initial_boot_stack;
@@ -22,11 +17,18 @@ extern int kernel_data_percpu_length;
 
 void *bsp_percpu_region = NULL;
 
+__noinstrument struct processor *processor_get_current(void)
+{
+	int64_t id = arch_processor_current_id();
+	if(id == -1)
+		return NULL;
+	return &processors[arch_processor_current_id()];
+}
+
 void processor_early_init(void)
 {
 	for(int i = 0; i < PROCESSOR_MAX_CPUS; i++) {
 		arch_processor_early_init(&processors[i]);
-		workqueue_create(&processors[i].wq);
 	}
 }
 
@@ -47,7 +49,7 @@ void processor_register(bool bsp, unsigned int id)
 		proc->flags |= PROCESSOR_UP;
 	} else {
 		size_t percpu_length = (size_t)&kernel_data_percpu_length;
-		proc->percpu = (void *)mm_memory_alloc(percpu_length, PM_TYPE_DRAM, true);
+		proc->percpu = kalloc(percpu_length, 0);
 		memcpy(proc->percpu, &kernel_data_percpu_load, percpu_length);
 	}
 	proc->flags |= PROCESSOR_REGISTERED;
@@ -212,10 +214,8 @@ void processor_percpu_regions_init(void)
 	  percpu_length);
 	if(percpu_length > mm_page_size(0))
 		panic("TODO: large percpu");
-	bsp_percpu_region = (void *)mm_virtual_early_alloc();
+	mm_early_alloc(NULL, &bsp_percpu_region, percpu_length, 16);
 	memcpy(bsp_percpu_region, &kernel_data_percpu_load, percpu_length);
-	// printk(":: %p\n", current_processor);
-	// current_processor->percpu = bsp_percpu_region;
 }
 
 #include <device.h>
@@ -223,6 +223,8 @@ void processor_percpu_regions_init(void)
 #include <twz/sys/dev/system.h>
 static void __init_processor_objects(void *_a __unused)
 {
+	printk("TODO: processor reprs\n");
+#if 0
 	struct object *so = get_system_object();
 	size_t count = 0;
 	struct bus_repr *brepr = bus_get_repr(so);
@@ -242,12 +244,14 @@ static void __init_processor_objects(void *_a __unused)
 	struct system_header *hdr = bus_get_busspecific(so);
 	hdr->nrcpus = count;
 	device_release_headers(so);
+#endif
 }
 POST_INIT(__init_processor_objects, NULL);
 
 void processor_update_stats(void)
 {
-	// printk("processor_update_stats\n");
+	/* TODO A */
+#if 0
 	for(int i = 0; i < PROCESSOR_MAX_CPUS; i++) {
 		if((processors[i].flags & PROCESSOR_UP)) {
 			struct object *d = processors[i].obj;
@@ -258,4 +262,5 @@ void processor_update_stats(void)
 			}
 		}
 	}
+#endif
 }

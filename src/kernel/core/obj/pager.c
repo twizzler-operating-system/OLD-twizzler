@@ -4,7 +4,6 @@
 #include <pager.h>
 #include <processor.h>
 #include <slab.h>
-#include <slots.h>
 #include <syscall.h>
 #include <thread.h>
 #include <tmpmap.h>
@@ -16,6 +15,7 @@
 
 #include <queue.h>
 
+#if 0
 struct pager_request {
 	struct queue_entry_pager pqe;
 	struct rbnode node_id;
@@ -43,12 +43,13 @@ static void _sc_pr_ctor(void *p __unused, void *o)
 	if(thispg >= OBJ_TOPDATA / mm_page_size(0)) {
 		panic("TODO: too many outstanding requests");
 	}
+	panic("A");
 	/* TODO: we don't need to zero the page? */
-	enum obj_get_page_result gpr =
-	  obj_get_page(pager_tmp_object, thispg * mm_page_size(0), &pr->objpage, OBJ_GET_PAGE_ALLOC);
-	if(gpr != GETPAGE_OK) {
-		panic("failed to get page from pager tmp object");
-	}
+	// enum obj_get_page_result gpr =
+	// obj_get_page(pager_tmp_object, thispg * mm_page_size(0), &pr->objpage, OBJ_GET_PAGE_ALLOC);
+	// if(gpr != GETPAGE_OK) {
+	//	panic("failed to get page from pager tmp object");
+	//}
 }
 
 static DECLARE_SLABCACHE(sc_pager_request, sizeof(struct pager_request), _sc_pr_ctor, NULL, NULL);
@@ -117,10 +118,11 @@ static void do_reclaim(void)
 
 		struct pager_request *pr = list_entry(e, struct pager_request, entry);
 		if(pr->objpage->page == NULL) {
-			pr->objpage->page = page_alloc(PAGE_TYPE_VOLATILE, 0, 0);
-			arch_object_map_page(pager_tmp_object, pr->objpage);
+			panic("A");
+			// pr->objpage->page = page_alloc(PAGE_TYPE_VOLATILE, 0, 0);
+			// arch_object_map_page(pager_tmp_object, pr->objpage->idx, pr->objpage->page, 0);
 			/* TODO: update this interface */
-			arch_object_map_flush(pager_tmp_object, pr->objpage->idx * mm_page_size(0));
+			// arch_object_map_flush(pager_tmp_object, pr->objpage->idx * mm_page_size(0));
 		}
 		slabcache_free(&sc_pager_request, pr);
 	}
@@ -137,13 +139,15 @@ static void __complete_page(struct pager_request *pr, struct queue_entry_pager *
 	}
 	switch(pqe->result) {
 		case PAGER_RESULT_ZERO: {
-			struct page *page = page_alloc(
-			  pr->obj->flags & OF_PERSIST ? PAGE_TYPE_PERSIST : PAGE_TYPE_VOLATILE, PAGE_ZERO, 0);
-			obj_cache_page(pr->obj, pr->pqe.page * mm_page_size(0), page);
+			// struct page *page = page_alloc(
+			//  pr->obj->flags & OF_PERSIST ? PAGE_TYPE_PERSIST : PAGE_TYPE_VOLATILE, PAGE_ZERO, 0);
+			panic("A");
+			// obj_cache_page(pr->obj, pr->pqe.page * mm_page_size(0), page);
 		} break;
 		case PAGER_RESULT_DONE:
-			obj_cache_page(pr->obj, pr->pqe.page * mm_page_size(0), pr->objpage->page);
-			pr->objpage->page = NULL;
+			panic("A");
+			// obj_cache_page(pr->obj, pr->pqe.page * mm_page_size(0), pr->objpage->page);
+			// pr->objpage->page = NULL;
 			break;
 		default:
 		case PAGER_RESULT_ERROR: {
@@ -385,4 +389,11 @@ int kernel_queue_pager_request_page(struct object *obj, size_t pg)
 			return 0;
 	}
 	return 0;
+}
+
+#endif
+
+int pager_idle_task(void)
+{
+	return -1;
 }

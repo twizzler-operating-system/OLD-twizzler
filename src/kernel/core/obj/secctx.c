@@ -1,5 +1,7 @@
 #include <kalloc.h>
+#include <kso.h>
 #include <object.h>
+#include <objspace.h>
 #include <page.h>
 #include <processor.h>
 #include <secctx.h>
@@ -8,38 +10,55 @@
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>
 #include <twz/sys/syscall.h>
+#include <vmm.h>
 
 //#define EPRINTK(...) printk(__VA_ARGS__)
 #define EPRINTK(...)
-static void _sc_ctor(void *_x __unused, void *ptr)
+
+extern struct object_space _bootstrap_object_space;
+static void _sc_init(void *_x __unused, void *ptr)
 {
 	struct sctx *sc = ptr;
-	object_space_init(&sc->space);
+	sc->space = object_space_alloc();
+}
+
+static void _sc_ctor(void *_obj, void *ptr)
+{
+	struct sctx *sc = ptr;
+	struct object *obj = _obj;
+	krc_init(&sc->refs);
+	if(obj)
+		krc_get(&obj->refs);
+	sc->obj = obj;
+	sc->superuser = false;
 }
 
 static void _sc_dtor(void *_x __unused, void *ptr)
 {
 	struct sctx *sc = ptr;
-	object_space_destroy(&sc->space);
+	if(sc->obj) {
+		obj_put(sc->obj);
+	}
 }
 
-static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_ctor, _sc_dtor, NULL);
-static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL);
+static void _sc_fini(void *_x __unused, void *ptr)
+{
+	struct sctx *sc = ptr;
+	object_space_free(sc->space);
+	sc->space = NULL;
+}
+
+static DECLARE_SLABCACHE(sc_sc, sizeof(struct sctx), _sc_init, _sc_ctor, NULL, _sc_fini, NULL);
+static DECLARE_SLABCACHE(sc_sctx_ce, sizeof(struct sctx_cache_entry), NULL, NULL, NULL, NULL, NULL);
 
 struct sctx *secctx_alloc(struct object *obj)
 {
-	struct sctx *s = slabcache_alloc(&sc_sc);
-	krc_init(&s->refs);
-	if(obj)
-		krc_get(&obj->refs);
-	s->obj = obj;
-	s->superuser = false;
-	return s;
+	return slabcache_alloc(&sc_sc, obj);
 }
 
 void secctx_free(struct sctx *s)
 {
-	return slabcache_free(&sc_sc, s);
+	return slabcache_free(&sc_sc, s, NULL);
 }
 
 static void __secctx_krc_put(void *_sc)
@@ -59,7 +78,7 @@ static void __secctx_krc_put(void *_sc)
 		}
 		next = rb_next(node);
 		rb_delete(&scce->node, &sc->cache);
-		slabcache_free(&sc_sctx_ce, scce);
+		slabcache_free(&sc_sctx_ce, scce, NULL);
 	}
 }
 
@@ -88,7 +107,7 @@ static void sctx_cache_delete(struct sctx *sc, objid_t id)
 		if(scce->gates) {
 			kfree(scce->gates);
 		}
-		slabcache_free(&sc_sctx_ce, scce);
+		slabcache_free(&sc_sctx_ce, scce, NULL);
 	}
 }
 
@@ -114,7 +133,7 @@ static void sctx_cache_insert(struct sctx *sc,
   size_t gc)
 {
 	// printk("[sctx] cache insert " IDFMT ": %x (%ld gates)\n", IDPR(id), perms, gc);
-	struct sctx_cache_entry *ce = slabcache_alloc(&sc_sctx_ce);
+	struct sctx_cache_entry *ce = slabcache_alloc(&sc_sctx_ce, NULL);
 	ce->id = id;
 	ce->perms = perms;
 	ce->gates = gates;
@@ -168,10 +187,10 @@ static objid_t __verify_get_object_kuid(objid_t target)
 
 static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, size_t *kdout)
 {
-	struct key_hdr *hdr = obj_get_kbase(ko);
+	panic("A");
+	struct key_hdr *hdr = NULL; // obj_get_kbase(ko);
 	if(hdr->type != etype) {
 		EPRINTK("hdr->type != cap->etype\n");
-		obj_release_kaddr(ko);
 		return NULL;
 	}
 
@@ -186,17 +205,15 @@ static unsigned char *__verify_load_keydata(struct object *ko, uint32_t etype, s
 
 	/* note - base64 means the output data will be smaller than the input, so we could save space
 	 * here. */
-	unsigned char *keydata = kalloc(sz);
+	unsigned char *keydata = kalloc(sz, 0);
 	*kdout = sz;
 	int e;
 	if((e = base64_decode((const unsigned char *)k, sz, keydata, kdout)) != CRYPT_OK) {
 		EPRINTK("base64 decode error: %s\n", error_to_string(e));
-		obj_release_kaddr(ko);
 		kfree(keydata);
 		keydata = NULL;
 	}
 
-	obj_release_kaddr(ko);
 	return keydata;
 }
 
@@ -397,17 +414,21 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 
 	struct sccap *cap;
 
-	char *kaddr = obj_get_kaddr(obj);
+	// char *kaddr = obj_get_kaddr(obj);
+	panic("A");
+	char *kaddr = NULL;
 
 	cap = (void *)(kaddr + off);
 	uint32_t ret = 0;
-	if(!obj_kaddr_valid(obj, cap, sizeof(*cap))) {
+	// if(!obj_kaddr_valid(obj, cap, sizeof(*cap))) {
+	if(0) {
 		printk("[sctx]: warning - invalid offset specified for bucket\n");
 	} else {
 		if(cap->magic == SC_CAP_MAGIC) {
 			char *data = kaddr + off + sizeof(struct sccap);
 			/* TODO: overflow */
-			if(!obj_kaddr_valid(obj, cap, sizeof(*cap) + cap->slen)) {
+			if(0) {
+				// if(!obj_kaddr_valid(obj, cap, sizeof(*cap) + cap->slen)) {
 				printk("[sctx]: warning - invalid cap length (%ld) in context " IDFMT
 				       " for target " IDFMT "\n",
 				  cap->slen + sizeof(*cap),
@@ -422,7 +443,8 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 			/* TODO: overflow */
 			size_t rem = dlg->slen + dlg->dlen;
 			/* TODO: overflow */
-			if(!obj_kaddr_valid(obj, dlg, sizeof(*dlg) + rem)) {
+			if(0) {
+				// if(!obj_kaddr_valid(obj, dlg, sizeof(*dlg) + rem)) {
 				printk("[sctx]: warning - invalid dlg length (%ld) in context " IDFMT
 				       " for target " IDFMT "\n",
 				  rem + sizeof(*dlg),
@@ -437,7 +459,6 @@ static uint32_t __lookup_perm_bucket(struct object *obj,
 		}
 	}
 
-	obj_release_kaddr(obj);
 	return ret;
 }
 
@@ -456,7 +477,7 @@ static void __append_gatelist(struct scgates **gl, size_t *count, size_t *pos, s
 {
 	if(*pos == *count) {
 		*count = *count ? 1 : *count * 2;
-		*gl = krealloc(*gl, sizeof(**gl) * (*count));
+		*gl = krealloc(*gl, sizeof(**gl) * (*count), 0);
 	}
 
 	(*gl)[*pos] = *gate;
@@ -474,6 +495,12 @@ static void __lookup_perms(struct sctx *sc,
   uint32_t *p,
   bool *ingate)
 {
+	/* TODO: A*/
+	if(p)
+		*p = SCP_EXEC | SCP_READ | SCP_WRITE | SCP_USE | SCP_DEL;
+	if(ingate)
+		*ingate = true;
+	return;
 	/* first try the cache */
 	spinlock_acquire_save(&sc->cache_lock);
 	struct sctx_cache_entry *scce = sctx_cache_lookup(sc, target->id);
@@ -493,7 +520,8 @@ static void __lookup_perms(struct sctx *sc,
 		return;
 	}
 	spinlock_release_restore(&sc->cache_lock);
-	char *kbase = obj_get_kbase(sc->obj);
+	panic("A");
+	char *kbase = NULL; // obj_get_kbase(sc->obj);
 	struct secctx *ctx = (void *)kbase;
 
 	uint32_t perms = 0;
@@ -506,9 +534,11 @@ static void __lookup_perms(struct sctx *sc,
 	do {
 		struct scbucket *b;
 		b = (void *)(kbase + sizeof(*ctx) + sizeof(*b) * slot);
+#if 0
 		if(!obj_kaddr_valid(sc->obj, b, sizeof(*b))) {
 			break;
 		}
+#endif
 
 		if(b->target == target->id) {
 			EPRINTK("    - lookup_perms: found!: %x %lx\n", b->pmask, b->flags);
@@ -574,8 +604,6 @@ static void __lookup_perms(struct sctx *sc,
 	}
 	sctx_cache_insert(sc, target->id, perms | dfl, gatelist, gatepos);
 	spinlock_release_restore(&sc->cache_lock);
-
-	obj_release_kaddr(sc->obj);
 }
 
 #if 0
@@ -826,15 +854,14 @@ int secctx_check_permissions(void *ip, struct object *to, uint32_t flags)
 
 static void __secctx_update_thrdrepr(struct thread *thr, int s, bool at)
 {
-	struct object *to = kso_get_obj(thr->throbj, thr);
 	struct kso_attachment k = {
 		.id = at && thr->sctx_entries[s].context->obj ? thr->sctx_entries[s].context->obj->id : 0,
 		.flags = 0,
 		.info = at ? thr->sctx_entries[s].attr : 0,
 		.type = KSO_SECCTX,
 	};
-	obj_write_data(to, offsetof(struct twzthread_repr, attached) + sizeof(k) * s, sizeof(k), &k);
-	obj_put(to);
+	obj_write_data(
+	  thr->reprobj, offsetof(struct twzthread_repr, attached) + sizeof(k) * s, sizeof(k), &k);
 }
 
 static bool secctx_thread_attach(struct sctx *s, struct thread *t)
@@ -990,7 +1017,7 @@ static bool __secctx_detach(struct object *parent, struct object *child, int sys
 	if(parent->kso_type != KSO_THREAD || child->kso_type != KSO_SECCTX)
 		return false;
 	struct thread *thr = current_thread;
-	struct sctx *s = child->sctx.sc;
+	struct sctx *s = object_get_kso_data_checked(child, KSO_SECCTX);
 
 	bool ok = false;
 	spinlock_acquire_save(&thr->sc_lock);
@@ -1014,12 +1041,18 @@ static bool __secctx_attach(struct object *parent, struct object *child, int fla
 		return false;
 	/* TODO: actually get the thread object */
 	struct thread *thr = current_thread;
-	return secctx_thread_attach(child->sctx.sc, thr);
+	struct sctx *s = object_get_kso_data_checked(child, KSO_SECCTX);
+	return secctx_thread_attach(s, thr);
 }
 
 static void __secctx_ctor(struct object *o)
 {
-	o->sctx.sc = secctx_alloc(o);
+	o->kso_data = secctx_alloc(o);
+}
+
+static void __secctx_dtor(struct object *o)
+{
+	secctx_free(o->kso_data);
 }
 
 static struct kso_calls __ksoc_sctx = {
@@ -1027,6 +1060,7 @@ static struct kso_calls __ksoc_sctx = {
 	.detach = __secctx_detach,
 	.detach_event = __secctx_detach_event,
 	.ctor = __secctx_ctor,
+	.dtor = __secctx_dtor,
 };
 
 __initializer static void __init_kso_secctx(void)

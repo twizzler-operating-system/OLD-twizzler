@@ -4,7 +4,6 @@
 #include <interrupt.h>
 #include <lib/list.h>
 #include <thread.h>
-#include <workqueue.h>
 
 #define PROCESSOR_UP 1
 #define PROCESSOR_BSP 4
@@ -36,7 +35,6 @@ struct processor {
 	void *percpu;
 	struct proc_stats stats;
 	struct object *obj;
-	struct workqueue wq;
 
 	long ctr;
 };
@@ -68,7 +66,7 @@ void processor_barrier(_Atomic unsigned int *here);
  * run is on return from interrupt. We can restrict this further by saying "you may not change a
  * thread's CPU unless it's returning to userspace". */
 __attribute__((const)) struct processor *processor_get_current(void);
-unsigned int arch_processor_current_id(void);
+int64_t arch_processor_current_id(void);
 void processor_send_ipi(int destid, int vector, void *arg, int flags);
 void arch_processor_send_ipi(int destid, int vector, int flags);
 void arch_processor_scheduler_wakeup(struct processor *proc);

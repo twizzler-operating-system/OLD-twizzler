@@ -117,11 +117,59 @@ static void do_init_ioapic(struct ioapic *chip)
 	}
 }
 
+static inline void io_wait(void)
+{
+	/* Port 0x80 is used for 'checkpoints' during POST. */
+	/* The Linux kernel seems to think it is free for use :-/ */
+	asm volatile("outb %%al, $0x80" : : "a"(0));
+}
 __orderedinitializer(
   __orderedafter(ARCH_INTERRUPT_INITIALIZATION_ORDER)) static void __ioapic_postinit(void)
 {
 	int found = 0;
-	/* disable PIC */
+	/* get PIC to known state (init), and then disable PIC */
+
+#define PIC1 0x20 /* IO base address for primary PIC */
+#define PIC2 0xA0 /* IO base address for secondary PIC */
+#define PIC1_COMMAND PIC1
+#define PIC1_DATA (PIC1 + 1)
+#define PIC2_COMMAND PIC2
+#define PIC2_DATA (PIC2 + 1)
+#define ICW1_ICW4 0x01          /* ICW4 (not) needed */
+#define ICW1_SINGLE 0x02        /* Single (cascade) mode */
+#define ICW1_INTERVAL4 0x04     /* Call address interval 4 (8) */
+#define ICW1_LEVEL 0x08         /* Level triggered (edge) mode */
+#define ICW1_INIT 0x10          /* Initialization - required! */
+#define ICW4_8086 0x01          /* 8086/88 (MCS-80/85) mode */
+#define ICW4_AUTO 0x02          /* Auto (normal) EOI */
+#define ICW4_BUF_SECONDARY 0x08 /* Buffered mode/secondary */
+#define ICW4_BUF_PRIMARY 0x0C   /* Buffered mode/primary */
+#define ICW4_SFNM 0x10          /* Special fully nested (not) */
+	unsigned char a1, a2;
+	a1 = x86_64_inb(PIC1_DATA); // save masks
+	a2 = x86_64_inb(PIC2_DATA);
+
+	x86_64_outb(PIC1_COMMAND,
+	  ICW1_INIT | ICW1_ICW4); // starts the initialization sequence (in cascade mode)
+	io_wait();
+	x86_64_outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
+	io_wait();
+	x86_64_outb(PIC1_DATA, 32); // ICW2: Primary PIC vector offset
+	io_wait();
+	x86_64_outb(PIC2_DATA, 40); // ICW2: Secondary PIC vector offset
+	io_wait();
+	x86_64_outb(
+	  PIC1_DATA, 4); // ICW3: tell Primary PIC that there is a slave PIC at IRQ2 (0000 0100)
+	io_wait();
+	x86_64_outb(PIC2_DATA, 2); // ICW3: tell Secondary PIC its cascade identity (0000 0010)
+	io_wait();
+	x86_64_outb(PIC1_DATA, ICW4_8086);
+	io_wait();
+	x86_64_outb(PIC2_DATA, ICW4_8086);
+	io_wait();
+	x86_64_outb(PIC1_DATA, a1); // restore saved masks.
+	x86_64_outb(PIC2_DATA, a2);
+
 	x86_64_outb(0xA1, 0xFF);
 	x86_64_outb(0x21, 0xFF);
 

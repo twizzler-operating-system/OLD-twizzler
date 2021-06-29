@@ -1,12 +1,13 @@
 #include <arch/x86_64-io.h>
 #include <debug.h>
 #include <device.h>
-#include <instrument.h>
 #include <interrupt.h>
+#include <kso.h>
 #include <machine/isa.h>
 #include <machine/machine.h>
 #include <processor.h>
 #include <slab.h>
+#include <vmm.h>
 #define COM1_PORT 0x3f8 /* COM1 */
 #define COM1_IRQ 0x24
 
@@ -295,6 +296,16 @@ static struct object *ser_obj;
 #include <object.h>
 #include <syscall.h>
 #include <twz/sys/dev/device.h>
+
+static unsigned int debug_trigger_state = 0;
+static char debug_trigger_seq[] = {
+	0x1b,
+	0x5b,
+	0x32,
+	0x34,
+	0x7e,
+};
+
 __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h __unused)
 {
 	struct uart *u = &com1;
@@ -312,6 +323,14 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 			case 6:
 				c = uart_read(u, UART_REG_DATA);
 
+				if(debug_trigger_state >= array_len(debug_trigger_seq)) {
+					if(debug_process_input(c)) {
+						debug_trigger_state = 0;
+					}
+				} else if(c == debug_trigger_seq[debug_trigger_state]) {
+					debug_trigger_state++;
+				}
+
 				/* TODO */
 				if(c == '`') {
 					processor_print_all_stats();
@@ -319,9 +338,15 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 					obj_print_stats();
 					slabcache_all_print_stats();
 					thread_print_all_threads();
+					if(current_thread) {
+						printk("current thread info (%ld) \nVM_CONTEXT\n", current_thread->id);
+						arch_mm_print_ctx(current_thread->ctx);
+					}
 				}
-				long tmp = c;
-				device_signal_sync(ser_obj, 0, tmp);
+				if(debug_trigger_state < array_len(debug_trigger_seq)) {
+					long tmp = c;
+					device_signal_sync(ser_obj, 0, tmp);
+				}
 				break;
 			case 3:
 				ls = uart_read(u, UART_REG_LSR);
@@ -395,7 +420,7 @@ __noinstrument void debug_puts(char *s)
 	instrument_disable();
 #endif
 
-	bool fl = __spinlock_acquire(&_lock, NULL, 0);
+	bool fl = __spinlock_acquire(&_lock, 1, NULL, 0);
 	while(*s) {
 		serial_putc(*s);
 		if(*s == '\n')

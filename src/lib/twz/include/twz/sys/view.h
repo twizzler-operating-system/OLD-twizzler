@@ -47,12 +47,13 @@ _Static_assert(offsetof(struct viewentry, flags) == 24, "");
 
 struct __viewrepr_bucket {
 	objid_t id;
-	uint64_t slot;
+	uint32_t slot;
 	uint32_t flags;
 	int32_t chain;
-	uint64_t info;
-	uint64_t refs;
+	uint32_t refs;
 };
+
+#define NR_VIEW_BUCKETS 1024
 
 struct twzview_repr {
 	struct kso_hdr hdr;
@@ -64,7 +65,7 @@ struct twzview_repr {
 	objid_t exec_id;
 	struct mutex lock;
 	uint8_t bitmap[(TWZSLOT_MAX_SLOT + 1) / 8];
-	struct __viewrepr_bucket buckets[TWZSLOT_MAX_SLOT + 1];
+	struct __viewrepr_bucket buckets[NR_VIEW_BUCKETS];
 	struct __viewrepr_bucket chain[TWZSLOT_MAX_SLOT + 1];
 };
 

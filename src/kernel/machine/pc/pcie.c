@@ -3,6 +3,7 @@
 #include <device.h>
 #include <init.h>
 #include <kalloc.h>
+#include <kso.h>
 #include <machine/pc-pcie.h>
 #include <memory.h>
 #include <page.h>
@@ -67,7 +68,8 @@ static void _pf_dtor(void *_u, void *ptr)
 
 __initializer static void _init_objs(void)
 {
-	slabcache_init(&sc_pcief, "sc_pcief", sizeof(struct pcie_function), _pf_ctor, _pf_dtor, NULL);
+	slabcache_init(
+	  &sc_pcief, "sc_pcief", sizeof(struct pcie_function), NULL, _pf_ctor, NULL, _pf_dtor, NULL);
 }
 
 #include <lib/iter.h>
@@ -92,7 +94,7 @@ static void pcief_register(uint16_t space,
   uint8_t function,
   struct object *co)
 {
-	struct pcie_function *pf = slabcache_alloc(&sc_pcief);
+	struct pcie_function *pf = slabcache_alloc(&sc_pcief, NULL);
 	pf->segment = space;
 	pf->bus = bus;
 	pf->device = device;
@@ -112,6 +114,7 @@ static void __alloc_bar(struct object *obj,
   uintptr_t addr)
 {
 	while(sz > 0) {
+		/*
 		struct page *pg = page_alloc_nophys();
 		pg->addr = addr;
 		pg->type = PAGE_TYPE_MMIO;
@@ -119,18 +122,22 @@ static void __alloc_bar(struct object *obj,
 		size_t amount = 0;
 		// printk("caching page %lx (sz=%lx, start=%lx)\n", addr, sz, start);
 		if(sz >= mm_page_size(1) && !(addr & (mm_page_size(1) - 1))) {
-			pg->level = 1;
-			amount = mm_page_size(1);
+		    pg->level = 1;
+		    amount = mm_page_size(1);
 		} else {
-			amount = mm_page_size(0);
+		    amount = mm_page_size(0);
 		}
-		obj_cache_page(obj, start, pg);
+		*/
+		panic("TODO: hook this back up");
+		// obj_cache_page(obj, start, pg);
+		/*
 		if(sz < amount)
-			sz = 0;
+		    sz = 0;
 		else
-			sz -= amount;
+		    sz -= amount;
 		addr += amount;
 		start += amount;
+		*/
 	}
 }
 
@@ -180,8 +187,7 @@ static long pcie_function_init(struct object *pbobj,
 	pcief_register(segment, bus, device, function, fobj);
 
 	/* init the headers */
-	struct pcie_function_header *hdr = device_get_devspecific(fobj);
-	*hdr = (struct pcie_function_header){
+	struct pcie_function_header hdr = {
 		.bus = bus,
 		.device = device,
 		.function = function,
@@ -224,9 +230,9 @@ static long pcie_function_init(struct object *pbobj,
 		}
 
 		__alloc_bar(fobj, start, sz, pref, (wc >> i) & 1, addr);
-		hdr->bars[i] = (volatile void *)start;
-		hdr->prefetch[i] = pref;
-		hdr->barsz[i] = sz;
+		hdr.bars[i] = (volatile void *)start;
+		hdr.prefetch[i] = pref;
+		hdr.barsz[i] = sz;
 #if 0
 		printk("init " IDFMT " bar %d for addr %lx at %lx len=%ld, type=%d (p=%d,wc=%d)\n",
 		  IDPR(fobj->id),
@@ -247,10 +253,12 @@ static long pcie_function_init(struct object *pbobj,
 	}
 	start += 0x1000;
 	__alloc_bar(fobj, start, 0x1000, 0, 0, ba);
-	hdr->space = (void *)start;
+	hdr.space = (void *)start;
 
 	unsigned int fnid = function | device << 3 | bus << 8;
 	kso_attach(pbobj, fobj, fnid);
+
+	device_rw_specific(fobj, WRITE, &hdr, DEVICE, sizeof(hdr));
 
 	obj_put(fobj);
 
@@ -296,32 +304,27 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 	assert(obj != NULL);
 
 	uintptr_t addr = mm_page_size(1);
-	for(uintptr_t p = start_addr; p < end_addr; p += mm_page_size(1), addr += mm_page_size(1)) {
-		struct page *pg = page_alloc_nophys();
-		pg->addr = p;
-		pg->type = PAGE_TYPE_MMIO;
-		pg->flags |= PAGE_CACHE_UC;
-		pg->level = 1;
-		obj_cache_page(obj, addr, pg);
+	printk("%ld pages (%ld MB)\n",
+	  (end_addr - start_addr) / mm_page_size(0),
+	  (end_addr - start_addr) / (1024 * 1024));
+	for(uintptr_t p = start_addr; p < end_addr; p += mm_page_size(0), addr += mm_page_size(0)) {
+		struct page *pg = mm_page_fake_create(p, PAGE_CACHE_UC);
+		object_insert_page(obj, addr / mm_page_size(0), pg);
 	}
-	struct bus_repr *repr = bus_get_repr(obj);
-	struct pcie_bus_header *hdr = bus_get_busspecific(obj);
 
-	*hdr = (struct pcie_bus_header){
+	struct pcie_bus_header hdr = {
 		.magic = PCIE_BUS_HEADER_MAGIC,
 		.start_bus = space->start_bus_nr,
 		.end_bus = space->end_bus_nr,
 		.segnr = space->pci_seg_group_nr,
 		.spaces = (void *)(mm_page_size(1)),
 	};
-	snprintf(repr->hdr.name,
-	  KSO_NAME_MAXLEN,
-	  "PCIe bus %.2x::%.2x-%.2x",
-	  hdr->segnr,
-	  hdr->start_bus,
-	  hdr->end_bus);
+	device_rw_specific(obj, WRITE, &hdr, DEVICE, sizeof(hdr));
+	char name[KSO_NAME_MAXLEN];
+	snprintf(
+	  name, KSO_NAME_MAXLEN, "PCIe bus %.2x::%.2x-%.2x", hdr.segnr, hdr.start_bus, hdr.end_bus);
+	kso_setname(obj, name);
 	obj->kaction = __pcie_kaction;
-	device_release_headers(obj);
 	kso_root_attach(obj, 0, KSO_DEVBUS);
 	obj_put(obj);
 }
@@ -345,5 +348,6 @@ __orderedinitializer(__orderedafter(ACPI_INITIALIZER_ORDER)) static void mcfg_in
 
 	printk("[pcie] found MCFG table (%p) with %ld entries\n", mcfg, mcfg_entries);
 
-	post_init_call_register(false, __pcie_init, NULL);
+	static struct init_call call;
+	post_init_call_register(&call, false, __pcie_init, NULL, __FILE__, __LINE__);
 }

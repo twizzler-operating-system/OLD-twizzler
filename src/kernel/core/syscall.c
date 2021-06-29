@@ -35,7 +35,7 @@ static long syscall_debug_print(const char *data, size_t len)
 	char buf[len + 1];
 	strncpy(buf, data, len);
 	// printk("[us:%ld]: %s\n", current_thread ? current_thread->id : 0, data);
-	printk("%s", data);
+	printk("(%ld) %s", current_thread->id, data);
 
 	return len;
 }
@@ -56,7 +56,6 @@ long (*syscall_table[NUM_SYSCALLS])() = {
 	[SYS_OPIN] = syscall_opin,
 	[SYS_OCTL] = syscall_octl,
 	[SYS_KCONF] = syscall_kconf,
-	[SYS_VMAP] = syscall_vmap,
 	[SYS_OTIE] = syscall_otie,
 	[SYS_OCOPY] = syscall_ocopy,
 	[SYS_KQUEUE] = syscall_kqueue,

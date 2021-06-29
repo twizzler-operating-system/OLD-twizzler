@@ -355,6 +355,9 @@ queue_client::~queue_client()
 	// fprintf(stderr, "client destructed! (tid %d)\n", thr->tid);
 	twz_object_delete(&queue, 0);
 	twz_object_delete(&buffer, 0);
+	twz_object_release(&queue);
+	twz_object_release(&buffer);
 	(void)twz_object_unwire(NULL, &thrdobj);
+	twz_object_release(&thrdobj);
 	thrtable.remove(thr->tid);
 }

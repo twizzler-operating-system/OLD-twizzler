@@ -638,6 +638,12 @@ long __twix_syscall_target_c(long num, struct twix_register_frame *frame)
 	return ret;
 }
 
+__attribute__((used)) static long __twix_syscall_target_c_t(long num,
+  struct twix_register_frame *frame)
+{
+	return __twix_syscall_target_c(num, frame);
+}
+
 asm(".global __twix_syscall_target;"
     "__twix_syscall_target:;"
     "movq %rsp, %rcx;"
@@ -661,7 +667,7 @@ asm(".global __twix_syscall_target;"
     "movq %rsp, %rsi;"
     "movq %rax, %rdi;"
 
-    "movabs $__twix_syscall_target_c, %rcx;"
+    "lea __twix_syscall_target_c_t(%rip), %rcx;"
     "call *%rcx;"
 
     "popq %r15;"

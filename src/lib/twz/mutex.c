@@ -1,5 +1,6 @@
 #include <twz/debug.h>
 #include <twz/mutex.h>
+#include <twz/obj.h>
 #include <twz/sys/sys.h>
 
 _Atomic uint64_t _twz_rcode = 0;
@@ -16,7 +17,8 @@ void mutex_acquire(struct mutex *m)
 		/* might need to bust the lock. Make sure everyone still comes in here until we're done by
 		 * changing the resetcode to -1. If we exchange and get 1, we wait. If we don't get -1,
 		 * then we're the one that's going to bust the lock. */
-		if(atomic_exchange(&m->resetcode, ~0ul) != ~0ul) {
+		uint64_t value = atomic_exchange(&m->resetcode, ~0ul);
+		if(value != ~0ul) {
 			/* bust lock, and then store new reset code */
 			atomic_store(&m->sleep, 0);
 			atomic_store(&m->resetcode, _twz_rcode);

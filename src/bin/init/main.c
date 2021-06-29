@@ -66,6 +66,7 @@ pthread_mutex_t logging_ready_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void *logmain(void *arg)
 {
+	debug_printf("[init] started init logger\n");
 	kso_set_name(NULL, "[instance] init-logger");
 	objid_t *lid = arg;
 
@@ -203,6 +204,7 @@ int main()
 		abort();
 	}
 
+	debug_printf("[init] starting unix server\n");
 	if(!fork()) {
 		execlp("/usr/bin/unix", "unix", NULL);
 	}
@@ -210,6 +212,7 @@ int main()
 	debug_printf("trying open connection to unix server\n");
 	while(1) {
 		usleep(10000);
+		// debug_printf("trying...\n");
 		if(twix_force_v2_retry())
 			break;
 	}

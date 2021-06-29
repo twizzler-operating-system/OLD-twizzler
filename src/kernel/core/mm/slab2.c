@@ -1,4 +1,5 @@
 #include <debug.h>
+#include <kheap.h>
 #include <memory.h>
 #include <slab.h>
 /* TODO (minor): optimization: we could try to fit several slabs in a
@@ -72,7 +73,9 @@ static inline void del_from_list(struct slab *s)
 
 static struct slab *new_slab(struct slabcache *c)
 {
-	struct slab *s = (void *)mm_memory_alloc(slab_size(c, c->sz), PM_TYPE_DRAM, true);
+	struct kheap_run *run = kheap_allocate(slab_size(c, c->sz));
+	struct slab *s = run->start;
+	s->run = run;
 	s->alloc = 0;
 	s->slabcache = c;
 	s->canary = SLAB_CANARY;
@@ -81,8 +84,9 @@ static struct slab *new_slab(struct slabcache *c)
 	for(unsigned int i = 0; i < obj_per_slab(c, c->sz); i++) {
 		s->alloc |= ((unsigned __int128)1ull << i);
 		char *obj = s->data + i * c->sz;
-		if(c->ctor) {
-			c->ctor(c->ptr, obj);
+		memset(obj, 0, c->sz);
+		if(c->init) {
+			c->init(c->ptr, obj);
 		}
 	}
 	c->stats.total_slabs++;
@@ -128,13 +132,13 @@ static void __slab_second_init(struct slabcache *c)
 	}
 }
 
-void *slabcache_alloc(struct slabcache *c)
+void *slabcache_alloc(struct slabcache *c, void *data)
 {
 	struct slab *s;
 	assert(c->canary == SLAB_CANARY);
-	__slab_second_init(c);
 	int new = 0;
 	bool fl = spinlock_acquire(&c->lock);
+	__slab_second_init(c);
 	if(!is_empty(c->partial)) {
 		s = c->partial.next;
 	} else if(!is_empty(c->empty)) {
@@ -151,10 +155,12 @@ void *slabcache_alloc(struct slabcache *c)
 	spinlock_release(&c->lock, fl);
 	c->stats.current_alloced++;
 	c->stats.total_alloced++;
+	if(c->ctor)
+		c->ctor(data, ret);
 	return ret;
 }
 
-void slabcache_free(struct slabcache *sc, void *obj)
+void slabcache_free(struct slabcache *sc, void *obj, void *data)
 {
 	size_t raw_sz = sc->sz - sizeof(struct slabmarker);
 	struct slabmarker *mk = (void *)((char *)obj + raw_sz);
@@ -162,6 +168,9 @@ void slabcache_free(struct slabcache *sc, void *obj)
 
 	struct slab *s = (struct slab *)((char *)obj - (sc->sz * mk->slot + sizeof(struct slab)));
 	mk->marker_magic = 0;
+
+	if(sc->dtor)
+		sc->dtor(data, obj);
 
 	if(s->canary != SLAB_CANARY) {
 		panic("SC FREE CANARY MISMATCH: %lx: %p -> %p\n", s->canary, obj, s);
@@ -193,9 +202,10 @@ static void destroy_slab(struct slab *s)
 	panic("NI");
 	assert(num_set(s->alloc) == obj_per_slab(s->slabcache, s->slabcache->sz));
 	for(unsigned int i = 0; i < obj_per_slab(s->slabcache, s->slabcache->sz); i++) {
-		if(s->slabcache->dtor) {
+		if(s->slabcache->fini) {
 			char *obj = s->data + i * s->slabcache->sz;
-			s->slabcache->dtor(s->slabcache->ptr, obj);
+			if(s->slabcache->fini)
+				s->slabcache->fini(s->slabcache->ptr, obj);
 		}
 	}
 }
@@ -235,15 +245,19 @@ void slabcache_all_print_stats(void)
 {
 	foreach(e, list, &all_slabs) {
 		struct slabcache *sc = list_entry(e, struct slabcache, entry);
-		slabcache_print_stats(sc);
+		if(strcmp(sc->name, "kalloc")) {
+			slabcache_print_stats(sc);
+		}
 	}
 }
 
 void slabcache_init(struct slabcache *c,
   const char *name,
   size_t sz,
+  void (*init)(void *, void *),
   void (*ctor)(void *, void *),
   void (*dtor)(void *, void *),
+  void (*fini)(void *, void *),
   void *ptr)
 {
 	c->ptr = ptr;
@@ -255,6 +269,8 @@ void slabcache_init(struct slabcache *c,
 
 	c->ctor = ctor;
 	c->dtor = dtor;
+	c->init = init;
+	c->fini = fini;
 	c->lock = SPINLOCK_INIT;
 	c->canary = SLAB_CANARY;
 

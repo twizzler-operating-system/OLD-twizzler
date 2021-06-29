@@ -11,6 +11,10 @@
 #define STACK_CHK_GUARD 0x595e9fbd94fda766
 #endif
 
+#define no_sanitize_undefined no_sanitize("undefined")
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 __attribute__((no_sanitize_undefined)) _Noreturn void __stack_chk_fail(void)
 {
@@ -49,7 +53,7 @@ __attribute__((no_sanitize_undefined)) static void print_source_location(const c
 
 __attribute__((no_sanitize_undefined)) static void ubsan_prologue(struct source_location *location)
 {
-	__spinlock_acquire(&lock, NULL, 0);
+	__spinlock_acquire(&lock, 1, NULL, 0);
 	panic_continue("Undefined Behavior Detected");
 	print_source_location("Undefined behaviour in", location);
 }

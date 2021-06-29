@@ -1,128 +1,56 @@
 #include <object.h>
 #include <page.h>
-#include <slots.h>
+#include <tmpmap.h>
 
-#if 0
-void obj_release_kernel_slot(struct object *obj)
+struct io {
+	size_t len;
+	void *ptr;
+	uint32_t off;
+	int dir;
+};
+
+static void do_io(struct object *obj, size_t pagenr, struct page *page, void *data, uint64_t flags)
 {
-	spinlock_acquire_save(&obj->lock);
-	if(!obj->kslot) {
-		spinlock_release_restore(&obj->lock);
-		return;
-	}
-
-	struct slot *slot = obj->kslot;
-	obj->kslot = NULL;
-	spinlock_release_restore(&obj->lock);
-
-	vm_kernel_unmap_object(obj);
-	object_space_release_slot(slot);
-	slot_release(slot);
-}
-#endif
-
-static void __obj_alloc_kernel_slot(struct object *obj)
-{
-	if(obj->kslot)
-		return;
-	struct slot *slot = slot_alloc();
-#if CONFIG_DEBUG_OBJECT_SLOT
-	printk("[slot]: allocated kslot %ld for " IDFMT " (%p %lx %d)\n",
-	  slot->num,
-	  IDPR(obj->id),
-	  obj,
-	  obj->flags,
-	  obj->kso_type);
-#endif
-	krc_get(&obj->refs);
-	slot->obj = obj;   /* above get */
-	obj->kslot = slot; /* move ref */
-}
-
-void obj_alloc_kernel_slot(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-	__obj_alloc_kernel_slot(obj);
-	spinlock_release_restore(&obj->lock);
-}
-
-void *obj_get_kaddr(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-
-	if(obj->kaddr == NULL) {
-		assert(krc_iszero(&obj->kaddr_count));
-		__obj_alloc_kernel_slot(obj);
-		if(!obj->kvmap) {
-			vm_kernel_map_object(obj);
+	struct io *io = data;
+	assert(io->off + io->len <= mm_page_size(0));
+	if(page) {
+		void *addr = tmpmap_map_pages(&page, 1);
+		if(io->dir == READ) {
+			memcpy(io->ptr, (char *)addr + io->off, io->len);
+		} else if(io->dir == WRITE) {
+			memcpy((char *)addr + io->off, io->ptr, io->len);
+		} else {
+			panic("unknown IO direction");
 		}
-		obj->kaddr = (char *)SLOT_TO_VADDR(obj->kvmap->slot);
-	}
-
-	krc_get(&obj->kaddr_count);
-
-	spinlock_release_restore(&obj->lock);
-
-	return obj->kaddr;
-}
-
-void obj_free_kaddr(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-	if(obj->kaddr == NULL) {
-		spinlock_release_restore(&obj->lock);
-		return;
-	}
-	krc_init_zero(&obj->kaddr_count);
-	struct slot *slot = obj->kslot;
-	obj->kslot = NULL;
-	obj->kaddr = NULL;
-
-	vm_kernel_unmap_object(obj);
-	spinlock_release_restore(&obj->lock);
-	struct object *o = slot->obj;
-	assert(o == obj);
-	slot->obj = NULL;
-	object_space_release_slot(slot);
-	slot_release(slot);
-	obj_put(o);
-}
-
-bool obj_kaddr_valid(struct object *obj, void *kaddr, size_t run)
-{
-	void *ka = obj_get_kaddr(obj);
-	bool ok = (kaddr >= ka && ((char *)kaddr + run) < (char *)ka + OBJ_MAXSIZE);
-	obj_release_kaddr(obj);
-	return ok;
-}
-
-void obj_release_kaddr(struct object *obj)
-{
-	spinlock_acquire_save(&obj->lock);
-	if(obj->kaddr == NULL) {
-		spinlock_release_restore(&obj->lock);
-		return;
-	}
-	if(krc_put(&obj->kaddr_count)) {
-		/* TODO: but make these reclaimable */
-		if(obj->kso_type) {
-			spinlock_release_restore(&obj->lock);
-			return;
-		}
-		struct slot *slot = obj->kslot;
-		obj->kslot = NULL;
-		obj->kaddr = NULL;
-
-		vm_kernel_unmap_object(obj);
-		spinlock_release_restore(&obj->lock);
-		struct object *o = slot->obj;
-		assert(o == obj);
-		slot->obj = NULL;
-		obj_put(o);
-		object_space_release_slot(slot);
-		slot_release(slot);
 	} else {
-		spinlock_release_restore(&obj->lock);
+		if(io->dir == READ) {
+			memset(io->ptr, 0, io->len);
+		} else {
+			panic("got zero page when trying to write to object");
+		}
+	}
+}
+
+static void loop_io(struct object *obj, size_t start, size_t len, struct io *io)
+{
+	size_t i = 0;
+	while(i < len) {
+		size_t thislen = mm_page_size(0);
+		size_t offset = (start + i) % mm_page_size(0);
+		thislen -= offset;
+		if((thislen + i) > len)
+			thislen = len - i;
+
+		io->len = thislen;
+		io->off = offset;
+		object_operate_on_locked_page(obj,
+		  (start + i) / mm_page_size(0),
+		  io->dir == READ ? OP_LP_ZERO_OK : OP_LP_DO_COPY,
+		  do_io,
+		  io);
+		/* TODO: what happens during failure */
+		io->ptr = (char *)io->ptr + thislen;
+		i += thislen;
 	}
 }
 
@@ -130,25 +58,52 @@ void obj_read_data(struct object *obj, size_t start, size_t len, void *ptr)
 {
 	start += OBJ_NULLPAGE_SIZE;
 	assert(start < OBJ_MAXSIZE && start + len <= OBJ_MAXSIZE && len < OBJ_MAXSIZE);
-	void *addr = (char *)obj_get_kaddr(obj) + start;
-	memcpy(ptr, addr, len);
-	obj_release_kaddr(obj);
+
+	struct io io = {
+		.ptr = ptr,
+		.dir = READ,
+	};
+	loop_io(obj, start, len, &io);
+	/* TODO: what happens during failure */
 }
 
 void obj_write_data(struct object *obj, size_t start, size_t len, void *ptr)
 {
 	start += OBJ_NULLPAGE_SIZE;
 	assert(start < OBJ_MAXSIZE && start + len <= OBJ_MAXSIZE && len < OBJ_MAXSIZE);
-	void *addr = (char *)obj_get_kaddr(obj) + start;
-	memcpy(addr, ptr, len);
-	obj_release_kaddr(obj);
+	struct io io = {
+		.ptr = ptr,
+		.dir = WRITE,
+	};
+	loop_io(obj, start, len, &io);
+	/* TODO: what happens during failure */
+}
+
+struct atomic_op {
+	size_t pgoff;
+	uint64_t value;
+};
+
+static void do_atomic(struct object *obj __unused,
+  size_t pagenr __unused,
+  struct page *page,
+  void *data,
+  uint64_t flags __unused)
+{
+	struct atomic_op *op = data;
+	void *addr = tmpmap_map_pages(&page, 1);
+	_Atomic uint64_t *ptr = (_Atomic uint64_t *)((char *)addr + op->pgoff);
+	atomic_store(ptr, op->value);
 }
 
 void obj_write_data_atomic64(struct object *obj, size_t off, uint64_t val)
 {
 	off += OBJ_NULLPAGE_SIZE;
 	assert(off < OBJ_MAXSIZE && off + 8 <= OBJ_MAXSIZE);
-	void *addr = (char *)obj_get_kaddr(obj) + off;
-	*(_Atomic uint64_t *)addr = val;
-	obj_release_kaddr(obj);
+
+	struct atomic_op atom = {
+		.pgoff = off % mm_page_size(0),
+		.value = val,
+	};
+	object_operate_on_locked_page(obj, off / mm_page_size(0), OP_LP_DO_COPY, do_atomic, &atom);
 }

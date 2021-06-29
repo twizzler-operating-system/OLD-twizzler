@@ -12,6 +12,7 @@
 struct slabcache;
 struct slab {
 	uint64_t canary;
+	struct kheap_run *run;
 	struct slab *next, *prev;
 	unsigned __int128 alloc;
 	struct slabcache *slabcache;
@@ -22,8 +23,10 @@ struct slabcache {
 	const char *name;
 	uint64_t canary;
 	struct slab empty, partial, full;
+	void (*init)(void *, void *);
 	void (*ctor)(void *, void *);
 	void (*dtor)(void *, void *);
+	void (*fini)(void *, void *);
 	size_t sz;
 	void *ptr;
 	struct spinlock lock;
@@ -44,15 +47,17 @@ struct slabmarker {
 	uint64_t pad;
 };
 
-#define DECLARE_SLABCACHE(_name, _sz, ct, dt, _pt)                                                 \
+#define DECLARE_SLABCACHE(_name, _sz, in, ct, dt, fi, _pt)                                         \
 	struct slabcache _name = {                                                                     \
 		.name = #_name,                                                                            \
 		.empty.next = &_name.empty,                                                                \
 		.partial.next = &_name.partial,                                                            \
 		.full.next = &_name.full,                                                                  \
 		.sz = _sz + sizeof(struct slabmarker),                                                     \
+		.init = in,                                                                                \
 		.ctor = ct,                                                                                \
 		.dtor = dt,                                                                                \
+		.fini = fi,                                                                                \
 		.ptr = _pt,                                                                                \
 		.lock = SPINLOCK_INIT,                                                                     \
 		.canary = SLAB_CANARY,                                                                     \
@@ -62,11 +67,13 @@ struct slabmarker {
 void slabcache_init(struct slabcache *c,
   const char *name,
   size_t sz,
+  void (*init)(void *, void *),
   void (*ctor)(void *, void *),
   void (*dtor)(void *, void *),
+  void (*fini)(void *, void *),
   void *ptr);
 void slabcache_reap(struct slabcache *c);
-void slabcache_free(struct slabcache *, void *obj);
-void *slabcache_alloc(struct slabcache *c);
+void slabcache_free(struct slabcache *, void *obj, void *);
+void *slabcache_alloc(struct slabcache *c, void *);
 void slabcache_all_print_stats(void);
 void slabcache_print_stats(struct slabcache *sc);

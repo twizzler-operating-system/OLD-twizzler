@@ -15,6 +15,7 @@
 #include <twz/sys/dev/device.h>
 #include <twz/sys/dev/memory.h>
 
+#if 0
 RB_DECLARE_STANDARD_COMPARISONS(nv_device, uint64_t, id);
 
 RB_DECLARE_STANDARD_COMPARISONS(nv_region, uint32_t, id);
@@ -489,3 +490,5 @@ static void __init_nv_objects(void *_a __unused)
 	}
 }
 POST_INIT(__init_nv_objects, NULL);
+
+#endif

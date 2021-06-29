@@ -2,6 +2,7 @@
 
 #define VMCS_SIZE 0x1000
 #define VMX_RC_SWITCHEPT 1
+#define VMX_RC_INVVPID 2
 #define INTR_TYPE_HARD_EXCEPTION (3 << 8) /* processor exception */
 #define INTR_INFO_VALID_MASK (0x80000000)
 enum {
@@ -125,6 +126,7 @@ void x86_64_switch_ept(uintptr_t root);
 struct processor;
 void x86_64_start_vmx(struct processor *proc);
 void x86_64_virtualization_fault(struct processor *proc);
+void x86_64_invvpid(uint64_t type, uint64_t addr);
 
 #define PML4_IDX(v) (((v) >> 39) & 0x1FF)
 #define PDPT_IDX(v) (((v) >> 30) & 0x1FF)

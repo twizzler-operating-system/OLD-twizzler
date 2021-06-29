@@ -259,6 +259,16 @@ static int __internal_load_elf_object(twzobj *view,
 				twix_log("oc: %d\n", r);
 				return r;
 			}
+
+#if 0
+			debug_printf("TODO: remove this check\n");
+			if(memcmp(memstart, filestart, len)) {
+				debug_printf("FAILURE!!!!e\n");
+				for(;;)
+					;
+			}
+#endif
+
 			memset(memstart + phdr->p_filesz, 0, zerolen);
 
 			struct metainfo *mi = twz_object_meta(to);
@@ -598,7 +608,7 @@ long linux_sys_clone(struct twix_register_frame *frame,
 
 	int r;
 	if((r = twz_object_new(
-	      &thr, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_VIEW))) {
+	      &thr, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		return r;
 		/* TODO CLEANUP */
 	}
@@ -635,6 +645,8 @@ long linux_sys_clone(struct twix_register_frame *frame,
 		*ptid = new_tid;
 	}
 
+	twz_object_delete(&thr, 0);
+	twz_object_release(&thr);
 	return new_tid;
 }
 
@@ -762,6 +774,19 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 					      twz_object_guid(fobj), 0, adj, 0, (len + 0xfff) & ~0xfff, 0))) {
 						return r;
 					}
+
+#if 1
+					debug_printf("TODO: remove this check\n");
+					void *ob = twz_object_base(fobj);
+					for(size_t i = 0; i < len; i++) {
+						if(((char *)ob + adj)[i] != 0) {
+							debug_printf("FAILURE!!!!!23\n");
+							for(;;)
+								;
+						}
+					}
+#endif
+
 					return (long)SLOT_TO_VADDR(slot) + adj;
 				} else {
 					return -ENOTSUP;
@@ -769,6 +794,7 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			}
 		}
 
+		// debug_printf("CREATING NEW OBJECT!\n");
 		if((r = twz_object_new(&newobj,
 		      NULL,
 		      NULL,
@@ -777,6 +803,10 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 		        | TWZ_OC_TIED_VIEW))) {
 			return r;
 		}
+
+		//	debug_printf(
+		//	  "    ==> " IDFMT " ;; %p\n", IDPR(twz_object_guid(&newobj)),
+		// twz_object_base(&newobj));
 
 		//	twix_log("mmap create object " IDFMT " --> %lx\n", IDPR(twz_object_guid(&newobj)),
 		// slot);
@@ -790,6 +820,30 @@ static long __internal_mmap_object(void *addr, size_t len, int prot, int flags, 
 			twix_log("ocopy failed: %d\n", r);
 			return r;
 		}
+#if 0
+		debug_printf("TODO: remove this check\n");
+		char *nb = twz_object_base(&newobj);
+		char *ob = twz_object_base(fobj);
+		ob += off;
+		if(memcmp(nb, ob, len)) {
+			for(size_t i = 0; i < len; i++) {
+				/*if(((char *)ob)[i] != ((char *)nb)[i])
+				debug_printf("-- %ld: %x %x\n",i,
+				        ((char *)ob)[i],
+				        ((char *)nb)[i]);*/
+			}
+
+			debug_printf("FAILURE!!!! %p %p %lx %lx :: " IDFMT " <<== " IDFMT "\n",
+			  ob,
+			  nb,
+			  off + OBJ_NULLPAGE_SIZE,
+			  len,
+			  IDPR(twz_object_guid(&newobj)),
+			  IDPR(twz_object_guid(fobj)));
+			for(;;)
+				;
+		}
+#endif
 
 		struct metainfo *mi = twz_object_meta(&newobj);
 		mi->flags |= MIF_SZ;
@@ -821,9 +875,15 @@ static __inline__ unsigned long long rdtsc(void)
 	return ((unsigned long long)lo) | (((unsigned long long)hi) << 32);
 }
 
+struct mmap_anon_header {
+	size_t max;
+	/* TODO: arch-dep */
+	uint8_t map[OBJ_MAXSIZE / (4096 * 8)];
+};
+
 long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t off)
 {
-	// twix_log("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
+	// debug_printf("sys_mmap: %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, off);
 	if(fd >= 0 || (fd == -1 && addr)) {
 		//	size_t s = rdtsc();
 		long ret = __internal_mmap_object(addr, len, prot, flags, fd, off);
@@ -853,6 +913,44 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 	}
 
 	void *base = (void *)(slot * 1024 * 1024 * 1024 + 0x1000);
+	struct mmap_anon_header *hdr = base;
+
+	size_t i = 0;
+	size_t nr_pages = ((len - 1) / 0x1000) + 1;
+	size_t stride = 0;
+	size_t res;
+	for(;;) {
+		if(i == hdr->max) {
+			if(hdr->max + nr_pages > (((OBJ_TOPDATA - sizeof(struct mmap_anon_header)) / 0x1000))) {
+				return -ENOMEM;
+			}
+			res = hdr->max;
+			hdr->max += nr_pages;
+			break;
+		}
+		if((hdr->map[i / 8] & (1 << (i % 8))) == 0) {
+			stride += 1;
+			if(stride >= nr_pages) {
+				res = i - (stride - 1);
+				break;
+			}
+		} else {
+			stride = 0;
+		}
+		i++;
+	}
+
+	for(i = res; i < res + nr_pages; i++) {
+		hdr->map[i / 8] |= (1 << (i % 8));
+	}
+
+	long ret = (long)base + sizeof(struct mmap_anon_header);
+	ret = ((ret - 1) & ~(0x1000 - 1)) + 0x1000;
+	ret += res * 0x1000;
+	memset((void *)ret, 0, nr_pages * 0x1000);
+	return ret;
+#if 0
+
 	struct metainfo *mi = (void *)((slot + 1) * 1024 * 1024 * 1024 - 0x1000);
 	uint32_t *next = (uint32_t *)((char *)mi + mi->milen);
 	if(*next + len > (1024 * 1024 * 1024 - 0x2000)) {
@@ -863,6 +961,30 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 	*next += len;
 	// twix_log("      ==>> %lx\n", ret);
 	return ret;
+#endif
+}
+
+long linux_sys_munmap(void *addr, size_t len)
+{
+	size_t slot = 0x10006ul;
+	void *base = (void *)(slot * 1024 * 1024 * 1024 + 0x1000);
+	struct mmap_anon_header *hdr = base;
+	long v = (long)addr;
+	if(v > (long)base && v < (long)base + OBJ_TOPDATA) {
+		size_t x = (long)base + sizeof(struct mmap_anon_header);
+		x = ((x - 1) & ~(0x1000 - 1)) + 0x1000;
+		size_t idx = (v - x) / 0x1000;
+		size_t nr_pages = ((len - 1) / 0x1000) + 1;
+		for(size_t i = idx; i < idx + nr_pages; i++) {
+			if((hdr->map[i / 8] & (1 << i % 8)) == 0) {
+				twix_log("internal mmap accounting error\n");
+				abort();
+			}
+			hdr->map[i / 8] &= ~(1 << (i % 8));
+		}
+	}
+	return 0;
+	return -ENOSYS;
 }
 
 #define FUTEX_WAIT 0
@@ -1252,12 +1374,6 @@ long linux_sys_mprotect()
 long linux_sys_madvise()
 {
 	return 0;
-}
-
-long linux_sys_munmap()
-{
-	return 0;
-	return -ENOSYS;
 }
 
 long linux_sys_getrlimit()

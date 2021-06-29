@@ -1,10 +1,12 @@
 #include <kalloc.h>
+#include <kso.h>
 #include <limits.h>
 #include <object.h>
 #include <processor.h>
 #include <secctx.h>
 #include <syscall.h>
 #include <thread.h>
+#include <vmm.h>
 
 #include <twz/meta.h>
 #include <twz/sys/sctx.h>
@@ -73,16 +75,17 @@ long syscall_thread_spawn(uint64_t tidlo,
 			return r;
 		}
 	} else {
-		view = kso_get_obj(current_thread->ctx->view, view);
+		view = current_thread->ctx->viewobj;
+		krc_get(&view->refs);
 	}
 
 	obj_write_data(repr, offsetof(struct twzthread_repr, reprid), sizeof(objid_t), &tid);
 
 	struct thread *t = thread_create();
 	t->thrid = tid;
-	// printk("spawning thread %ld\n", t->id);
-	t->throbj = &repr->thr; /* krc: move */
-	repr->thr.thread = t;
+	t->reprobj = repr; /* krc: move */
+	struct kso_throbj *thr = object_get_kso_data_checked(repr, KSO_THREAD);
+	thr->thread = t;
 	vm_setview(t, view);
 
 	obj_put(view);
@@ -93,6 +96,28 @@ long syscall_thread_spawn(uint64_t tidlo,
 
 	t->thrctrl = obj_lookup(ctrlid, 0);
 
+	obj_write_data(t->thrctrl, offsetof(struct twzthread_ctrl_repr, reprid), sizeof(objid_t), &tid);
+	obj_write_data(
+	  t->thrctrl, offsetof(struct twzthread_ctrl_repr, ctrl_reprid), sizeof(objid_t), &ctrlid);
+
+	struct viewentry ve = {
+		.id = ctrlid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+	obj_write_data(t->thrctrl,
+	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_TCTRL,
+	  sizeof(struct viewentry),
+	  &ve);
+	struct viewentry ve2 = {
+		.id = tid,
+		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
+	};
+	obj_write_data(t->thrctrl,
+	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_THRD,
+	  sizeof(struct viewentry),
+	  &ve2);
+
+#if 0
 	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
 	ctrl_repr->reprid = tid;
 	ctrl_repr->ctrl_reprid = ctrlid;
@@ -104,6 +129,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 		.id = tid,
 		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
 	};
+#endif
 
 	t->thrctrl->flags |= OF_DELETE;
 
@@ -129,15 +155,18 @@ long syscall_thread_spawn(uint64_t tidlo,
 		t->sctx_entries[0].context = t->active_sc;
 	}
 
-	arch_thread_init(t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl);
+	arch_thread_prep_start(
+	  t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl);
 
 	t->state = THREADSTATE_RUNNING;
 	processor_attach_thread(NULL, t);
-	// printk("spawned thread %ld from %ld on processor %d\n",
-	// t->id,
-	// current_thread ? (long)current_thread->id : -1,
-	// t->processor->id);
 
+#if 0
+	printk("spawned thread %ld from %ld on processor %d\n",
+	  t->id,
+	  current_thread ? (long)current_thread->id : -1,
+	  t->processor->id);
+#endif
 	return 0;
 }
 
@@ -163,11 +192,17 @@ long syscall_thrd_ctl(int op, long arg)
 }
 
 #include <slab.h>
-static DECLARE_SLABCACHE(_sc_frame, sizeof(struct thread_become_frame), NULL, NULL, NULL);
+static DECLARE_SLABCACHE(_sc_frame,
+  sizeof(struct thread_become_frame),
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  NULL);
 
 void thread_free_become_frame(struct thread_become_frame *frame)
 {
-	slabcache_free(&_sc_frame, frame);
+	slabcache_free(&_sc_frame, frame, NULL);
 }
 
 static long __syscall_become_return(long a0, long *arg_stack)
@@ -186,8 +221,7 @@ static long __syscall_become_return(long a0, long *arg_stack)
 		obj_put(frame->view);
 	}
 
-	slabcache_free(&_sc_frame, frame);
-	// kfree(frame);
+	slabcache_free(&_sc_frame, frame, NULL);
 	return a0;
 }
 
@@ -207,81 +241,46 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 	}
 	struct arch_syscall_become_args ba;
 	memcpy(&ba, _ba, sizeof(ba));
-	// long _a = rdtsc();
-	struct thread_become_frame *oldframe = slabcache_alloc(&_sc_frame);
-	// struct thread_become_frame *oldframe = kalloc(sizeof(struct thread_become_frame));
+	struct thread_become_frame *oldframe = slabcache_alloc(&_sc_frame, NULL);
 	oldframe->view = NULL;
 	struct object *target_view = NULL;
-	// long a = rdtsc();
-	//	long a_1, a2, a3;
 	if(ba.target_view) {
-		//	printk("become: switch to " IDFMT "\n", IDPR(ba.target_view));
-		struct object *obj = kso_get_obj(current_thread->ctx->view, view);
-		oldframe->view = obj;
-		bool early_find = false;
-#if 1
+		oldframe->view = current_thread->ctx->viewobj;
+		krc_get(&oldframe->view->refs);
+		struct vm_context *early_find_ctx = NULL;
 		for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 			if(current_thread->backup_views[i].id == ba.target_view) {
-				early_find = true;
-				target_view = kso_get_obj_noref(current_thread->backup_views[i].ctx->view, view);
-
-				current_thread->ctx = current_thread->backup_views[i].ctx; // TODO: cleanup
+				target_view = current_thread->backup_views[i].ctx->viewobj;
+				early_find_ctx = current_thread->backup_views[i].ctx;
 				break;
 			}
 		}
-#endif
-		if(!early_find) {
+		if(early_find_ctx) {
+			current_thread->ctx = early_find_ctx;
+		} else {
 			target_view = obj_lookup(ba.target_view, 0);
 			if(!target_view) {
-				/* TODO: cleanup oldframe */
-				//		kfree(oldframe);
+				slabcache_free(&_sc_frame, oldframe, NULL);
 				return -ENOENT;
 			}
-
 			if(!obj_verify_id(target_view, true, false)) {
-				/* TODO: undo things? */
+				slabcache_free(&_sc_frame, oldframe, NULL);
 				return -ENOENT;
 			}
-			//	a_1 = rdtsc();
-			//	struct object *obj = kso_get_obj(current_thread->ctx->view, view);
-			//	oldframe->view = obj;
-
-			//	a2 = rdtsc();
 			vm_setview(current_thread, target_view);
-
-			if(target_view) {
-				obj_put(target_view);
-			}
+			obj_put(target_view);
 		}
 		arch_mm_switch_context(current_thread->ctx);
-		// a3 = rdtsc();
 		// vm_context_fault(ba.target_rip, ba.target_rip, FAULT_ERROR_PRES | FAULT_EXEC);
 	}
-	// long b = rdtsc();
 	arch_thread_become(&ba, oldframe, a1 & SYS_BECOME_INPLACE);
 	list_insert(&current_thread->become_stack, &oldframe->entry);
-	// long c = rdtsc();
-	/* TODO: call check_fault directly, use IP target */
 	int r;
-
-#if 0
-	/* TODO (sec): use current IP if INPLACE. */
-	if((r = obj_check_permission_ip(target_view, SCP_USE, ba.target_rip))) {
-		__syscall_become_return(0);
-		return r;
-	}
-#endif
-
 	if((r = secctx_check_permissions_hint(
 	      (void *)ba.target_rip, target_view, SCP_USE, ba.sctx_hint))) {
 		__syscall_become_return(0, NULL);
 		return r;
 	}
-
-	// long d = rdtsc();
-	// printk("become: %ld %ld %ld %ld\n", _a - a, b - a, c - b, d - c);
-	// printk("    %ld %ld %ld %ld\n", a_1 - a, a2 - a_1, a3 - a2, b - a3);
-
 	return 0;
 }
 
@@ -299,7 +298,8 @@ long syscall_signal(uint64_t tidlo, uint64_t tidhi, long arg0, long arg1, long a
 		return -EINVAL;
 	}
 
-	struct thread *thread = repr->thr.thread;
+	struct kso_throbj *thr = object_get_kso_data_checked(repr, KSO_THREAD);
+	struct thread *thread = thr->thread;
 	struct fault_signal_info info = { { arg0, arg1, arg2, arg3 } };
 	/* TODO: locking */
 	thread_queue_fault(thread, FAULT_SIGNAL, &info, sizeof(info));

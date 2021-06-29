@@ -38,6 +38,8 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 		((__y - 1) & ~(__sz - 1)) + __sz;                                                          \
 	})
 
+#define is_aligned(x, s) ({ (uintptr_t)(x) % (uintptr_t)(s) == 0; })
+
 #define __orderedbefore(x) (x - 1)
 #define __orderedafter(x) (x + 1)
 
@@ -65,6 +67,9 @@ static inline unsigned long long __round_up_pow2(unsigned int a)
 #define __packed __attribute__((packed))
 
 #define __noinstrument __attribute__((no_instrument_function))
+
+#define READ 0
+#define WRITE 1
 
 long strtol(char *str, char **end, int base);
 #endif

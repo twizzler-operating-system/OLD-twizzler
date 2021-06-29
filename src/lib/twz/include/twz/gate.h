@@ -14,6 +14,10 @@ extern "C" {
 
 extern void libtwz_gate_return(long);
 extern void *__twz_secapi_nextstack;
+
+__attribute__((weak)) extern void *__twz_secapi_nextstack;
+__attribute__((used)) static void **__nextstack_binding = &__twz_secapi_nextstack;
+
 #define __TWZ_GATE_SHARED(fn, g)                                                                   \
 	__asm__(".section .gates, \"ax\", @progbits\n"                                                 \
 	        ".global __twz_gate_" #fn "\n"                                                         \
@@ -22,7 +26,9 @@ extern void *__twz_secapi_nextstack;
 	        "__twz_gate_" #fn ":\n"                                                                \
 	        "mov %r10, %rcx\n"                                                                     \
 	        "mov $0, %rsp\n"                                                                       \
-	        "lock xchgq __twz_secapi_nextstack, %rsp;"                                             \
+	        "lea __nextstack_binding(%rip), %rax;"                                                 \
+	        "movq (%rax), %rax;"                                                                   \
+	        "lock xchgq (%rax), %rsp;"                                                             \
 	        "test %rsp, %rsp;\n"                                                                   \
 	        "jz __twz_gate_" #fn "\n"                                                              \
 	        "movabs $" #fn ", %rax\n"                                                              \

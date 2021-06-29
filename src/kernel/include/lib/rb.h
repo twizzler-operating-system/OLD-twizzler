@@ -17,6 +17,11 @@ struct rbroot {
 		.node = NULL                                                                               \
 	}
 
+static inline bool rb_empty(struct rbroot *root)
+{
+	return root->node == NULL;
+}
+
 void rb_delete(struct rbnode *node, struct rbroot *root);
 void rb_link_node(struct rbnode *node, struct rbnode *parent, struct rbnode **link);
 struct rbnode *rb_first(const struct rbroot *root);

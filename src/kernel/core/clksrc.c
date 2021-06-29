@@ -46,7 +46,8 @@ __noinstrument uint64_t clksrc_get_nanoseconds(void)
 		panic("no monotonic clock source available");
 	}
 	if(best_monotonic->read_time > 20) {
-		panic("NI - high-cost best-monotonic timer read");
+		/* TODO: recalibrate? */
+		// panic("NI - high-cost best-monotonic timer read");
 	}
 	uint64_t cnt = best_monotonic->read_counter(best_monotonic);
 	return (cnt * best_monotonic->period_ps) / 1000;

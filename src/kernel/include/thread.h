@@ -4,9 +4,9 @@
 #include <lib/inthash.h>
 #include <lib/list.h>
 #include <memory.h>
+#include <spinlock.h>
 #include <thread-bits.h>
 #include <time.h>
-#include <workqueue.h>
 
 #include <twz/sys/fault.h>
 #include <twz/sys/thread.h>
@@ -29,11 +29,10 @@ struct thread_become_frame {
 	struct object *view;
 };
 
+struct thread_list;
 struct sleep_entry {
-	struct thread *thr;
+	struct thread_list *tl;
 	struct syncpoint *sp;
-	struct list entry;
-	bool active;
 };
 
 struct thread_sctx_entry {
@@ -54,43 +53,40 @@ struct thread {
 	struct arch_thread arch;
 	struct spinlock lock;
 	unsigned long id;
+	objid_t thrid;
 	_Atomic enum thread_state state;
+
 	uint64_t timeslice_expire;
 	int priority;
-	_Atomic bool page_alloc;
-	// struct krc refs;
-	objid_t thrid;
-
 	struct processor *processor;
-	struct vm_context *ctx;
 
+	struct vm_context *ctx;
 	struct thread_view backup_views[MAX_BACK_VIEWS];
 
 	struct spinlock sc_lock;
 	struct sctx *active_sc;
 	struct thread_sctx_entry *sctx_entries;
 
-	struct kso_throbj *throbj;
+	struct object *thrctrl;
+	struct object *reprobj;
 	int kso_attachment_num;
 
 	struct list rq_entry, all_entry;
 	struct sleep_entry *sleep_entries;
 	size_t sleep_count;
 	_Atomic bool sleep_restart;
-	struct task free_task;
+
 	/* pager info */
 	objid_t pager_obj_req;
 	ssize_t pager_page_req;
-	uintptr_t _last_oaddr; // TODO: remove
-	uint32_t _last_flags;
-	uint32_t _last_count;
+
 	void *pending_fault_info;
 	int pending_fault;
 	size_t pending_fault_infolen;
+
 	struct timer sleep_timer;
 
 	struct list become_stack;
-	struct object *thrctrl;
 };
 
 struct arch_syscall_become_args;
@@ -111,14 +107,16 @@ void arch_thread_raise_call(struct thread *t, void *addr, long a0, void *, size_
 
 struct thread *thread_lookup(unsigned long id);
 struct thread *thread_create(void);
-void arch_thread_init(struct thread *thread,
+void arch_thread_prep_start(struct thread *thread,
   void *entry,
   void *arg,
   void *stack,
   size_t stacksz,
   void *tls,
   size_t);
-void arch_thread_destroy(struct thread *thread);
+void arch_thread_fini(struct thread *thread);
+void arch_thread_init(struct thread *thread);
+void arch_thread_ctor(struct thread *thread);
 
 void thread_initialize_processor(struct processor *proc);
 
@@ -129,3 +127,5 @@ void arch_thread_resume(struct thread *thread, uint64_t timeout);
 uintptr_t arch_thread_instruction_pointer(void);
 void thread_free_become_frame(struct thread_become_frame *frame);
 void arch_thread_print_info(struct thread *t);
+uintptr_t arch_thread_base_pointer(void);
+void thread_onresume_clear_other_sleeps(struct thread *);

@@ -9,6 +9,8 @@ set(TWZ_SERIAL_DEBUG_STOPBITS "1" CACHE STRING "Kernel serial debug console stop
 set(TWZ_SERIAL_DEBUG_WORDSZ "8" CACHE STRING "Kernel serial debug console word size")
 option(TWZ_KERNEL_UBSAN "Enable UBSAN in the kernel")
 
+add_compile_options("-g")
+
 add_compile_options("-DCONFIG_SERIAL_DEBUG_BAUD=${TWZ_SERIAL_DEBUG_BAUD}")
 add_compile_options("-DCONFIG_SERIAL_DEBUG_STOPBITS=${TWZ_SERIAL_DEBUG_STOPBITS}")
 add_compile_options("-DCONFIG_SERIAL_DEBUG_WORDSZ=${TWZ_SERIAL_DEBUG_WORDSZ}")
@@ -22,9 +24,9 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
 	add_compile_options("-DCONFIG_DEBUG=1")
 endif()
 
-if(TWZ_KERNEL_UBSAN)
+#if(TWZ_KERNEL_UBSAN)
 	add_compile_options("-fsanitize=undefined" "-DCONFIG_UBSAN")
-endif()
+	#endif()
 
 add_compile_options("-DCONFIG_ARCH=${TWIZZLER_PROCESSOR}")
 add_compile_options("-DCONFIG_MACHINE=${TWIZZLER_MACHINE}")
@@ -40,37 +42,40 @@ list(APPEND KERNEL_SOURCES
 	core/debug.c
 	core/interrupt.c
 	core/kc.c
-	core/ksymbol.c
-	core/ksymbol_weak.c
 	core/main.c
 	core/nvdimm.c
 	core/panic.c
 	core/processor.c
 	core/rand.c
+	core/rwlock.c
 	core/schedule.c
 	core/spinlock.c
 	core/syscall.c
+	core/thread.c
 	core/timer.c
 	core/ubsan.c
 	core/unwind.c
-	core/mm/dlmalloc.c
+	core/mm/kalloc.c
+	core/mm/kheap.c
+	core/mm/map.c
 	core/mm/memory.c
+	core/mm/objspace.c
 	core/mm/page.c
-	core/mm/pm_buddy.c
 	core/mm/pmap.c
 	core/mm/slab2.c
 	core/mm/tmpmap.c
-	core/mm/vmap.c
 	core/obj/device.c
 	core/obj/fault.c
 	core/obj/kso.c
+	core/obj/objcopy.c
 	core/obj/object.c
-	core/obj/objpage.c
+	core/obj/pageop.c
 	core/obj/pager.c
+	core/obj/pagevec.c
 	core/obj/queue.c
+	core/obj/range.c
 	core/obj/rw.c
 	core/obj/secctx.c
-	core/obj/slots.c
 	core/obj/tie.c
 	core/sys/kconf.c
 	core/sys/object.c
@@ -266,6 +271,7 @@ target_link_options(kernel PRIVATE
 	"-Wl,-z,max-page-size=0x1000"
 	"-Wl,-z,common-page-size=0x1000"
 	"-nostdlib"
+	"-Wl,--no-dynamic-linker"
 	"-T" "${CMAKE_CURRENT_BINARY_DIR}/link.ld"
 )
 

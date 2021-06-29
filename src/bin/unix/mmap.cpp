@@ -58,6 +58,7 @@ std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_q
 			  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_TIED_NONE, 0, 0, &id);
 			if(r)
 				return R_S(r);
+			client->proc->objects_to_delete.push_back(id);
 		} else {
 			return R_S(-ENOTSUP);
 		}
@@ -87,6 +88,7 @@ std::pair<long, bool> twix_cmd_mmap(std::shared_ptr<queue_client> client, twix_q
 		  TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC | TWZ_OC_TIED_NONE, 0, 0, &id);
 		if(r)
 			return R_S(r);
+		client->proc->objects_to_delete.push_back(id);
 	}
 
 	client->write_buffer(&id);

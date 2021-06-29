@@ -1,6 +1,7 @@
 #include <clksrc.h>
 #include <debug.h>
 #include <kalloc.h>
+#include <kso.h>
 #include <lib/iter.h>
 #include <limits.h>
 #include <object.h>
@@ -9,6 +10,7 @@
 #include <processor.h>
 #include <thread.h>
 #include <time.h>
+#include <vmm.h>
 
 #define TIMESLICE_MIN 50000000
 #define TIMESLICE_GIVEUP 10000
@@ -18,6 +20,7 @@
 
 static void thread_resume(struct thread *thr, uint64_t timeout)
 {
+	thread_onresume_clear_other_sleeps(thr);
 	arch_thread_resume(thr, timeout);
 }
 
@@ -45,7 +48,6 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 
 	while(true) {
 		pager_idle_task();
-		workqueue_dowork(&proc->wq);
 		uint64_t rem_time = timer_check_timers();
 		spinlock_acquire(&proc->sched_lock);
 
@@ -138,7 +140,7 @@ __noinstrument void thread_schedule_resume_proc(struct processor *proc)
 			if(pager_idle_task()) {
 				proc->flags |= PROCESSOR_HASWORK;
 			}
-			page_idle_zero();
+			mm_page_idle_zero();
 			rem_time = timer_check_timers();
 			spinlock_acquire(&proc->sched_lock);
 			if(!processor_has_threads(proc) && !(proc->flags & PROCESSOR_HASWORK)) {
@@ -177,182 +179,32 @@ __orderedinitializer(
 	interrupt_register_handler(32, &_timer_handler);
 }
 
-#include <slab.h>
-
-static _Atomic unsigned long _internal_tid_counter = 0;
-
-static void _thread_ctor(void *_u __unused, void *ptr)
-{
-	struct thread *thr = ptr;
-	thr->id = ++_internal_tid_counter;
-	thr->sc_lock = SPINLOCK_INIT;
-	thr->lock = SPINLOCK_INIT;
-	thr->state = THREADSTATE_INITING;
-	list_init(&thr->become_stack);
-	if(!thr->sctx_entries) {
-		thr->sctx_entries = kcalloc(MAX_SC, sizeof(struct thread_sctx_entry));
-	} else {
-		memset(thr->sctx_entries, 0, sizeof(struct thread_sctx_entry) * MAX_SC);
-	}
-}
-
-static DECLARE_SLABCACHE(_sc_thread, sizeof(struct thread), _thread_ctor, NULL, NULL);
-
 __noinstrument void thread_schedule_resume(void)
 {
-	assert(current_thread != NULL);
 	thread_schedule_resume_proc(current_processor);
 }
 
-void thread_sleep(struct thread *t, int flags)
+static void __thr_ctor(struct object *obj)
 {
-	(void)flags;
-	t->priority *= 20;
-	if(t->priority > 1000) {
-		t->priority = 1000;
-	}
-	spinlock_acquire_save(&t->processor->sched_lock);
-	if(t->state != THREADSTATE_BLOCKED) {
-		t->state = THREADSTATE_BLOCKED;
-		list_remove(&t->rq_entry);
-		t->processor->stats.running--;
-	}
-	spinlock_release_restore(&t->processor->sched_lock);
-
-	struct object *obj = kso_get_obj(t->throbj, thr);
-	obj_write_data_atomic64(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
-	thread_wake_object(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE, INT_MAX);
-	obj_put(obj);
+	obj->kso_data = kalloc(sizeof(struct kso_throbj), 0);
 }
 
-void thread_wake(struct thread *t)
+static void __thr_dtor(struct object *obj)
 {
-	spinlock_acquire_save(&t->processor->sched_lock);
-	int old = atomic_exchange(&t->state, THREADSTATE_RUNNING);
-	if(old == THREADSTATE_BLOCKED) {
-		struct object *obj = kso_get_obj(t->throbj, thr);
-		obj_write_data_atomic64(
-		  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]), THRD_SYNC_STATE_RUNNING);
-		thread_wake_object(obj,
-		  offsetof(struct twzthread_repr, syncs[THRD_SYNC_STATE]) + OBJ_NULLPAGE_SIZE,
-		  INT_MAX);
-		obj_put(obj);
-
-		list_insert(&t->processor->runqueue, &t->rq_entry);
-		t->processor->stats.running++;
-		t->processor->flags |= PROCESSOR_HASWORK;
-		if(t->processor != current_processor) {
-			spinlock_release_restore(&t->processor->sched_lock);
-			arch_processor_scheduler_wakeup(t->processor);
-			return;
-		}
-	}
-	spinlock_release_restore(&t->processor->sched_lock);
-}
-static DECLARE_LIST(allthreads);
-static struct spinlock allthreads_lock = SPINLOCK_INIT;
-
-static void __thread_finish_cleanup2(void *_t)
-{
-	struct thread *t = _t;
-	vm_context_put(t->ctx);
-	t->ctx = NULL;
-	arch_thread_destroy(t);
-	thread_sync_uninit_thread(t);
-	void *back = t->sctx_entries;
-	memset(t, 0, sizeof(*t));
-	t->sctx_entries = back;
-	// memset(&t->arch, 0, sizeof(t->arch));
-	_thread_ctor(NULL, t);
-	slabcache_free(&_sc_thread, t);
+	kfree(obj->kso_data);
 }
 
-static void __thread_finish_cleanup(void *_t)
+static struct kso_calls _kso_thr = {
+	.ctor = __thr_ctor,
+	.dtor = __thr_dtor,
+	.attach = NULL,
+	.detach = NULL,
+	.invl = NULL,
+};
+
+__initializer static void _init_kso_view(void)
 {
-	struct thread *t = _t;
-
-	// printk("THREAD DESTROY %ld\n", t->id);
-	workqueue_insert(&current_processor->wq, &t->free_task, __thread_finish_cleanup2, t);
-}
-
-void thread_exit(void)
-{
-	timer_remove(&current_thread->sleep_timer);
-	list_remove(&current_thread->rq_entry);
-	current_thread->processor->stats.running--;
-	current_thread->state = THREADSTATE_EXITED;
-	assert(current_processor->load > 0);
-	current_processor->load--;
-
-	spinlock_acquire_save(&allthreads_lock);
-	list_remove(&current_thread->all_entry);
-	spinlock_release_restore(&allthreads_lock);
-
-	struct list *entry;
-#if 1
-	while((entry = list_pop(&current_thread->become_stack))) {
-		struct thread_become_frame *frame = list_entry(entry, struct thread_become_frame, entry);
-		if(frame->view) {
-			obj_put(frame->view);
-		}
-		thread_free_become_frame(frame);
-	}
-#endif
-
-	kso_root_detach(current_thread->kso_attachment_num);
-
-	if(current_thread->pending_fault_info) {
-		kfree(current_thread->pending_fault_info);
-		current_thread->pending_fault_info = NULL;
-	}
-
-	struct object *obj = kso_get_obj(current_thread->throbj, thr);
-	obj_write_data_atomic64(obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);
-	thread_wake_object(
-	  obj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]) + OBJ_NULLPAGE_SIZE, INT_MAX);
-	obj_free_kaddr(obj);
-	obj_put(obj); /* one for kso, one for this ref. TODO: clean this up */
-	obj_put(obj);
-
-	obj_put(current_thread->thrctrl);
-
-	workqueue_insert(
-	  &current_processor->wq, &current_thread->free_task, __thread_finish_cleanup, current_thread);
-}
-
-void thread_print_all_threads(void)
-{
-	spinlock_acquire_save(&allthreads_lock);
-	foreach(e, list, &allthreads) {
-		struct thread *t = list_entry(e, struct thread, all_entry);
-
-		spinlock_acquire_save(&t->lock);
-		printk("thread %ld\n", t->id);
-		printk("  CPU: %d\n", t->processor ? (int)t->processor->id : -1);
-		printk("  state: %d\n", t->state);
-		arch_thread_print_info(t);
-		spinlock_release_restore(&t->lock);
-	}
-	spinlock_release_restore(&allthreads_lock);
-}
-
-struct thread *thread_create(void)
-{
-	struct thread *t = slabcache_alloc(&_sc_thread);
-	// printk("THREAD_CREATE: %ld: %p\n", t->id, t);
-	// krc_init(&t->refs);
-	if(t->pending_fault_info) {
-		kfree(t->pending_fault_info);
-		t->pending_fault_info = NULL;
-	}
-	assert(t->pending_fault_info == NULL);
-	t->priority = 10;
-	spinlock_acquire_save(&allthreads_lock);
-	list_insert(&allthreads, &t->all_entry);
-	spinlock_release_restore(&allthreads_lock);
-	return t;
+	kso_register(KSO_THREAD, &_kso_thr);
 }
 
 #include <debug.h>
@@ -360,10 +212,6 @@ struct thread *thread_create(void)
 static void __print_fault_info(struct thread *t, int fault, void *info)
 {
 	printk("unhandled fault: %ld: %d\n", t ? (long)t->id : -1, fault);
-	struct object *to = kso_get_obj(t->throbj, thr);
-	struct kso_hdr *kh = obj_get_kbase(to);
-	printk("   %s\n", kh->name);
-	obj_put(to);
 	// debug_print_backtrace();
 	switch(fault) {
 		struct fault_object_info *foi;
@@ -437,7 +285,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 		__print_fault_info(NULL, fault, info);
 		panic("thread fault occurred before threading");
 	}
-	struct object *to = kso_get_obj(t->ctx->view, view);
+	struct object *to = t->ctx->viewobj;
 	if(!to) {
 		panic("No repr");
 	}
@@ -451,7 +299,6 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 	obj_read_data(to, __VE_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
 	__print_fault_info(t, fault, info);
 	if(handler) {
-		obj_put(to);
 		if(__failed_addr(fault, info) == handler) {
 			/* probably a double-fault. Just die */
 			__print_fault_info(t, fault, info);
@@ -461,7 +308,6 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 		arch_thread_raise_call(t, handler, fault, info, infolen);
 	} else {
 		obj_read_data(to, __VE_DBL_FAULT_HANDLER_OFFSET, sizeof(handler), &handler);
-		obj_put(to);
 		if(handler) {
 			if((void *)__failed_addr(fault, info) == handler) {
 				/* probably a double-fault. Just die */
@@ -487,7 +333,7 @@ void thread_raise_fault(struct thread *t, int fault, void *info, size_t infolen)
 
 void thread_queue_fault(struct thread *thr, int fault, void *info, size_t infolen)
 {
-	void *ptr = kalloc(infolen);
+	void *ptr = kalloc(infolen, 0);
 	memcpy(ptr, info, infolen);
 	spinlock_acquire_save(&thr->lock);
 	if(thr->pending_fault_info) {
@@ -501,6 +347,5 @@ void thread_queue_fault(struct thread *thr, int fault, void *info, size_t infole
 	thr->pending_fault = fault;
 	thr->pending_fault_infolen = infolen;
 
-	printk("queueing fault\n");
 	spinlock_release_restore(&thr->lock);
 }

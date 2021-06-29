@@ -35,12 +35,26 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	if(flags & VE_WRITE) {
 		flags &= ~VE_EXEC;
 	}
-	atomic_store(&ves[slot].flags, flags | VE_VALID);
+	atomic_store(&ves[slot].flags, flags | (target == 0 ? 0 : VE_VALID));
 
+#if 0
+	twzobj vo;
+	twz_view_object_init(&vo);
+	debug_printf("mapping in %p " IDFMT " --> %p (%x) (old = %x) :: %p %x in " IDFMT "\n",
+	  obj,
+	  IDPR(target),
+	  SLOT_TO_VADDR(slot),
+	  flags,
+	  old,
+	  &ves[slot],
+	  ves[slot].flags,
+	  IDPR(twz_object_guid(&vo)));
+#endif
 	if((old & VE_VALID)) {
+		// debug_printf("invalidating %p\n", obj);
 		struct sys_invalidate_op op = {
 			.offset = (long)SLOT_TO_VADDR(slot),
-			.length = 1,
+			.length = OBJ_MAXSIZE,
 			.flags = KSOI_VALID | KSOI_CURRENT,
 			.id = KSO_CURRENT_VIEW,
 		};
@@ -125,7 +139,7 @@ int twz_vaddr_to_obj(const void *v, objid_t *id, uint32_t *fl)
 
 static struct __viewrepr_bucket *__lookup_bucket(struct twzview_repr *v, objid_t id, uint32_t flags)
 {
-	int32_t idx = id % (TWZSLOT_MAX_SLOT + 1);
+	int32_t idx = id % NR_VIEW_BUCKETS;
 	struct __viewrepr_bucket *b = v->buckets;
 	do {
 		// if(b[idx].id == 0)
@@ -144,7 +158,7 @@ static struct __viewrepr_bucket *__insert_obj(struct twzview_repr *v,
   uint32_t flags,
   size_t slot)
 {
-	int32_t idx = id % (TWZSLOT_MAX_SLOT + 1);
+	int32_t idx = id % NR_VIEW_BUCKETS;
 	struct __viewrepr_bucket *b = v->buckets;
 	struct __viewrepr_bucket *pb = NULL;
 	do {

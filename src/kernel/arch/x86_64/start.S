@@ -26,24 +26,6 @@
 .extern kernel_data_end
 .extern kernel_bss_end
 
-.type multiboot_header,STT_OBJECT
-multiboot_header:
-    /* magic */
-    .int MULTIBOOT_HEADER_MAGIC
-    /* flags */
-    .int MULTIBOOT_HEADER_FLAGS
-    /* checksum */
-    .int -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
-    /* header_addr */
-    .int PHYS(multiboot_header)
-    /* load_addr */
-    .int PHYS(kernel_start)
-    /* load_end_addr */
-    .int PHYS(kernel_data_end)
-    /* bss_end_addr */
-    .int PHYS(kernel_bss_end)
-    /* entry_addr */
-    .int PHYS(_start)
 
 .align 8
 .type multiboot2_header,STT_OBJECT
@@ -53,35 +35,17 @@ multiboot2_header:
 	.long (multiboot2_header_end - multiboot2_header) /* length */
 	.long -(MULTIBOOT2_HEADER_MAGIC + MULTIBOOT_ARCHITECTURE_I386 + (PHYS(multiboot2_header_end) - PHYS(multiboot2_header)))
 	
-	_mbh_addr_start:
-	.short MULTIBOOT_HEADER_TAG_ADDRESS
-	.short 0
-	.long (_mbh_addr_end - _mbh_addr_start)
-	.long PHYS(multiboot2_header)
-	.long PHYS(kernel_start)
-	.long PHYS(kernel_data_end)
-	.long PHYS(kernel_bss_end)
-	_mbh_addr_end:
-
 	_mbh_info_start:
 	.short MULTIBOOT_HEADER_TAG_INFORMATION_REQUEST
 	.short 0
 	.long (_mbh_info_end - _mbh_info_start)
 	.long MULTIBOOT_TAG_TYPE_MODULE
+	.long MULTIBOOT_TAG_TYPE_ELF_SECTIONS
 	.long MULTIBOOT_TAG_TYPE_EFI64
 	.long MULTIBOOT_TAG_TYPE_ACPI_OLD
 	.long MULTIBOOT_TAG_TYPE_ACPI_NEW
 	.long MULTIBOOT_TAG_TYPE_MMAP
-	.long 0
 	_mbh_info_end:
-
-	_mbh_entry_start:
-	.short MULTIBOOT_HEADER_TAG_ENTRY_ADDRESS
-	.short 0
-	.long (_mbh_entry_end - _mbh_entry_start)
-	.long PHYS(_start)
-	.long 0
-	_mbh_entry_end:
 
 	_mbh_fb_start:
 	.short MULTIBOOT_HEADER_TAG_FRAMEBUFFER

@@ -4,6 +4,7 @@
 #include <twz/obj.h>
 #include <twz/obj/hier.h>
 #include <twz/obj/queue.h>
+#include <twz/sys/obj.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -120,6 +121,8 @@ class unixprocess
 	int exit_status;
 	proc_state state = PROC_NORMAL;
 	bool status_changed = false;
+
+	std::vector<objid_t> objects_to_delete;
 
 	std::vector<std::pair<std::shared_ptr<queue_client>, twix_queue_entry *>> state_waiters;
 
@@ -275,7 +278,11 @@ class unixprocess
 
 	~unixprocess()
 	{
-		//	fprintf(stderr, "process destructed %d\n", pid);
+		for(auto id : objects_to_delete) {
+			//	debug_printf("destroying object in process destroy: " IDFMT "\n", IDPR(id));
+			twz_object_delete_guid(id, 0);
+		}
+		// fprintf(stderr, "process destructed %d\n", pid);
 	}
 
   private:
