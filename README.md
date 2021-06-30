@@ -13,7 +13,7 @@ See https://twizzler.io/about.html for an overview of our goals.
 
 A Tour of the Repo
 ------------------
-
+```
 path/to/twizzler
     cmake -- files for cmake build system
 	docs -- documentation files
@@ -35,7 +35,7 @@ path/to/twizzler
 	  libtom* -- libraries for both kernel and userspace for crypto and math
 	  llvm-project -- LLVM and clang sources, used to build the toolchain
 	  utils -- utilities for compiling twizzler stuff on unix
-
+```
 Building
 --------
 
