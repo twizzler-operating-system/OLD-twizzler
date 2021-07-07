@@ -97,7 +97,7 @@ void arch_objspace_map(struct object_space *space,
 		uintptr_t addr;
 		uint64_t cf = EPT_MEMTYPE_WB;
 		if(pages) {
-			addr = pages[i]->addr;
+			addr = mm_page_addr(pages[i]);
 			switch(PAGE_CACHE_TYPE(pages[i])) {
 				case PAGE_CACHE_WB:
 				default:
@@ -174,7 +174,7 @@ bool arch_objspace_region_map_page(struct objspace_region *region,
 		region->arch.table.count++;
 		ret = false;
 	}
-	region->arch.table.table[idx] = mapflags | page->addr;
+	region->arch.table.table[idx] = mapflags | mm_page_addr(page);
 	rwlock_wunlock(&res);
 	return ret;
 }

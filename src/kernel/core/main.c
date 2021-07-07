@@ -237,7 +237,6 @@ void kernel_main(struct processor *proc)
 
 		objid_t dataid;
 		int r;
-		printk("create data\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &dataid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
@@ -248,7 +247,6 @@ void kernel_main(struct processor *proc)
 		 * kaddr. */
 		printk("[init] reading init object\n");
 		obj_read_data(initobj, 0, sizeof(elf), &elf);
-		printk("::::: %x\n", *(uint32_t *)&elf);
 		if(memcmp("\x7F"
 		          "ELF",
 		     elf.e_ident,
@@ -284,9 +282,6 @@ void kernel_main(struct processor *proc)
 		char *thrd_obj = (void *)(0x400000000000ull);
 		size_t off = US_STACK_SIZE - 0x100, tmp = 0;
 
-		//	printk("stck slot = %ld\n", (uintptr_t)stck_obj / mm_page_size(MAX_PGLEVEL));
-		//	printk("thrd slot = %ld\n", (uintptr_t)thrd_obj / mm_page_size(MAX_PGLEVEL));
-
 		char name_id[64];
 		snprintf(name_id, 64, "BSNAME=" IDFMT, IDPR(kc_name_id));
 
@@ -304,15 +299,12 @@ void kernel_main(struct processor *proc)
 		objid_t bstckid;
 		objid_t bsvid;
 
-		printk("create thread\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bthrid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
-		printk("create stack\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bstckid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
-		printk("create view\n");
 		r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &bsvid);
 		if(r < 0)
 			panic("failed to create initial objects: %d", r);
@@ -374,16 +366,6 @@ void kernel_main(struct processor *proc)
 		tmp += sizeof(long);
 		obj_write_data(bstck, off + tmp, sizeof(long), &vector[5]);
 		tmp += sizeof(long);
-
-		// obj_write_data(bthr, off + tmp, sizeof(char *) * 4, argv);
-
-		/*
-		obj_write_data(bv,
-		  __VE_OFFSET
-		    + ((uintptr_t)thrd_obj / mm_page_size(MAX_PGLEVEL)) * sizeof(struct viewentry),
-		  sizeof(struct viewentry),
-		  &v_t);
-		  */
 
 		struct sys_thrd_spawn_args tsa = {
 			.start_func = (void *)elf.e_entry,

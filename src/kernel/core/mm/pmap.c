@@ -38,17 +38,17 @@ void pmap_collect_stats(struct memory_stats *stats)
 
 static int __pmap_compar_key(struct pmap *a, uintptr_t n)
 {
-	if((a->phys | a->page.flags) > n)
+	if((a->phys | mm_page_flags(&a->page)) > n)
 		return 1;
-	else if((a->phys | a->page.flags) < n)
+	else if((a->phys | mm_page_flags(&a->page)) < n)
 		return -1;
 	return 0;
 }
 
 static int __pmap_compar(struct pmap *a, struct pmap *b)
 {
-	assert((b->phys & b->page.flags) == 0);
-	return __pmap_compar_key(a, b->phys | b->page.flags);
+	assert((b->phys & mm_page_flags(&b->page)) == 0);
+	return __pmap_compar_key(a, b->phys | mm_page_flags(&b->page));
 }
 
 static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
@@ -73,8 +73,7 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 		  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 		pmap->oaddr = oaddr;
 		struct page page = {
-			.addr = phys,
-			.flags = cache_type,
+			.__addr_and_flags = phys | cache_type,
 		};
 		struct page *pages[] = { &page };
 		printk("TODO: dont ignore PAT type??\n");
@@ -91,8 +90,7 @@ static struct pmap *pmap_get(uintptr_t phys, int cache_type, bool remap)
 			  MAP_GLOBAL | MAP_KERNEL | MAP_WRITE | MAP_REPLACE | MAP_READ);
 			pmap->oaddr = oaddr;
 			struct page page = {
-				.addr = phys,
-				.flags = cache_type,
+				.__addr_and_flags = phys | cache_type,
 			};
 			struct page *pages[] = { &page };
 			mm_objspace_kernel_fill(

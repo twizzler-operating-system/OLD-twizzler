@@ -13,9 +13,10 @@
 
 /* TODO: percpu? finer locking? */
 
-static DECLARE_LIST(page_list);
-static DECLARE_LIST(pagezero_list);
-static DECLARE_LIST(pagestruct_list);
+static struct page *page_list = NULL;
+static struct page *pagezero_list = NULL;
+static struct page *pagestruct_list = NULL;
+
 static struct spinlock lock = SPINLOCK_INIT;
 
 #define INITIAL_ALLOC_SIZE 4096
@@ -27,6 +28,46 @@ static _Atomic size_t next_page = 0;
 static _Atomic size_t max_pages = 0;
 
 _Atomic uint64_t mm_page_alloc_count = 0;
+
+static struct page *pagelist_pop(struct page **list)
+{
+	if(*list) {
+		struct page *page = *list;
+		*list = page->next;
+		return page;
+	}
+	return NULL;
+}
+
+static void pagelist_add(struct page **list, struct page *p)
+{
+	p->next = *list;
+	*list = p;
+}
+
+static bool pagelist_empty(struct page **list)
+{
+	return *list == NULL;
+}
+
+static void page_make_addr(struct page *p, uintptr_t addr, uint64_t flags)
+{
+	assert((addr & ~MM_PAGE_ADDR_MASK) == 0);
+	assert((flags & MM_PAGE_ADDR_MASK) == 0);
+	p->__addr_and_flags = addr | flags;
+}
+
+static void page_set_flags(struct page *p, uint64_t flags)
+{
+	assert((flags & MM_PAGE_ADDR_MASK) == 0);
+	p->__addr_and_flags |= flags;
+}
+
+static void page_clear_flags(struct page *p, uint64_t mask)
+{
+	assert((mask & MM_PAGE_ADDR_MASK) == 0);
+	p->__addr_and_flags &= ~mask;
+}
 
 void mm_page_init(void)
 {
@@ -40,8 +81,8 @@ void mm_page_init(void)
 	struct page pg[INITIAL_ALLOC_PAGES];
 	struct page *pages[INITIAL_ALLOC_PAGES];
 	for(size_t i = 0; i < INITIAL_ALLOC_PAGES; i++) {
-		pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
-		pg[i].flags = PAGE_CACHE_WB;
+		page_make_addr(
+		  &pg[i], mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0), PAGE_CACHE_WB);
 		pages[i] = &pg[i];
 	}
 	mm_objspace_kernel_fill(
@@ -50,11 +91,10 @@ void mm_page_init(void)
 
 static struct page *get_new_page_struct(void)
 {
-	if(!list_empty(&pagestruct_list)) {
-		return list_entry(list_pop(&pagestruct_list), struct page, entry);
+	if(!pagelist_empty(&pagestruct_list)) {
+		return pagelist_pop(&pagestruct_list);
 	}
 	if(next_page == max_pages) {
-		// printk("new page page\n");
 		assert(align_up((uintptr_t)&allpages[max_pages], mm_page_size(0))
 		       == (uintptr_t)&allpages[max_pages]);
 		uintptr_t oaddr = mm_objspace_kernel_reserve(INITIAL_ALLOC_SIZE);
@@ -66,18 +106,14 @@ static struct page *get_new_page_struct(void)
 		struct page pg[INITIAL_ALLOC_PAGES];
 		struct page *pages[INITIAL_ALLOC_PAGES];
 		for(size_t i = 0; i < INITIAL_ALLOC_PAGES; i++) {
-			pg[i].addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
-			pg[i].flags = PAGE_CACHE_WB;
+			page_make_addr(
+			  &pg[i], mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0), PAGE_CACHE_WB);
 			pages[i] = &pg[i];
 		}
-		/* TODO A: can we avoid recusion in here */
-		//	spinlock_release_restore(&lock);
 		mm_objspace_kernel_fill(oaddr,
 		  pages,
 		  INITIAL_ALLOC_PAGES,
 		  MAP_READ | MAP_WRITE | MAP_KERNEL | MAP_WIRE | MAP_GLOBAL);
-		//	spinlock_acquire_save(&lock);
-		// printk("done: new page page (%p %lx)\n", &allpages[next_page], oaddr);
 	}
 
 	return &allpages[next_page++];
@@ -87,10 +123,7 @@ static struct page *fallback_page_alloc(void)
 {
 	uintptr_t addr = mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
 	struct page *page = get_new_page_struct();
-	// printk("trying to write new page\n");
-	page->flags = PAGE_CACHE_WB;
-	page->addr = addr;
-	// printk("Successfully wrote to new page struct\n");
+	page_make_addr(page, addr, PAGE_CACHE_WB);
 	return page;
 }
 
@@ -99,8 +132,7 @@ struct page *mm_page_fake_create(uintptr_t phys, int flags)
 	spinlock_acquire_save_recur(&lock);
 	struct page *page = get_new_page_struct();
 	spinlock_release_restore(&lock);
-	page->addr = phys;
-	page->flags = flags | PAGE_FAKE;
+	page_make_addr(page, phys, flags | PAGE_FAKE);
 	return page;
 }
 
@@ -112,10 +144,8 @@ static void mm_page_zero_addr(uintptr_t addr)
 		atomic_thread_fence(memory_order_seq_cst);
 		return;
 	}
-	struct page page = {
-		.addr = addr,
-		.flags = 0,
-	};
+	struct page page = {};
+	page_make_addr(&page, addr, PAGE_CACHE_WB);
 	struct page *pages[] = { &page };
 	void *vaddr = tmpmap_map_pages(pages, 1);
 	memset(vaddr, 0, mm_page_size(0));
@@ -124,8 +154,8 @@ static void mm_page_zero_addr(uintptr_t addr)
 
 void mm_page_zero(struct page *page)
 {
-	mm_page_zero_addr(page->addr);
-	page->flags |= PAGE_ZERO;
+	mm_page_zero_addr(mm_page_addr(page));
+	page_set_flags(page, PAGE_ZERO);
 }
 
 void mm_page_write(struct page *page, void *data, size_t len)
@@ -134,8 +164,8 @@ void mm_page_write(struct page *page, void *data, size_t len)
 		len = mm_page_size(0);
 	if(unlikely(len == 0))
 		return;
-	if(page->addr < MEMORY_BOOTSTRAP_MAX) {
-		memcpy(mm_early_ptov(page->addr), 0, len);
+	if(mm_page_addr(page) < MEMORY_BOOTSTRAP_MAX) {
+		memcpy(mm_early_ptov(mm_page_addr(page)), 0, len);
 		return;
 	}
 	struct page *pages[] = { page };
@@ -148,11 +178,11 @@ struct page *mm_page_clone(struct page *page)
 	struct page *newpage = mm_page_alloc(0);
 	void *srcaddr = NULL;
 	void *dstaddr = NULL;
-	if(page->addr < MEMORY_BOOTSTRAP_MAX) {
-		srcaddr = mm_early_ptov(page->addr);
+	if(mm_page_addr(page) < MEMORY_BOOTSTRAP_MAX) {
+		srcaddr = mm_early_ptov(mm_page_addr(page));
 	}
-	if(newpage->addr < MEMORY_BOOTSTRAP_MAX) {
-		dstaddr = mm_early_ptov(newpage->addr);
+	if(mm_page_addr(newpage) < MEMORY_BOOTSTRAP_MAX) {
+		dstaddr = mm_early_ptov(mm_page_addr(newpage));
 	}
 
 	if(!srcaddr && !dstaddr) {
@@ -180,10 +210,9 @@ struct page *mm_page_clone(struct page *page)
 static inline struct page *RET(int flags, struct page *p)
 {
 	if(flags & PAGE_ADDR) {
-		uintptr_t addr = p->addr;
-		p->addr = 0;
-		p->flags = 0;
-		list_insert(&pagestruct_list, &p->entry);
+		uintptr_t addr = mm_page_addr(p);
+		p->__addr_and_flags = 0;
+		pagelist_add(&pagestruct_list, p);
 		return (void *)addr;
 	}
 	return p;
@@ -193,8 +222,8 @@ static struct page *__do_mm_page_alloc(int flags)
 {
 	/* if we're requesting a zero'd page, try getting from the zero list first */
 	if(flags & PAGE_ZERO) {
-		if(!list_empty(&pagezero_list)) {
-			struct page *ret = list_entry(list_pop(&pagezero_list), struct page, entry);
+		if(!pagelist_empty(&pagezero_list)) {
+			struct page *ret = pagelist_pop(&pagezero_list);
 			return RET(flags, ret);
 		}
 	}
@@ -202,17 +231,17 @@ static struct page *__do_mm_page_alloc(int flags)
 	struct page *page;
 	/* prefer getting from non-zero list first. If we wanted a zero'd page and there was one
 	 * available, we wouldn't be here. */
-	if(list_empty(&page_list)) {
-		if(list_empty(&pagezero_list)) {
+	if(pagelist_empty(&page_list)) {
+		if(pagelist_empty(&pagezero_list)) {
 			if(flags & PAGE_ADDR) {
 				return (void *)mm_region_alloc_raw(mm_page_size(0), mm_page_size(0), 0);
 			}
 			page = fallback_page_alloc();
 		} else {
-			page = list_entry(list_pop(&pagezero_list), struct page, entry);
+			page = pagelist_pop(&pagezero_list);
 		}
 	} else {
-		page = list_entry(list_pop(&page_list), struct page, entry);
+		page = pagelist_pop(&page_list);
 	}
 	assert(page);
 
@@ -222,13 +251,13 @@ static struct page *__do_mm_page_alloc(int flags)
 void mm_page_free(struct page *page)
 {
 	/* TODO: determine if page is zero or not (with MMU dirty bit) */
-	page->flags &= ~PAGE_ZERO;
+	page_clear_flags(page, PAGE_ZERO);
 
 	spinlock_acquire_save(&lock);
-	if(page->flags & PAGE_ZERO) {
-		list_insert(&pagezero_list, &page->entry);
+	if(mm_page_flags(page) & PAGE_ZERO) {
+		pagelist_add(&pagezero_list, page);
 	} else {
-		list_insert(&page_list, &page->entry);
+		pagelist_add(&page_list, page);
 	}
 	spinlock_release_restore(&lock);
 }
@@ -238,7 +267,7 @@ struct page *mm_page_alloc(int flags)
 	spinlock_acquire_save_recur(&lock);
 	struct page *page = __do_mm_page_alloc(flags);
 	spinlock_release_restore(&lock);
-	if((flags & PAGE_ZERO) && !(page->flags & PAGE_ZERO)) {
+	if((flags & PAGE_ZERO) && !(mm_page_flags(page) & PAGE_ZERO)) {
 		mm_page_zero(page);
 	}
 	return page;

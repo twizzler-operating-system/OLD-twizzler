@@ -4,13 +4,23 @@
 #include <spinlock.h>
 
 struct page {
-	uintptr_t addr;
-	uint32_t flags;
-	uint32_t resv;
-	struct list entry;
+	uintptr_t __addr_and_flags;
+	struct page *next;
 };
 
-#define PAGE_CACHE_TYPE(p) ((p)->flags & 0x7)
+#define MM_PAGE_ADDR_MASK 0xffffffffffffff00ul
+
+static inline uintptr_t mm_page_addr(struct page *page)
+{
+	return page->__addr_and_flags & MM_PAGE_ADDR_MASK;
+}
+
+static inline uint64_t mm_page_flags(struct page *page)
+{
+	return page->__addr_and_flags & (~MM_PAGE_ADDR_MASK);
+}
+
+#define PAGE_CACHE_TYPE(p) (mm_page_flags(p) & 0x7)
 #define PAGE_CACHE_WB 0
 #define PAGE_CACHE_UC 1
 #define PAGE_CACHE_WT 2
@@ -18,6 +28,7 @@ struct page {
 
 #define PAGE_ZERO 0x10
 #define PAGE_FAKE 0x20
+
 void mm_page_print_stats(void);
 struct page *mm_page_alloc(int flags);
 uintptr_t mm_page_alloc_addr(int flags);
