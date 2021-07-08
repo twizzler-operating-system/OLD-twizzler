@@ -1,28 +1,28 @@
 [submodule "tools/libtomcrypt"]
 	path = tools/libtomcrypt
-	url = git@github.com:twizzler-operating-system/libtomcrypt.git
+	url = ../libtomcrypt.git
 	branch = twizzler
 [submodule "tools/libtomcrypt-kernel"]
 	path = tools/libtomcrypt-kernel
-	url = git@github.com:twizzler-operating-system/libtomcrypt.git
+	url = ../libtomcrypt.git
 	branch = twizzler
 [submodule "tools/libtommath-kernel"]
 	path = tools/libtommath-kernel
-	url = git@github.com:twizzler-operating-system/libtommath.git
+	url = ../libtommath.git
 	branch = twizzler
 [submodule "tools/libtommath"]
 	path = tools/libtommath
-	url = git@github.com:twizzler-operating-system/libtommath.git
+	url = ../libtommath.git
 	branch = twizzler
 [submodule "src/lib/musl"]
 	path = src/lib/musl
-	url = git@github.com:twizzler-operating-system/musl-twizzler.git
+	url = ../musl-twizzler.git
 	branch = twizzler
 [submodule "tools/llvm-project"]
 	path = tools/llvm-project
-	url = git@github.com:twizzler-operating-system/llvm-project.git
+	url = ../llvm-project.git
 	branch = twizzler
 [submodule "tools/rust"]
 	path = tools/rust
-	url = git@github.com:twizzler-operating-system/rust.git
+	url = ../rust.git
 	branch = twizzler
