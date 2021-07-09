@@ -607,7 +607,7 @@ llvm-libunwind = 'no'
 # Path to the `llvm-config` binary of the installation of a custom LLVM to link
 # against. Note that if this is specified we don't compile LLVM at all for this
 # target.
-#llvm-config = "/usr/bin/llvm-config"
+llvm-config = "/usr/bin/llvm-config"
 
 # Normally the build system can find LLVM's FileCheck utility, but if
 # not, you can specify an explicit file name for it.

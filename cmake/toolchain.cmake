@@ -187,6 +187,19 @@ ExternalProject_Add(
 	BUILD_ALWAYS ${REBUILD_TOOLCHAIN}
 )
 
+ExternalProject_Add_Step("musl", "post",
+	COMMAND "cp"
+	    "${SYSROOT_DIR}/usr/lib/crti.o"
+	    "${SYSROOT_DIR}/usr/lib/crtn.o"
+	    "${SYSROOT_DIR}/usr/lib/crt1.o"
+	    "${SYSROOT_DIR}/usr/lib/rcrt1.o"
+		"${SYSROOT_DIR}/usr/lib/Scrt1.o"
+		"${TOOLCHAIN_DIR}/lib/clang/12.0.0"
+		DEPENDEES install
+		ALWAYS ON
+		USES_TERMINAL ON
+)
+
 ExternalProject_Add(
 	"exttommath"
 	DEPENDS "llvm"
