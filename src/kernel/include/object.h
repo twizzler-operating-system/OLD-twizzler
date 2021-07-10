@@ -1,5 +1,11 @@
 #pragma once
 
+/** @file
+ * @brief Object management
+ *
+ * See \ref objects for an overview of objects.
+ */
+
 #include <arch/object.h>
 #include <krc.h>
 #include <lib/inthash.h>
