@@ -112,6 +112,7 @@ we need to install the "real" libraries as part of this first build step, and th
 to ensure that it gets the "real" version of the libraries:
 
    ninja install
+
    ninja
 
 Yeah, it's annoying. But you only need to do this once. With that done, we can move on to ports.
