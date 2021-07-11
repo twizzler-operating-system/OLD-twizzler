@@ -77,10 +77,6 @@ static void post_init_calls_execute(bool secondary)
 extern void _init(void);
 extern int kernel_init_array_start;
 extern int kernel_init_array_end;
-/* at this point, memory management, interrupt routines, global constructors, and shared
- * kernel state between nodes have been initialized. Now initialize all application processors
- * and per-node threading.
- */
 void kernel_init(void)
 {
 	mm_init_phase_2();
