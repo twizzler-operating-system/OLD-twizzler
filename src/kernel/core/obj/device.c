@@ -166,7 +166,7 @@ struct object *bus_register(uint32_t bustype, uint32_t busid, size_t bssz)
 	struct object *obj = obj_lookup(psid, OBJ_LOOKUP_HIDDEN);
 	assert(obj != NULL);
 	// obj->kaction = __device_kaction;
-	obj_kso_init(obj, KSO_DEVBUS);
+	object_init_kso_data(obj, KSO_DEVBUS);
 
 	struct bus_repr repr = {
 		.bus_id = busid,

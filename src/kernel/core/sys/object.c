@@ -298,7 +298,7 @@ long syscall_attach(uint64_t palo, uint64_t pahi, uint64_t chlo, uint64_t chhi, 
 		return -EINVAL;
 	}
 	if(child->kso_type == KSO_NONE) {
-		obj_kso_init(child, type);
+		object_init_kso_data(child, type);
 	}
 	spinlock_release_restore(&child->lock);
 

@@ -87,7 +87,7 @@ static inline struct object *__obj_alloc(enum kso_type ksot, objid_t id)
 
 	obj_init(obj);
 	obj->id = id;
-	obj_kso_init(obj, ksot);
+	object_init_kso_data(obj, ksot);
 
 	obj_count++;
 

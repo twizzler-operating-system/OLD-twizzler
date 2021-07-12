@@ -135,15 +135,6 @@ struct kso_calls *kso_lookup_calls(enum kso_type ksot)
 	return _kso_calls[ksot];
 }
 
-void obj_kso_init(struct object *obj, enum kso_type ksot)
-{
-	obj->kso_type = ksot;
-	obj->kso_calls = _kso_calls[ksot];
-	if(obj->kso_calls && obj->kso_calls->ctor) {
-		obj->kso_calls->ctor(obj);
-	}
-}
-
 void object_init_kso_data(struct object *obj, enum kso_type kt)
 {
 	obj->kso_type = kt;

@@ -26,7 +26,7 @@
 #include <twz/sys/slots.h>
 #include <twz/sys/thread.h>
 
-struct object *get_system_object(void)
+struct object *kso_get_system_object(void)
 {
 	static struct object *system_bus;
 	static struct spinlock lock = SPINLOCK_INIT;
@@ -206,7 +206,7 @@ void kernel_main(struct processor *proc)
 
 		obj_write_data(
 		  root, OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + OBJ_METAPAGE_SIZE), sizeof(mi), &mi);
-		struct object *so = get_system_object();
+		struct object *so = kso_get_system_object();
 		struct system_header hdr = { .pagesz = mm_page_size(0) };
 		device_rw_specific(so, WRITE, &hdr, BUS, sizeof(hdr));
 

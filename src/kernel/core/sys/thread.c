@@ -63,7 +63,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 	}
 
 	if(repr->kso_type == KSO_NONE) {
-		obj_kso_init(repr, KSO_THREAD);
+		object_init_kso_data(repr, KSO_THREAD);
 	}
 	spinlock_release_restore(&repr->lock);
 
