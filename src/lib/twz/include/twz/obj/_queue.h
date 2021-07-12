@@ -51,7 +51,7 @@ using std::atomic_uint_least64_t;
  * Finally, the consumer does thread_sync on the tail.
  *
  * Okay, but we can _also_ optimize these thread_syncs so that they only happen if someone is
- * waiting. We do this by stealing the upper bit of the tail and using a wait count. Producers
+ * waiting. We do this by using a wait count. Producers
  * indicate that they are waiting by incrementing the wait count (and decrementing it when they are
  * done waiting). The consumer indicates it's waiting by setting the top bit of the tail.
  *
@@ -76,7 +76,7 @@ using std::atomic_uint_least64_t;
  *   - consumer wakes up, sees the queue isn't empty, but nothing is in slot 0 yet. It must wait for
  *   A to fill slot 0.
  *
- * This resolves, though, because A will to its own increment and wake operation on the bell, so
+ * This resolves, though, because A will do its own increment and wake operation on the bell, so
  * we'll have a chance to run again. Eventually, we'll get the items.
  *
  */
@@ -127,6 +127,8 @@ struct queue_hdr {
 #define is_empty(head, tail) ({ (head & 0x7fffffff) == (tail & 0x7fffffff); })
 
 #if __KERNEL__
+
+/* TODO: we still need to hook this up to the refactor. Userspace-specific code is below. */
 
 #include <object.h>
 struct object;
@@ -231,11 +233,6 @@ static inline int queue_sub_enqueue(
 	 * woken up by the consumer. */
 	t = hdr->subqueue[sq].tail;
 	int waiter = 0;
-	// if(is_full(h, t, hdr->subqueue[sq].l2length)) {
-	//		waiter = 1;
-	//	E_INCWAITING(hdr, sq);
-	//	t = hdr->subqueue[sq].tail;
-	//}
 	int attempts = 1000;
 	while(is_full(h, t, hdr->subqueue[sq].l2length)) {
 		if(nonblock) {
@@ -400,7 +397,6 @@ top:
 		return -EINVAL;
 	size_t sleep_count = 0;
 
-#if 1
 	size_t tries = 100;
 	while(tries > 0) {
 		size_t ready = 0;
@@ -428,7 +424,6 @@ top:
 		}
 		tries--;
 	}
-#endif
 
 	struct sys_thread_sync_args tsa[count];
 	sleep_count = 0;
