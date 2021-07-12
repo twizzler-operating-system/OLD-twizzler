@@ -1,10 +1,10 @@
 #pragma once
 #include <stdint.h>
-enum {
-	type_kind_int = 0,
-	type_kind_float = 1,
-	type_unknown = 0xffff
-};
+
+/* All of these are taken from the UBSAN compiler support libraries, see clang or gcc's
+ * documentation on that */
+
+enum { type_kind_int = 0, type_kind_float = 1, type_unknown = 0xffff };
 
 struct type_descriptor {
 	uint16_t type_kind;
@@ -93,4 +93,3 @@ struct type_mismatch_data_v1 {
 	unsigned char log_alignment;
 	unsigned char type_check_kind;
 };
-

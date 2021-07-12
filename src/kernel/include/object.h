@@ -8,7 +8,6 @@
 
 #include <arch/object.h>
 #include <krc.h>
-#include <lib/inthash.h>
 #include <lib/rb.h>
 #include <lib/vector.h>
 #include <rwlock.h>

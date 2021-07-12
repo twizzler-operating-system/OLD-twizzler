@@ -7,7 +7,6 @@
 #include <clksrc.h>
 #include <kalloc.h>
 #include <kso.h>
-#include <lib/bitmap.h>
 #include <lib/blake2.h>
 #include <lib/iter.h>
 #include <lib/rb.h>

@@ -83,7 +83,6 @@ list(APPEND KERNEL_SOURCES
 	core/sys/thread_sync.c
 	lib/blake2.c
 	lib/memory.c
-	lib/qsort.c
 	lib/rb.c
 	lib/vsprintk.c
 )

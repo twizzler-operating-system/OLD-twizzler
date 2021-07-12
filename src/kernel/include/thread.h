@@ -1,7 +1,6 @@
 #pragma once
 #include <arch/thread.h>
 #include <krc.h>
-#include <lib/inthash.h>
 #include <lib/list.h>
 #include <memory.h>
 #include <spinlock.h>

@@ -5,7 +5,6 @@
  */
 
 #include <kalloc.h>
-#include <lib/inthash.h>
 #include <memory.h>
 #include <object.h>
 #include <processor.h>
