@@ -868,6 +868,8 @@ INPUT                  = ./src/kernel
 
 INPUT += \
 		docs/kernel/intro.md \
+		docs/kernel/init.md \
+		docs/kernel/debug.md \
 		docs/kernel/objects.md 
 
 # This tag can be used to specify the character encoding of the source files

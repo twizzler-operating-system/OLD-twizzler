@@ -150,6 +150,7 @@ static void bench(void)
 #endif
 
 static _Atomic unsigned int kernel_main_barrier = 0;
+static _Atomic unsigned int kernel_main_barrier2 = 0;
 
 #include <kc.h>
 #include <object.h>
@@ -213,10 +214,11 @@ void kernel_main(struct processor *proc)
 		obj_put(so);
 		printk("[kernel] sizeof struct page: %ld\n", sizeof(struct page));
 	}
+	processor_barrier(&kernel_main_barrier);
 	post_init_calls_execute(!(proc->flags & PROCESSOR_BSP));
 
 	// printk("Waiting at kernel_main_barrier\n");
-	processor_barrier(&kernel_main_barrier);
+	processor_barrier(&kernel_main_barrier2);
 
 	if(proc->flags & PROCESSOR_BSP) {
 		printk("todo: free these\n");
