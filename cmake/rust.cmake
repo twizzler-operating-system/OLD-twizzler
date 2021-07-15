@@ -13,7 +13,7 @@ add_custom_target(${name}
 	"CARGO_TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR}/${name}-cargo-build"
 	"RUSTC=${TOOLCHAIN_DIR}/bin/rustc"
 	"RUSTFLAGS=--target=${TWIZZLER_TRIPLE} -C linker=${TOOLCHAIN_DIR}/bin/clang -C link-arg=--sysroot=${SYSROOT_DIR}"
-	cargo build --${CARGO_BUILD_TYPE} --color=always
+	cargo build ${CARGO_BUILD_TYPE} --color=always
 	VERBATIM
 )
 
