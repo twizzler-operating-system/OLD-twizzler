@@ -46,7 +46,7 @@ static void __late_init_kbd(void *a __unused)
 	kbd_obj = device_register(DEVICE_BT_ISA, DEVICE_ID_KEYBOARD);
 	kso_setname(kbd_obj, "PS/2 Keyboard");
 
-	kso_attach(pc_get_isa_bus(), kbd_obj, DEVICE_ID_KEYBOARD);
+	kso_tree_attach_child(pc_get_isa_bus(), kbd_obj, DEVICE_ID_KEYBOARD);
 
 	interrupt_register_handler(33, &_kbd_ih);
 }

@@ -151,7 +151,8 @@ void thread_exit(void)
 	spinlock_acquire_save(&allthreads_lock);
 	list_remove(&current_thread->all_entry);
 	spinlock_release_restore(&allthreads_lock);
-	kso_root_detach(current_thread->kso_attachment_num);
+
+	kso_tree_detach_child(kso_root, current_thread->kso_attachment_num);
 
 	obj_write_data_atomic64(
 	  current_thread->reprobj, offsetof(struct twzthread_repr, syncs[THRD_SYNC_EXIT]), 1);

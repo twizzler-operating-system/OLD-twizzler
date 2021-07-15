@@ -139,7 +139,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 
 	t->thrctrl->flags |= OF_DELETE;
 
-	t->kso_attachment_num = kso_root_attach(repr, 0, KSO_THREAD);
+	t->kso_attachment_num = kso_tree_attach_child(kso_root, repr, 0);
 
 	if(current_thread) {
 		spinlock_acquire_save(&current_thread->sc_lock);

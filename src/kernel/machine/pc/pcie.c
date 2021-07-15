@@ -262,7 +262,7 @@ static long pcie_function_init(struct object *pbobj,
 	hdr.space = (void *)start;
 
 	unsigned int fnid = function | device << 3 | bus << 8;
-	kso_attach(pbobj, fobj, fnid);
+	kso_tree_attach_child(pbobj, fobj, fnid);
 
 	device_rw_specific(fobj, WRITE, &hdr, DEVICE, sizeof(hdr));
 
@@ -331,7 +331,7 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 	  name, KSO_NAME_MAXLEN, "PCIe bus %.2x::%.2x-%.2x", hdr.segnr, hdr.start_bus, hdr.end_bus);
 	kso_setname(obj, name);
 	obj->kaction = __pcie_kaction;
-	kso_root_attach(obj, 0, KSO_DEVBUS);
+	kso_tree_attach_child(kso_root, obj, 0);
 	obj_put(obj);
 }
 

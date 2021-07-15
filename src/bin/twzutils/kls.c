@@ -44,6 +44,7 @@ void print_kat(struct kso_attachment *k, int indent)
 	printf("\n");
 }
 
+#if 0
 void kls_devbus(struct kso_attachment *p, int indent)
 {
 	twzobj bus;
@@ -61,6 +62,7 @@ void kls_devbus(struct kso_attachment *p, int indent)
 		print_kat(k, indent);
 	}
 }
+#endif
 
 void kls_thread(struct kso_attachment *p, int indent)
 {
@@ -79,11 +81,11 @@ void kls_thread(struct kso_attachment *p, int indent)
 void kls(void)
 {
 	twzobj root;
-	twz_object_init_guid(&root, 1, FE_READ);
+	twz_object_init_guid(&root, KSO_ROOT_ID, FE_READ);
 
-	struct kso_root_repr *r = twz_object_base(&root);
-	for(size_t i = 0; i < r->count; i++) {
-		struct kso_attachment *k = &r->attached[i];
+	struct kso_root_hdr *r = twz_object_base(&root);
+	for(size_t i = 0; i < r->dir.count; i++) {
+		struct kso_attachment *k = &r->dir.children[i];
 		if(!k->id || !k->type)
 			continue;
 		twztry
@@ -93,8 +95,8 @@ void kls(void)
 				case KSO_THREAD:
 					kls_thread(k, 4);
 					break;
-				case KSO_DEVBUS:
-					kls_devbus(k, 4);
+					//		case KSO_DEVBUS:
+					//			kls_devbus(k, 4);
 			}
 		}
 		twzcatch_all

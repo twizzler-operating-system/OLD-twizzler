@@ -286,6 +286,7 @@ target_include_directories(kernel PRIVATE ${CMAKE_SOURCE_DIR}/tools/libtomcrypt-
 target_include_directories(kernel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_include_directories(kernel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/arch/${TWIZZLER_PROCESSOR}/include)
 target_include_directories(kernel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/machine/${TWIZZLER_MACHINE}/include)
+include_directories(${CMAKE_SOURCE_DIR}/src/lib/twzdev/include)
 include_directories(${CMAKE_SOURCE_DIR}/src/lib/twz/include)
 
 set_target_properties(kernel PROPERTIES LINK_FLAGS "-static")

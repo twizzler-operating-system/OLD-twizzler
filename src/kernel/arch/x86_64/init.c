@@ -317,9 +317,9 @@ static void __late_init_framebuffer(void *a __unused)
 {
 	if(!found_fbinfo)
 		return;
-	static struct object *fb_obj;
-	fb_obj = device_register(DEVICE_BT_MISC, DEVICE_ID_FRAMEBUFFER);
-	kso_setname(fb_obj, "VBE-compatible Framebuffer");
+	static struct device *fb_dev;
+	fb_dev = device_create(device_get_misc_bus(), DEVICE_BT_MISC, 0, DEVICE_ID_FRAMEBUFFER, 0);
+	kso_setname(fb_dev->root, "VBE-compatible Framebuffer");
 
 	struct misc_framebuffer mfb = {
 		.height = fbinfo.common.framebuffer_height,
@@ -331,24 +331,24 @@ static void __late_init_framebuffer(void *a __unused)
 		          : MISC_FRAMEBUFFER_TYPE_UNKNOWN,
 		.offset = mm_page_size(1),
 	};
-	device_rw_specific(fb_obj, WRITE, &mfb, DEVICE, sizeof(mfb));
+	device_add_info(fb_dev, &mfb, sizeof(mfb), 0);
 
 	size_t sz = mfb.height * mfb.pitch;
 	uintptr_t addr = fbinfo.common.framebuffer_addr;
+	device_add_mmio(fb_dev, addr, sz, 0);
+	/*
 	size_t start = mm_page_size(1);
 	while(sz > 0) {
-		struct page *pg = mm_page_fake_create(addr, PAGE_CACHE_WC);
-		object_insert_page(fb_obj, start / mm_page_size(0), pg);
-		size_t amount = mm_page_size(0);
-		if(sz < amount)
-			sz = 0;
-		else
-			sz -= amount;
-		addr += amount;
-		start += amount;
-	}
-
-	kso_attach(device_get_misc_bus(), fb_obj, DEVICE_ID_FRAMEBUFFER);
+	    struct page *pg = mm_page_fake_create(addr, PAGE_CACHE_WC);
+	    object_insert_page(fb_obj, start / mm_page_size(0), pg);
+	    size_t amount = mm_page_size(0);
+	    if(sz < amount)
+	        sz = 0;
+	    else
+	        sz -= amount;
+	    addr += amount;
+	    start += amount;
+	}*/
 }
 POST_INIT(__late_init_framebuffer, NULL);
 

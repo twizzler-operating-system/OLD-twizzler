@@ -15,8 +15,9 @@ enum kso_type {
 	KSO_SECCTX,
 	KSO_THREAD,
 	KSO_ROOT,
-	KSO_DEVBUS,
 	KSO_DEVICE,
+	KSO_DIRECTORY,
+	KSO_DATA,
 	KSO_MAX,
 };
 
@@ -36,11 +37,16 @@ struct kso_hdr {
 	uint64_t resv2;
 };
 
-struct kso_root_repr {
+struct kso_dir_hdr {
 	struct kso_hdr hdr;
-	size_t count;
 	uint64_t flags;
-	struct kso_attachment attached[];
+	size_t count;
+	struct kso_attachment children[];
+};
+
+struct kso_root_hdr {
+	struct kso_hdr hdr;
+	struct kso_dir_hdr dir;
 };
 
 #define KSO_ROOT_ID 1

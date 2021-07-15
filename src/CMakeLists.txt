@@ -60,7 +60,7 @@ add_subdirectory(bin/init)
 #add_subdirectory(bin/network)
 add_subdirectory(bin/pager)
 add_subdirectory(bin/term)
-add_subdirectory(bin/twzdev)
+#add_subdirectory(bin/twzdev)
 add_subdirectory(bin/twzutils)
 add_subdirectory(bin/unix)
 

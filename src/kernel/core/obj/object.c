@@ -191,6 +191,8 @@ static void _obj_release(void *_obj)
 			obj->kso_type = KSO_NONE;
 		}
 
+		object_kso_dir_destroy(obj);
+
 		obj_count--;
 		slabcache_free(&sc_objs, obj, NULL);
 	}

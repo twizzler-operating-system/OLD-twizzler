@@ -35,6 +35,7 @@ struct object_tie {
 #define OF_PAGER 0x200
 #define OF_PARTIAL 0x400
 
+struct kso_dir;
 struct object {
 	uint128_t id;
 	struct krc refs;
@@ -45,6 +46,7 @@ struct object {
 
 	_Atomic enum kso_type kso_type;
 	void *kso_data;
+	struct kso_dir *_Atomic dir;
 	struct kso_calls *kso_calls;
 	long (*kaction)(struct object *, long, long);
 

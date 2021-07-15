@@ -1,6 +1,8 @@
 #pragma once
 
 #include <lib/list.h>
+#include <lib/vector.h>
+#include <spinlock.h>
 #include <twz/sys/kso.h>
 
 struct thread;
@@ -17,6 +19,13 @@ struct kso_throbj {
 
 struct kso_sctx {
 	struct sctx *sc;
+};
+
+struct kso_dir {
+	struct vector idxs;
+	size_t max;
+	size_t ch_offset;
+	struct spinlock lock;
 };
 
 struct kso_invl_args {
@@ -49,3 +58,10 @@ struct kso_calls *kso_lookup_calls(enum kso_type ksot);
 
 void object_init_kso_data(struct object *, enum kso_type);
 void *object_get_kso_data_checked(struct object *obj, enum kso_type kt);
+
+size_t kso_tree_attach_child(struct object *parent, struct object *child, uint64_t info);
+void kso_tree_detach_child(struct object *parent, size_t chnr);
+struct object *object_get_kso_root(void);
+void object_kso_dir_destroy(struct object *obj);
+
+#define kso_root object_get_kso_root()
