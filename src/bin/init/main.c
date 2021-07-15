@@ -226,7 +226,7 @@ int main()
 
 	/* start the device manager */
 	if(!fork()) {
-		execlp("twzdev", "twzdev", NULL);
+		execlp("twzdevmgr", "twzdevmgr", NULL);
 		exit(0);
 	}
 
