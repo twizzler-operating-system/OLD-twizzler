@@ -229,7 +229,7 @@ impl Twzobj {
     }
 
     pub fn base<T>(&self) -> &T {
-        unsafe { std::mem::transmute::<u64, &T>(self.slot * OBJ_MAX_SIZE + OBJ_NULLPAGE_SIZE) }
+        unsafe { &*std::mem::transmute::<u64, *const T>(self.slot * OBJ_MAX_SIZE + OBJ_NULLPAGE_SIZE) }
     }
 
     pub fn base_mut<T>(&self, _tx: &mut Tx) -> &mut T {
