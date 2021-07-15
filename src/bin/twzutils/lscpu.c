@@ -42,9 +42,9 @@ int main()
 	twzobj root, bus;
 	twz_object_init_guid(&root, 1, FE_READ);
 
-	struct kso_root_repr *r = twz_object_base(&root);
-	for(size_t i = 0; i < r->count; i++) {
-		struct kso_attachment *k = &r->attached[i];
+	struct kso_root_hdr *r = twz_object_base(&root);
+	for(size_t i = 0; i < r->dir.count; i++) {
+		struct kso_attachment *k = &r->dir.children[i];
 		if(!k->id || !k->type)
 			continue;
 		switch(k->type) {

@@ -8,84 +8,209 @@
 #include <kso.h>
 #include <object.h>
 #include <spinlock.h>
-#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
 #include <twz/sys/kso.h>
 #include <twz/sys/thread.h>
 #include <vmm.h>
-/* TODO: better system for tracking slots in the array */
-static _Atomic size_t idx = 0;
-static struct spinlock lock = SPINLOCK_INIT;
 
+static struct kso_dir *object_get_dir(struct object *obj)
+{
+	assert(obj->kso_type != KSO_NONE);
+	if(obj->dir == NULL) {
+		spinlock_acquire_save(&obj->lock);
+		if(obj->dir == NULL) {
+			obj->dir = kalloc(sizeof(struct kso_dir), 0);
+			vector_init(&obj->dir->idxs, sizeof(uint64_t), _Alignof(uint64_t));
+			obj->dir->max = 0;
+			obj->dir->lock = SPINLOCK_INIT;
+			switch(atomic_load(&obj->kso_type)) {
+				case KSO_DIRECTORY:
+					obj->dir->ch_offset = offsetof(struct kso_dir_hdr, children);
+					break;
+				case KSO_ROOT:
+					obj->dir->ch_offset = offsetof(struct kso_root_hdr, dir.children);
+					break;
+				case KSO_DEVICE:
+					obj->dir->ch_offset = offsetof(struct kso_device_hdr, dir.children);
+					break;
+				default:
+					panic("unsupported KSO for directory attachment (%d)", obj->kso_type);
+			}
+		}
+		spinlock_release_restore(&obj->lock);
+	}
+	return obj->dir;
+}
+
+void object_kso_dir_destroy(struct object *obj)
+{
+	if(obj->dir) {
+		vector_destroy(&obj->dir->idxs);
+		kfree(obj->dir);
+		obj->dir = NULL;
+	}
+}
+
+struct object *object_get_kso_root(void)
+{
+	static struct object *_Atomic root = NULL;
+	static struct spinlock lock = SPINLOCK_INIT;
+	if(root == NULL) {
+		spinlock_acquire_save(&lock);
+		if(root == NULL) {
+			root = obj_lookup(KSO_ROOT_ID, 0);
+		}
+		spinlock_release_restore(&lock);
+	}
+	return root;
+}
+
+/* TODO: better system for tracking slots in the array */
+// static _Atomic size_t idx = 0;
+// static struct spinlock lock = SPINLOCK_INIT;
+
+/*
 int kso_root_attach(struct object *obj, uint64_t flags, int type)
 {
-	(void)flags;
-	struct object *root = obj_lookup(1, 0);
-	spinlock_acquire_save(&lock);
-	struct kso_attachment kar = {
-		.flags = 0,
-		.id = obj->id,
-		.info = 0,
-		.type = type,
-	};
-	size_t i = idx++;
-	obj_write_data(root,
-	  offsetof(struct kso_root_repr, attached) + sizeof(struct kso_attachment) * i,
-	  sizeof(kar),
-	  &kar);
+    (void)flags;
+    struct object *root = obj_lookup(1, 0);
+    spinlock_acquire_save(&lock);
+    struct kso_attachment kar = {
+        .flags = 0,
+        .id = obj->id,
+        .info = 0,
+        .type = type,
+    };
+    size_t i = idx++;
+    obj_write_data(root,
+      offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * i,
+      sizeof(kar),
+      &kar);
 
-	i++;
-	obj_write_data(root, offsetof(struct kso_root_repr, count), sizeof(i), &i);
+    i++;
+    obj_write_data(root, offsetof(struct kso_root_hdr, dir.count), sizeof(i), &i);
 
-	spinlock_release_restore(&lock);
-	obj_put(root);
-	return i - 1;
+    spinlock_release_restore(&lock);
+    obj_put(root);
+    return i - 1;
 }
 
 void kso_root_detach(int i)
 {
-	struct object *root = obj_lookup(1, 0);
-	spinlock_acquire_save(&lock);
-	struct kso_attachment kar = {
+    struct object *root = obj_lookup(1, 0);
+    spinlock_acquire_save(&lock);
+    struct kso_attachment kar = {
+        .flags = 0,
+        .id = 0,
+        .info = 0,
+        .type = 0,
+    };
+    obj_write_data(root,
+      offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * i,
+      sizeof(kar),
+      &kar);
+
+    spinlock_release_restore(&lock);
+    obj_put(root);
+}
+
+*/
+/* TODO: detach threads when they exit *
+
+void kso_attach(struct object *parent, struct object *child, size_t loc)
+{
+    assert(parent->kso_type);
+    struct kso_attachment kar = {
+        .type = child->kso_type,
+        .id = child->id,
+        .info = 0,
+        .flags = 0,
+    };
+    switch(atomic_load(&parent->kso_type)) {
+        size_t off;
+        struct bus_repr brepr;
+        case KSO_DEVBUS:
+            device_rw_header(parent, READ, &brepr, BUS);
+            off = (size_t)brepr.children - OBJ_NULLPAGE_SIZE;
+            obj_write_data(parent, off + loc * sizeof(kar), sizeof(kar), &kar);
+            if(brepr.max_children <= loc) {
+                brepr.max_children = loc + 1;
+                device_rw_header(parent, WRITE, &brepr, BUS);
+            }
+            break;
+        default:
+            panic("NI - kso_attach");
+    }
+}
+*/
+
+void kso_tree_detach_child(struct object *parent, size_t chnr)
+{
+	struct kso_dir *kd = object_get_dir(parent);
+	assert(kd);
+
+	struct kso_attachment kat = {
 		.flags = 0,
 		.id = 0,
 		.info = 0,
 		.type = 0,
 	};
-	obj_write_data(root,
-	  offsetof(struct kso_root_repr, attached) + sizeof(struct kso_attachment) * i,
-	  sizeof(kar),
-	  &kar);
+	if(parent->kso_type == KSO_DIRECTORY) {
+		obj_write_data(parent,
+		  offsetof(struct kso_dir_hdr, children) + sizeof(struct kso_attachment) * chnr,
+		  sizeof(kat),
+		  &kat);
+	} else {
+		obj_write_data(parent,
+		  offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * chnr,
+		  sizeof(kat),
+		  &kat);
+	}
 
-	spinlock_release_restore(&lock);
-	obj_put(root);
+	spinlock_acquire_save(&kd->lock);
+
+	uint64_t _n = chnr;
+	vector_push(&kd->idxs, &_n);
+
+	spinlock_release_restore(&kd->lock);
 }
 
-/* TODO: detach threads when they exit */
-
-void kso_attach(struct object *parent, struct object *child, size_t loc)
+size_t kso_tree_attach_child(struct object *parent, struct object *child, uint64_t info)
 {
-	assert(parent->kso_type);
-	struct kso_attachment kar = {
+	assert(child->kso_type != KSO_NONE);
+	struct kso_attachment kat = {
 		.type = child->kso_type,
 		.id = child->id,
-		.info = 0,
+		.info = info,
 		.flags = 0,
 	};
-	switch(atomic_load(&parent->kso_type)) {
-		size_t off;
-		struct bus_repr brepr;
-		case KSO_DEVBUS:
-			device_rw_header(parent, READ, &brepr, BUS);
-			off = (size_t)brepr.children - OBJ_NULLPAGE_SIZE;
-			obj_write_data(parent, off + loc * sizeof(kar), sizeof(kar), &kar);
-			if(brepr.max_children <= loc) {
-				brepr.max_children = loc + 1;
-				device_rw_header(parent, WRITE, &brepr, BUS);
-			}
-			break;
-		default:
-			panic("NI - kso_attach");
+
+	struct kso_dir *kd = object_get_dir(parent);
+	assert(kd);
+
+	spinlock_acquire_save(&kd->lock);
+	size_t next;
+	if(kd->idxs.length == 0) {
+		next = kd->max++;
+	} else {
+		uint64_t *n = vector_pop(&kd->idxs);
+		assert(n);
+		next = *n;
 	}
+	spinlock_release_restore(&kd->lock);
+
+	if(parent->kso_type == KSO_DIRECTORY) {
+		obj_write_data(parent,
+		  offsetof(struct kso_dir_hdr, children) + sizeof(struct kso_attachment) * next,
+		  sizeof(kat),
+		  &kat);
+	} else {
+		obj_write_data(parent,
+		  offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * next,
+		  sizeof(kat),
+		  &kat);
+	}
+	return next;
 }
 
 #include <string.h>
@@ -114,7 +239,8 @@ void *object_get_kso_data_checked(struct object *obj, enum kso_type kt)
 	}
 	return NULL;
 }
-static struct kso_calls *_kso_calls[KSO_MAX];
+
+static struct kso_calls *_kso_calls[KSO_MAX] = {};
 
 void kso_register(int t, struct kso_calls *c)
 {

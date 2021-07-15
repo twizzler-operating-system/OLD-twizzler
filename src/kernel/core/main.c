@@ -26,6 +26,7 @@
 #include <twz/sys/slots.h>
 #include <twz/sys/thread.h>
 
+#if 0
 struct object *get_system_object(void)
 {
 	static struct object *system_bus;
@@ -35,15 +36,16 @@ struct object *get_system_object(void)
 	if(!init) {
 		spinlock_acquire_save(&lock);
 		if(!init) {
-			system_bus = bus_register(DEVICE_BT_SYSTEM, 0, sizeof(struct system_header));
+			system_bus = bus_register(0 /* TODO: D */, 0, sizeof(struct system_header));
 			kso_setname(system_bus, "System");
-			kso_root_attach(system_bus, 0, KSO_DEVBUS);
+			kso_tree_attach_child(kso_root, system_bus, 0);
 			init = true;
 		}
 		spinlock_release_restore(&lock);
 	}
 	return system_bus; /* krc: move */
 }
+#endif
 
 static struct init_call *post_init_call_head = NULL;
 
@@ -206,16 +208,15 @@ void kernel_main(struct processor *proc)
 
 		obj_write_data(
 		  root, OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + OBJ_METAPAGE_SIZE), sizeof(mi), &mi);
-		struct object *so = get_system_object();
-		struct system_header hdr = { .pagesz = mm_page_size(0) };
-		device_rw_specific(so, WRITE, &hdr, BUS, sizeof(hdr));
+		// struct object *so = get_system_object();
+		// struct system_header hdr = { .pagesz = mm_page_size(0) };
+		// device_rw_specific(so, WRITE, &hdr, BUS, sizeof(hdr));
 
-		obj_put(so);
+		// obj_put(so);
 		printk("[kernel] sizeof struct page: %ld\n", sizeof(struct page));
 	}
 	post_init_calls_execute(!(proc->flags & PROCESSOR_BSP));
 
-	// printk("Waiting at kernel_main_barrier\n");
 	processor_barrier(&kernel_main_barrier);
 
 	if(proc->flags & PROCESSOR_BSP) {

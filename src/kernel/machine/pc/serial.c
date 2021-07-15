@@ -295,7 +295,7 @@ static struct uart com1 = {
 	.irq = COM1_IRQ,
 };
 
-static struct object *ser_obj;
+static struct device *ser_dev;
 
 #include <init.h>
 #include <limits.h>
@@ -365,9 +365,8 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 static void __late_init_serial(void *a __unused)
 {
 	/* krc: move */
-	ser_obj = device_register(DEVICE_BT_ISA, DEVICE_ID_SERIAL);
+	ser_dev = device_create(pc_get_isa_bus(), DEVICE_BT_ISA, 0, DEVICE_ID_SERIAL);
 	kso_setname(ser_obj, "UART0");
-	kso_attach(pc_get_isa_bus(), ser_obj, DEVICE_ID_SERIAL);
 }
 POST_INIT(__late_init_serial, NULL);
 
