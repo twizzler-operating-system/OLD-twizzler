@@ -1,6 +1,7 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 
+pub mod flexarray;
 mod arch;
 mod libtwz;
 mod fault;
