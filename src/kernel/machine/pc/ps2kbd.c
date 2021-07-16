@@ -19,7 +19,7 @@
 
 #include <arch/x86_64-io.h>
 
-static struct object *kbd_obj;
+static struct device *kbd_dev;
 
 static void __kbd_interrupt(int v, struct interrupt_handler *ih)
 {
@@ -33,7 +33,7 @@ static void __kbd_interrupt(int v, struct interrupt_handler *ih)
 		mm_print_stats();
 	}
 	_f = !_f;
-	device_signal_sync(kbd_obj, 0, tmp);
+	device_signal_sync(kbd_dev->root, 0, tmp);
 }
 
 static struct interrupt_handler _kbd_ih = {
@@ -43,10 +43,8 @@ static struct interrupt_handler _kbd_ih = {
 static void __late_init_kbd(void *a __unused)
 {
 	/* krc: move */
-	kbd_obj = device_register(DEVICE_BT_ISA, DEVICE_ID_KEYBOARD);
-	kso_setname(kbd_obj, "PS/2 Keyboard");
-
-	kso_tree_attach_child(pc_get_isa_bus(), kbd_obj, DEVICE_ID_KEYBOARD);
+	kbd_dev = device_create(pc_get_isa_bus(), DEVICE_BT_ISA, 0, DEVICE_ID_KEYBOARD, 0);
+	kso_setname(kbd_dev->root, "PS/2 Keyboard");
 
 	interrupt_register_handler(33, &_kbd_ih);
 }

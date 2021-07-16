@@ -22,11 +22,11 @@ target_link_libraries(login twzsec)
 target_link_libraries(login tommath)
 target_link_libraries(login tomcrypt)
 
-add_executable(lscpu lscpu.c)
-install(TARGETS lscpu DESTINATION bin)
+#add_executable(lscpu lscpu.c)
+#install(TARGETS lscpu DESTINATION bin)
 
-add_executable(lsmem lsmem.c)
-install(TARGETS lsmem DESTINATION bin)
+#add_executable(lsmem lsmem.c)
+#install(TARGETS lsmem DESTINATION bin)
 
 add_executable(kls kls.c)
 install(TARGETS kls DESTINATION bin)

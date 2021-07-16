@@ -19,7 +19,7 @@
 static void __kso_device_ctor(struct object *obj)
 {
 	struct device *dev = obj->kso_data = kalloc(sizeof(struct device), 0);
-	dev->co = obj;
+	dev->root = obj;
 	dev->flags = 0;
 }
 
@@ -38,31 +38,32 @@ __initializer static void __device_init(void)
 	kso_register(KSO_DEVICE, &_kso_device);
 }
 
+/*
 void device_rw_header(struct object *obj, int dir, void *ptr)
 {
-	assert(type == DEVICE || type == BUS);
-	size_t len = sizeof(struct kso_device_hdr);
-	if(dir == READ) {
-		obj_read_data(obj, 0, len, ptr);
-	} else if(dir == WRITE) {
-		obj_write_data(obj, 0, len, ptr);
-	} else {
-		panic("unknown IO direction");
-	}
+    assert(type == DEVICE || type == BUS);
+    size_t len = sizeof(struct kso_device_hdr);
+    if(dir == READ) {
+        obj_read_data(obj, 0, len, ptr);
+    } else if(dir == WRITE) {
+        obj_write_data(obj, 0, len, ptr);
+    } else {
+        panic("unknown IO direction");
+    }
 }
-
 void device_rw_specific(struct object *obj, int dir, void *ptr, int type, size_t rwlen)
 {
-	assert(type == DEVICE || type == BUS);
-	size_t len = type == DEVICE ? sizeof(struct kso_device_hdr) : sizeof(struct bus_repr);
-	if(dir == READ) {
-		obj_read_data(obj, len, rwlen, ptr);
-	} else if(dir == WRITE) {
-		obj_write_data(obj, len, rwlen, ptr);
-	} else {
-		panic("unknown IO direction");
-	}
+    assert(type == DEVICE || type == BUS);
+    size_t len = type == DEVICE ? sizeof(struct kso_device_hdr) : sizeof(struct bus_repr);
+    if(dir == READ) {
+        obj_read_data(obj, len, rwlen, ptr);
+    } else if(dir == WRITE) {
+        obj_write_data(obj, len, rwlen, ptr);
+    } else {
+        panic("unknown IO direction");
+    }
 }
+*/
 
 void device_signal_interrupt(struct object *obj, int inum, uint64_t val)
 {
@@ -152,6 +153,7 @@ static void append_child(struct device *dev, struct object *obj, uint64_t flavor
 
 static struct object *_dev_new_obj(void)
 {
+	objid_t oid;
 	int r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &oid);
 	if(r < 0)
 		return NULL;
@@ -176,7 +178,7 @@ struct device *device_create(struct device *parent,
 	data->children_idx = 0;
 	data->children = NULL;
 	data->lock = SPINLOCK_INIT;
-	data->ctrl = obj;
+	data->root = obj;
 
 	struct kso_device_hdr repr = {
 		.device_bustype = bustype,
@@ -187,7 +189,7 @@ struct device *device_create(struct device *parent,
 
 	if(parent) {
 		append_child(parent, obj, DEVICE_CHILD_DEVICE);
-		kso_tree_attach_child(parent->ctrl, obj, info | DEVICE_CHILD_DEVICE);
+		kso_tree_attach_child(parent->root, obj, (info << 32) | DEVICE_CHILD_DEVICE);
 	}
 
 	return data;
@@ -203,13 +205,13 @@ struct object *device_add_mmio(struct device *dev, uintptr_t addr, size_t len, u
 	struct device_mmio_hdr repr = {
 		.info = info,
 		.flags = 0,
-		.len = len,
+		.length = len,
 	};
 	obj_write_data(obj, 0, sizeof(repr), &repr);
 
 	object_init_kso_data(obj, KSO_DATA);
 	append_child(dev, obj, DEVICE_CHILD_MMIO);
-	kso_tree_attach_child(dev->ctrl, obj, info | DEVICE_CHILD_MMIO);
+	kso_tree_attach_child(dev->root, obj, (info << 32) | DEVICE_CHILD_MMIO);
 	return obj;
 }
 
@@ -222,8 +224,14 @@ struct object *device_add_info(struct device *dev, void *data, size_t len, uint6
 	obj_write_data(obj, 0, len, data);
 	object_init_kso_data(obj, KSO_DATA);
 	append_child(dev, obj, DEVICE_CHILD_INFO);
-	kso_tree_attach_child(dev->ctrl, obj, info | DEVICE_CHILD_MMIO);
+	kso_tree_attach_child(dev->root, obj, (info << 32) | DEVICE_CHILD_MMIO);
 	return obj;
+}
+
+void device_attach_busroot(struct device *dev, uint64_t type)
+{
+	struct object *obj = device_get_busroot();
+	kso_tree_attach_child(obj, dev->root, type);
 }
 
 struct object *device_get_busroot(void)
@@ -236,12 +244,12 @@ struct object *device_get_busroot(void)
 			/* krc: move */
 			busroot = _dev_new_obj();
 			object_init_kso_data(busroot, KSO_DIRECTORY);
-			kso_setname(misc_bus, "Device Tree");
+			kso_setname(busroot, "Device Tree");
 			kso_tree_attach_child(kso_root, busroot, 0);
 		}
 		spinlock_release_restore(&lock);
 	}
-	return misc_bus;
+	return busroot;
 }
 
 struct device *device_get_misc_bus(void)
@@ -252,9 +260,9 @@ struct device *device_get_misc_bus(void)
 		spinlock_acquire_save(&lock);
 		if(!misc_bus) {
 			/* krc: move */
-			misc_bus = device_create(NULL, DEVICE_BT_MISC, DEVICE_TYPE_BUSROOT, 0);
-			kso_setname(misc_bus, "Misc Bus");
-			kso_tree_attach_child(device_get_busroot(), misc_bus, 0);
+			misc_bus = device_create(NULL, DEVICE_BT_MISC, DEVICE_TYPE_BUSROOT, 0, 0);
+			kso_setname(misc_bus->root, "Misc Bus");
+			kso_tree_attach_child(device_get_busroot(), misc_bus->root, DEVICE_BT_MISC);
 		}
 		spinlock_release_restore(&lock);
 	}

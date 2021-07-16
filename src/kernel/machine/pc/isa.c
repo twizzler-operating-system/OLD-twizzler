@@ -19,8 +19,9 @@ struct device *pc_get_isa_bus(void)
 		spinlock_acquire_save(&lock);
 		if(!init) {
 			/* krc: move */
-			pc_isa_bus = device_create(device_get_busroot(), DEVICE_BT_ISA, DEVICE_TYPE_BUSROOT, 0);
-			kso_setname(pc_isa_bus, "ISA Bus");
+			pc_isa_bus = device_create(NULL, DEVICE_BT_ISA, DEVICE_TYPE_BUSROOT, 0, 0);
+			kso_setname(pc_isa_bus->root, "ISA Bus");
+			device_attach_busroot(pc_isa_bus, DEVICE_BT_ISA);
 			init = true;
 		}
 		spinlock_release_restore(&lock);
