@@ -33,20 +33,25 @@ struct kso_attachment {
 struct kso_hdr {
 	char name[KSO_NAME_MAXLEN];
 	uint32_t version;
-	uint32_t resv;
+	uint32_t dir_offset;
 	uint64_t resv2;
 };
 
-struct kso_dir_hdr {
-	struct kso_hdr hdr;
+struct kso_dir_attachments {
 	uint64_t flags;
 	size_t count;
 	struct kso_attachment children[];
 };
 
+struct kso_dir_hdr {
+	struct kso_hdr hdr;
+	uint64_t flags;
+	struct kso_dir_attachments dir;
+};
+
 struct kso_root_hdr {
 	struct kso_hdr hdr;
-	struct kso_dir_hdr dir;
+	struct kso_dir_attachments dir;
 };
 
 #define KSO_ROOT_ID 1

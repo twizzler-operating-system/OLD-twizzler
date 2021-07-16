@@ -24,7 +24,7 @@ struct kso_sctx {
 struct kso_dir {
 	struct vector idxs;
 	size_t max;
-	size_t ch_offset;
+	size_t doff;
 	struct spinlock lock;
 };
 
@@ -52,6 +52,7 @@ int kso_root_attach(struct object *obj, uint64_t flags, int type);
 void kso_root_detach(int idx);
 void kso_attach(struct object *parent, struct object *child, size_t);
 void kso_setname(struct object *obj, const char *name);
+void kso_setnamef(struct object *obj, const char *fmt, ...);
 struct object *get_system_object(void);
 void obj_kso_init(struct object *, enum kso_type);
 struct kso_calls *kso_lookup_calls(enum kso_type ksot);

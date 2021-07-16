@@ -23,6 +23,8 @@ const char *kso_names[] = {
 	[KSO_THREAD] = "thread",
 	[KSO_VIEW] = "view",
 	[KSO_SECCTX] = "secctx",
+	[KSO_DIRECTORY] = "directory",
+	[KSO_DATA] = "data",
 	[KSO_DEVICE] = "device",
 };
 
@@ -76,6 +78,23 @@ void kls_thread(struct kso_attachment *p, int indent)
 	}
 }
 
+void recur_print_kat(twzobj *obj, int indent)
+{
+	struct kso_hdr *kh = twz_object_base(obj);
+	if(kh->dir_offset == 0)
+		return;
+	struct kso_dir_attachments *dir = (void *)((char *)kh + kh->dir_offset);
+	for(size_t i = 0; i < dir->count; i++) {
+		struct kso_attachment *k = &dir->children[i];
+		if(!k->id || !k->type)
+			continue;
+		print_kat(k, indent);
+		twzobj ch;
+		twz_object_init_guid(&ch, k->id, FE_READ);
+		recur_print_kat(&ch, indent + 4);
+	}
+}
+
 #include <twz/twztry.h>
 void kls(void)
 {
@@ -83,6 +102,9 @@ void kls(void)
 	twz_object_init_guid(&root, KSO_ROOT_ID, FE_READ);
 
 	struct kso_root_hdr *r = twz_object_base(&root);
+	printf("root dir count: %ld, off=%d\n", r->dir.count, r->hdr.dir_offset);
+	recur_print_kat(&root, 0);
+#if 0
 	for(size_t i = 0; i < r->dir.count; i++) {
 		struct kso_attachment *k = &r->dir.children[i];
 		if(!k->id || !k->type)
@@ -94,6 +116,7 @@ void kls(void)
 				case KSO_THREAD:
 					kls_thread(k, 4);
 					break;
+				default:
 					//		case KSO_DEVBUS:
 					//			kls_devbus(k, 4);
 			}
@@ -103,10 +126,12 @@ void kls(void)
 		}
 		twztry_end;
 	}
+#endif
 }
 
 int main()
 {
+	printf("in kls\n");
 	kls();
 	return 0;
 }

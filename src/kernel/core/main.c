@@ -208,6 +208,11 @@ void kernel_main(struct processor *proc)
 
 		obj_write_data(
 		  root, OBJ_MAXSIZE - (OBJ_NULLPAGE_SIZE + OBJ_METAPAGE_SIZE), sizeof(mi), &mi);
+
+		struct kso_root_hdr hdr;
+		hdr.hdr.dir_offset = offsetof(struct kso_root_hdr, dir);
+		strncpy(hdr.hdr.name, "KSO root", strlen("KSO root"));
+		obj_write_data(root, 0, sizeof(hdr), &hdr);
 		// struct object *so = get_system_object();
 		// struct system_header hdr = { .pagesz = mm_page_size(0) };
 		// device_rw_specific(so, WRITE, &hdr, BUS, sizeof(hdr));

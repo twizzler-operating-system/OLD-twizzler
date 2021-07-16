@@ -216,6 +216,12 @@ int snprintf(char *buf, size_t len, const char *fmt, ...)
 	return strlen(buf);
 }
 
+int vsnprintf(char *buf, size_t len, const char *fmt, va_list args)
+{
+	vbufprintk(buf, fmt, args);
+	return strlen(buf);
+}
+
 #include <string.h>
 int printk(const char *fmt, ...)
 {

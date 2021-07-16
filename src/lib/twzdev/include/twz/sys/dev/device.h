@@ -61,7 +61,7 @@ struct kso_device_hdr {
 	atomic_uint_least64_t syncs[MAX_DEVICE_SYNCS];
 #endif
 	struct interrupt interrupts[MAX_DEVICE_INTERRUPTS];
-	struct kso_dir_hdr dir;
+	struct kso_dir_attachments dir;
 };
 
 struct device_mmio_hdr {
