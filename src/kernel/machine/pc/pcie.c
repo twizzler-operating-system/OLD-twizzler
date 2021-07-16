@@ -98,15 +98,14 @@ static void pcief_register(uint16_t space,
   uint8_t bus,
   uint8_t device,
   uint8_t function,
-  struct object *co)
+  struct device *dev)
 {
 	struct pcie_function *pf = slabcache_alloc(&sc_pcief, NULL);
 	pf->segment = space;
 	pf->bus = bus;
 	pf->device = device;
 	pf->function = function;
-	krc_get(&co->refs);
-	pf->obj = co;
+	pf->dev = dev;
 	spinlock_acquire_save(&pcielock);
 	list_insert(&pcief_list, &pf->entry);
 	spinlock_release_restore(&pcielock);
@@ -158,11 +157,11 @@ void pcie_iommu_fault(uint16_t seg, uint16_t sid, uint64_t addr, bool handled)
 		return;
 	}
 	/* TODO: what to do if we overflow? */
-	device_signal_sync(pf->obj, DEVICE_SYNC_IOV_FAULT, addr);
+	device_signal_sync(pf->dev->root, DEVICE_SYNC_IOV_FAULT, addr);
 }
 
 #include <pmap.h>
-static long pcie_function_init(struct object *pbobj,
+static long pcie_function_init(struct device *busdev,
   uint16_t segment,
   int bus,
   int device,
@@ -183,14 +182,15 @@ static long pcie_function_init(struct object *pbobj,
 	}
 
 	struct pcie_config_space *space = pmap_allocate(ba, sizeof(*space), PMAP_UC);
-	//	struct pcie_config_space *space = mm_ptov(ba);
 
 	/* register a new device */
 	uint32_t sid = (uint32_t)segment << 16 | bus << 8 | device << 3 | function;
-	struct object *fobj = device_register(DEVICE_BT_PCIE, sid);
-	assert(fobj != NULL);
+	unsigned int fnid = function | device << 3 | bus << 8;
+	struct device *dev = device_create(busdev, DEVICE_BT_PCIE, 0, sid, fnid);
+	if(!dev)
+		return -ENOMEM;
 
-	pcief_register(segment, bus, device, function, fobj);
+	pcief_register(segment, bus, device, function, dev);
 
 	/* init the headers */
 	struct pcie_function_header hdr = {
@@ -206,20 +206,18 @@ static long pcie_function_init(struct object *pbobj,
 	};
 
 	/* map the BARs */
-	size_t start = mm_page_size(1);
+	// size_t start = mm_page_size(1);
 	for(int i = 0; i < 6; i++) {
 		uint32_t bar = space->device.bar[i];
 		if(!bar)
 			continue;
 		/* learn size */
 		*(volatile uint32_t *)&space->device.bar[i] = 0xffffffff;
-		/* TODO: the proper way to do this is correctly map all this memory as UC */
 		asm volatile("clflush %0" ::"m"(space->device.bar[i]) : "memory");
 		uint32_t encsz = (*(volatile uint32_t *)&space->device.bar[i]) & 0xfffffff0;
 		*(volatile uint32_t *)&space->device.bar[i] = bar;
 		asm volatile("clflush %0" ::"m"(space->device.bar[i]) : "memory");
 		size_t sz = ~encsz + 1;
-		// printk(":: sz: %x %lx\n", encsz, sz);
 		if(sz > 0x10000000) {
 			printk("[pcie] warning - unimplemented: support for large BARs (%ld bytes)\n", sz);
 			return -ENOTSUP;
@@ -229,17 +227,18 @@ static long pcie_function_init(struct object *pbobj,
 			continue;
 		}
 		int type = (bar >> 1) & 3;
-		int pref = (bar >> 3) & 1;
+		// int pref = (bar >> 3) & 1;
 		uint64_t addr = bar & 0xfffffff0;
 		if(type == 2) {
 			addr |= ((uint64_t)space->device.bar[i + 1]) << 32;
 		}
 
-		__alloc_bar(fobj, start, sz, pref, (wc >> i) & 1, addr);
+		device_add_mmio(dev, addr, sz, i);
+
+#if 0
 		hdr.bars[i] = (volatile void *)start;
 		hdr.prefetch[i] = pref;
 		hdr.barsz[i] = sz;
-#if 0
 		printk("init " IDFMT " bar %d for addr %lx at %lx len=%ld, type=%d (p=%d,wc=%d)\n",
 		  IDPR(fobj->id),
 		  i,
@@ -251,23 +250,21 @@ static long pcie_function_init(struct object *pbobj,
 		  (wc >> i) & 1);
 #endif
 
-		start += sz;
-		start = ((start - 1) & ~(mm_page_size(1) - 1)) + mm_page_size(1);
+		//	start += sz;
+		//	start = ((start - 1) & ~(mm_page_size(1) - 1)) + mm_page_size(1);
 
 		if(type == 2)
 			i++; /* skip the next bar because we used it in this one to make a 64-bit register */
 	}
-	start += 0x1000;
-	__alloc_bar(fobj, start, 0x1000, 0, 0, ba);
-	hdr.space = (void *)start;
+	device_add_mmio(dev, ba, 0x1000, 6);
+	// start += 0x1000;
+	//__alloc_bar(fobj, start, 0x1000, 0, 0, ba);
+	// hdr.space = (void *)start;
 
-	unsigned int fnid = function | device << 3 | bus << 8;
-	kso_tree_attach_child(pbobj, fobj, fnid);
+	// unsigned int fnid = function | device << 3 | bus << 8;
+	// kso_tree_attach_child(pbobj, fobj, fnid);
 
-	device_rw_specific(fobj, WRITE, &hdr, DEVICE, sizeof(hdr));
-
-	obj_put(fobj);
-
+	device_add_info(dev, &hdr, sizeof(hdr), 0);
 	return 0;
 }
 
@@ -284,7 +281,10 @@ static long __pcie_kaction(struct object *obj, long cmd, long arg)
 			bus = (arg >> 8) & 0xff;
 			device = (arg >> 3) & 0x1f;
 			function = arg & 7;
-			return pcie_function_init(obj, segment, bus, device, function, wc);
+
+			struct device *dev = object_get_kso_data_checked(obj, KSO_DEVICE);
+			assert(dev);
+			return pcie_function_init(dev, segment, bus, device, function, wc);
 			break;
 		default:
 			return -EINVAL;
@@ -305,19 +305,21 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 	uintptr_t end_addr =
 	  space->ba + ((space->end_bus_nr - space->start_bus_nr) << 20 | 32 << 15 | 8 << 12);
 
-	struct object *obj =
-	  bus_register(DEVICE_BT_PCIE, space->pci_seg_group_nr, sizeof(struct pcie_bus_header));
-	assert(obj != NULL);
+	struct device *pcie_bus = device_create(NULL, DEVICE_BT_PCIE, DEVICE_TYPE_BUSROOT, 0, 0);
+	assert(pcie_bus);
+	device_attach_busroot(pcie_bus, DEVICE_BT_PCIE);
 
+	/*
 	uintptr_t addr = mm_page_size(1);
 	printk("%ld pages (%ld MB)\n",
 	  (end_addr - start_addr) / mm_page_size(0),
 	  (end_addr - start_addr) / (1024 * 1024));
 	for(uintptr_t p = start_addr; p < end_addr; p += mm_page_size(0), addr += mm_page_size(0)) {
-		struct page *pg = mm_page_fake_create(p, PAGE_CACHE_UC);
-		object_insert_page(obj, addr / mm_page_size(0), pg);
+	    struct page *pg = mm_page_fake_create(p, PAGE_CACHE_UC);
+	    object_insert_page(obj, addr / mm_page_size(0), pg);
 	}
-
+	*/
+	device_add_mmio(pcie_bus, start_addr, end_addr - start_addr, 0);
 	struct pcie_bus_header hdr = {
 		.magic = PCIE_BUS_HEADER_MAGIC,
 		.start_bus = space->start_bus_nr,
@@ -325,14 +327,13 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 		.segnr = space->pci_seg_group_nr,
 		.spaces = (void *)(mm_page_size(1)),
 	};
-	device_rw_specific(obj, WRITE, &hdr, DEVICE, sizeof(hdr));
+	device_add_info(pcie_bus, &hdr, sizeof(hdr), 0);
+	// device_rw_specific(obj, WRITE, &hdr, DEVICE, sizeof(hdr));
 	char name[KSO_NAME_MAXLEN];
 	snprintf(
 	  name, KSO_NAME_MAXLEN, "PCIe bus %.2x::%.2x-%.2x", hdr.segnr, hdr.start_bus, hdr.end_bus);
-	kso_setname(obj, name);
-	obj->kaction = __pcie_kaction;
-	kso_tree_attach_child(kso_root, obj, 0);
-	obj_put(obj);
+	kso_setname(pcie_bus->root, name);
+	pcie_bus->root->kaction = __pcie_kaction;
 }
 
 static void __pcie_init(void *arg __unused)

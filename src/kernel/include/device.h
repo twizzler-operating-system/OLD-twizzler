@@ -29,6 +29,7 @@ struct device *device_create(struct device *parent,
   uint64_t devtype,
   uint64_t devid,
   uint64_t info);
+void device_attach_busroot(struct device *dev, uint64_t type);
 
 void iommu_object_map_slot(struct device *dev, struct object *obj);
 void iommu_invalidate_tlb(void);

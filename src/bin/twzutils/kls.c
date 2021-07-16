@@ -23,7 +23,6 @@ const char *kso_names[] = {
 	[KSO_THREAD] = "thread",
 	[KSO_VIEW] = "view",
 	[KSO_SECCTX] = "secctx",
-	[KSO_DEVBUS] = "devbus",
 	[KSO_DEVICE] = "device",
 };
 

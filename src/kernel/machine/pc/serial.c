@@ -351,7 +351,7 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 				}
 				if(debug_trigger_state < array_len(debug_trigger_seq)) {
 					long tmp = c;
-					device_signal_sync(ser_obj, 0, tmp);
+					device_signal_sync(ser_dev->root, 0, tmp);
 				}
 				break;
 			case 3:
@@ -365,8 +365,8 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 static void __late_init_serial(void *a __unused)
 {
 	/* krc: move */
-	ser_dev = device_create(pc_get_isa_bus(), DEVICE_BT_ISA, 0, DEVICE_ID_SERIAL);
-	kso_setname(ser_obj, "UART0");
+	ser_dev = device_create(pc_get_isa_bus(), DEVICE_BT_ISA, 0, DEVICE_ID_SERIAL, 0);
+	kso_setname(ser_dev->root, "UART0");
 }
 POST_INIT(__late_init_serial, NULL);
 
