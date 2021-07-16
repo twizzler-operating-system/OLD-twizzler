@@ -195,19 +195,29 @@ struct device *device_create(struct device *parent,
 	return data;
 }
 
-struct object *device_add_mmio(struct device *dev, uintptr_t addr, size_t len, uint64_t info)
+struct object *device_add_mmio(struct device *dev,
+  uintptr_t addr,
+  size_t len,
+  uint64_t cache_type,
+  uint64_t info)
 {
 	struct object *obj = _dev_new_obj();
 	if(!obj)
 		return NULL;
 
-	panic("TODO: actually setup the mmio");
 	struct device_mmio_hdr repr = {
 		.info = info,
 		.flags = 0,
 		.length = len,
 	};
 	obj_write_data(obj, 0, sizeof(repr), &repr);
+
+	assert(align_up(addr, mm_page_size(0)) == addr);
+
+	for(uint64_t i = addr; i < addr + len; i += mm_page_size(0)) {
+		struct page *pg = mm_page_fake_create(addr, cache_type);
+		object_insert_page(obj, i, pg);
+	}
 
 	object_init_kso_data(obj, KSO_DATA);
 	append_child(dev, obj, DEVICE_CHILD_MMIO);

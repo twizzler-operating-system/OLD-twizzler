@@ -13,6 +13,25 @@
 #include <twz/sys/thread.h>
 #include <vmm.h>
 
+static size_t get_doff(int type)
+{
+	size_t doff = 0;
+	switch(type) {
+		case KSO_DIRECTORY:
+			doff = offsetof(struct kso_dir_hdr, dir);
+			break;
+		case KSO_ROOT:
+			doff = offsetof(struct kso_root_hdr, dir);
+			break;
+		case KSO_DEVICE:
+			doff = offsetof(struct kso_device_hdr, dir);
+			break;
+		default:
+			break;
+	}
+	return doff;
+}
+
 static struct kso_dir *object_get_dir(struct object *obj)
 {
 	assert(obj->kso_type != KSO_NONE);
@@ -23,18 +42,9 @@ static struct kso_dir *object_get_dir(struct object *obj)
 			vector_init(&obj->dir->idxs, sizeof(uint64_t), _Alignof(uint64_t));
 			obj->dir->max = 0;
 			obj->dir->lock = SPINLOCK_INIT;
-			switch(atomic_load(&obj->kso_type)) {
-				case KSO_DIRECTORY:
-					obj->dir->ch_offset = offsetof(struct kso_dir_hdr, children);
-					break;
-				case KSO_ROOT:
-					obj->dir->ch_offset = offsetof(struct kso_root_hdr, dir.children);
-					break;
-				case KSO_DEVICE:
-					obj->dir->ch_offset = offsetof(struct kso_device_hdr, dir.children);
-					break;
-				default:
-					panic("unsupported KSO for directory attachment (%d)", obj->kso_type);
+			obj->dir->doff = get_doff(obj->kso_type);
+			if(obj->dir->doff == 0) {
+				panic("unsupported dir type");
 			}
 		}
 		spinlock_release_restore(&obj->lock);
@@ -65,85 +75,6 @@ struct object *object_get_kso_root(void)
 	return root;
 }
 
-/* TODO: better system for tracking slots in the array */
-// static _Atomic size_t idx = 0;
-// static struct spinlock lock = SPINLOCK_INIT;
-
-/*
-int kso_root_attach(struct object *obj, uint64_t flags, int type)
-{
-    (void)flags;
-    struct object *root = obj_lookup(1, 0);
-    spinlock_acquire_save(&lock);
-    struct kso_attachment kar = {
-        .flags = 0,
-        .id = obj->id,
-        .info = 0,
-        .type = type,
-    };
-    size_t i = idx++;
-    obj_write_data(root,
-      offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * i,
-      sizeof(kar),
-      &kar);
-
-    i++;
-    obj_write_data(root, offsetof(struct kso_root_hdr, dir.count), sizeof(i), &i);
-
-    spinlock_release_restore(&lock);
-    obj_put(root);
-    return i - 1;
-}
-
-void kso_root_detach(int i)
-{
-    struct object *root = obj_lookup(1, 0);
-    spinlock_acquire_save(&lock);
-    struct kso_attachment kar = {
-        .flags = 0,
-        .id = 0,
-        .info = 0,
-        .type = 0,
-    };
-    obj_write_data(root,
-      offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * i,
-      sizeof(kar),
-      &kar);
-
-    spinlock_release_restore(&lock);
-    obj_put(root);
-}
-
-*/
-/* TODO: detach threads when they exit *
-
-void kso_attach(struct object *parent, struct object *child, size_t loc)
-{
-    assert(parent->kso_type);
-    struct kso_attachment kar = {
-        .type = child->kso_type,
-        .id = child->id,
-        .info = 0,
-        .flags = 0,
-    };
-    switch(atomic_load(&parent->kso_type)) {
-        size_t off;
-        struct bus_repr brepr;
-        case KSO_DEVBUS:
-            device_rw_header(parent, READ, &brepr, BUS);
-            off = (size_t)brepr.children - OBJ_NULLPAGE_SIZE;
-            obj_write_data(parent, off + loc * sizeof(kar), sizeof(kar), &kar);
-            if(brepr.max_children <= loc) {
-                brepr.max_children = loc + 1;
-                device_rw_header(parent, WRITE, &brepr, BUS);
-            }
-            break;
-        default:
-            panic("NI - kso_attach");
-    }
-}
-*/
-
 void kso_tree_detach_child(struct object *parent, size_t chnr)
 {
 	struct kso_dir *kd = object_get_dir(parent);
@@ -155,18 +86,10 @@ void kso_tree_detach_child(struct object *parent, size_t chnr)
 		.info = 0,
 		.type = 0,
 	};
-	if(parent->kso_type == KSO_DIRECTORY) {
-		obj_write_data(parent,
-		  offsetof(struct kso_dir_hdr, children) + sizeof(struct kso_attachment) * chnr,
-		  sizeof(kat),
-		  &kat);
-	} else {
-		obj_write_data(parent,
-		  offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * chnr,
-		  sizeof(kat),
-		  &kat);
-	}
-
+	obj_write_data(parent,
+	  kd->doff + sizeof(struct kso_dir_attachments) + sizeof(struct kso_attachment) * chnr,
+	  sizeof(kat),
+	  &kat);
 	spinlock_acquire_save(&kd->lock);
 
 	uint64_t _n = chnr;
@@ -175,9 +98,18 @@ void kso_tree_detach_child(struct object *parent, size_t chnr)
 	spinlock_release_restore(&kd->lock);
 }
 
+static void _attach_init_obj_dir(struct object *obj)
+{
+	uint32_t doff = get_doff(obj->kso_type);
+	if(!doff)
+		return;
+	obj_write_data(obj, offsetof(struct kso_hdr, dir_offset), 4, &doff);
+}
+
 size_t kso_tree_attach_child(struct object *parent, struct object *child, uint64_t info)
 {
 	assert(child->kso_type != KSO_NONE);
+	_attach_init_obj_dir(child);
 	struct kso_attachment kat = {
 		.type = child->kso_type,
 		.id = child->id,
@@ -197,19 +129,19 @@ size_t kso_tree_attach_child(struct object *parent, struct object *child, uint64
 		assert(n);
 		next = *n;
 	}
-	spinlock_release_restore(&kd->lock);
 
-	if(parent->kso_type == KSO_DIRECTORY) {
-		obj_write_data(parent,
-		  offsetof(struct kso_dir_hdr, children) + sizeof(struct kso_attachment) * next,
-		  sizeof(kat),
-		  &kat);
-	} else {
-		obj_write_data(parent,
-		  offsetof(struct kso_root_hdr, dir.children) + sizeof(struct kso_attachment) * next,
-		  sizeof(kat),
-		  &kat);
+	obj_write_data(parent,
+	  kd->doff + sizeof(struct kso_dir_attachments) + sizeof(struct kso_attachment) * next,
+	  sizeof(kat),
+	  &kat);
+
+	struct kso_dir_attachments hdr;
+	obj_read_data(parent, kd->doff, sizeof(hdr), &hdr);
+	if(hdr.count != kd->max) {
+		hdr.count = kd->max;
+		obj_write_data(parent, kd->doff, sizeof(hdr), &hdr);
 	}
+	spinlock_release_restore(&kd->lock);
 	return next;
 }
 
@@ -217,6 +149,18 @@ size_t kso_tree_attach_child(struct object *parent, struct object *child, uint64
 void kso_setname(struct object *obj, const char *name)
 {
 	obj_write_data(obj, offsetof(struct kso_hdr, name), strlen(name) + 1, (void *)name);
+}
+
+void kso_setnamef(struct object *obj, const char *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt);
+
+	char buf[1024];
+	vsnprintf(buf, sizeof(buf), fmt, va);
+	va_end(va);
+
+	kso_setname(obj, buf);
 }
 
 void kso_view_write(struct object *obj, size_t slot, struct viewentry *ve)

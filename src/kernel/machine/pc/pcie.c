@@ -227,13 +227,15 @@ static long pcie_function_init(struct device *busdev,
 			continue;
 		}
 		int type = (bar >> 1) & 3;
-		// int pref = (bar >> 3) & 1;
+		int pref = (bar >> 3) & 1;
 		uint64_t addr = bar & 0xfffffff0;
 		if(type == 2) {
 			addr |= ((uint64_t)space->device.bar[i + 1]) << 32;
 		}
 
-		device_add_mmio(dev, addr, sz, i);
+		uint64_t cflags = (pref ? (wc ? PAGE_CACHE_WC : PAGE_CACHE_WT) : PAGE_CACHE_UC);
+		struct object *obj = device_add_mmio(dev, addr, sz, cflags, i);
+		kso_setnamef(obj, "MMIO BAR %d", i);
 
 #if 0
 		hdr.bars[i] = (volatile void *)start;
@@ -256,7 +258,8 @@ static long pcie_function_init(struct device *busdev,
 		if(type == 2)
 			i++; /* skip the next bar because we used it in this one to make a 64-bit register */
 	}
-	device_add_mmio(dev, ba, 0x1000, 6);
+	struct object *obj = device_add_mmio(dev, ba, 0x1000, PAGE_CACHE_UC, 6);
+	kso_setnamef(obj, "MMIO CFGSPC %x", sid);
 	// start += 0x1000;
 	//__alloc_bar(fobj, start, 0x1000, 0, 0, ba);
 	// hdr.space = (void *)start;
@@ -309,17 +312,9 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 	assert(pcie_bus);
 	device_attach_busroot(pcie_bus, DEVICE_BT_PCIE);
 
-	/*
-	uintptr_t addr = mm_page_size(1);
-	printk("%ld pages (%ld MB)\n",
-	  (end_addr - start_addr) / mm_page_size(0),
-	  (end_addr - start_addr) / (1024 * 1024));
-	for(uintptr_t p = start_addr; p < end_addr; p += mm_page_size(0), addr += mm_page_size(0)) {
-	    struct page *pg = mm_page_fake_create(p, PAGE_CACHE_UC);
-	    object_insert_page(obj, addr / mm_page_size(0), pg);
-	}
-	*/
-	device_add_mmio(pcie_bus, start_addr, end_addr - start_addr, 0);
+	struct object *obj =
+	  device_add_mmio(pcie_bus, start_addr, end_addr - start_addr, PAGE_CACHE_UC, 0);
+	kso_setnamef(obj, "pcie mmio cfgspc %x", space->pci_seg_group_nr);
 	struct pcie_bus_header hdr = {
 		.magic = PCIE_BUS_HEADER_MAGIC,
 		.start_bus = space->start_bus_nr,
@@ -327,12 +322,9 @@ __attribute__((no_sanitize("undefined"))) static void pcie_init_space(struct mcf
 		.segnr = space->pci_seg_group_nr,
 		.spaces = (void *)(mm_page_size(1)),
 	};
-	device_add_info(pcie_bus, &hdr, sizeof(hdr), 0);
-	// device_rw_specific(obj, WRITE, &hdr, DEVICE, sizeof(hdr));
-	char name[KSO_NAME_MAXLEN];
-	snprintf(
-	  name, KSO_NAME_MAXLEN, "PCIe bus %.2x::%.2x-%.2x", hdr.segnr, hdr.start_bus, hdr.end_bus);
-	kso_setname(pcie_bus->root, name);
+	obj = device_add_info(pcie_bus, &hdr, sizeof(hdr), 0);
+	kso_setnamef(obj, "pcie info %x", space->pci_seg_group_nr);
+	kso_setnamef(pcie_bus->root, "PCIe bus %.2x::%.2x-%.2x", hdr.segnr, hdr.start_bus, hdr.end_bus);
 	pcie_bus->root->kaction = __pcie_kaction;
 }
 

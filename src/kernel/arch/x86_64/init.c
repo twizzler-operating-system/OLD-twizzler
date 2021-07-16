@@ -191,7 +191,6 @@ static void load_object_data(struct object *obj, char *tardata, size_t tarlen)
 			continue;
 		}
 
-		// printk("Loading object " IDFMT "\r", IDPR(obj->id));
 		for(size_t i = idx; i < idx + len / mm_page_size(0); i++) {
 			struct page *pg = mm_page_alloc(PAGE_ZERO);
 			object_insert_page(obj, i * mm_page_size(0), pg);
@@ -331,24 +330,14 @@ static void __late_init_framebuffer(void *a __unused)
 		          : MISC_FRAMEBUFFER_TYPE_UNKNOWN,
 		.offset = mm_page_size(1),
 	};
-	device_add_info(fb_dev, &mfb, sizeof(mfb), 0);
+	struct object *obj;
+	obj = device_add_info(fb_dev, &mfb, sizeof(mfb), 0);
+	kso_setname(obj, "framebuffer info");
 
 	size_t sz = mfb.height * mfb.pitch;
 	uintptr_t addr = fbinfo.common.framebuffer_addr;
-	device_add_mmio(fb_dev, addr, sz, 0);
-	/*
-	size_t start = mm_page_size(1);
-	while(sz > 0) {
-	    struct page *pg = mm_page_fake_create(addr, PAGE_CACHE_WC);
-	    object_insert_page(fb_obj, start / mm_page_size(0), pg);
-	    size_t amount = mm_page_size(0);
-	    if(sz < amount)
-	        sz = 0;
-	    else
-	        sz -= amount;
-	    addr += amount;
-	    start += amount;
-	}*/
+	obj = device_add_mmio(fb_dev, addr, sz, PAGE_CACHE_WC, 0);
+	kso_setname(obj, "framebuffer surface");
 }
 POST_INIT(__late_init_framebuffer, NULL);
 

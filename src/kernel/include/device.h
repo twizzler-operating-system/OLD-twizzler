@@ -23,7 +23,11 @@ struct device {
 struct device *device_get_misc_bus(void);
 struct object *device_get_busroot(void);
 struct object *device_add_info(struct device *dev, void *data, size_t len, uint64_t info);
-struct object *device_add_mmio(struct device *dev, uintptr_t addr, size_t len, uint64_t info);
+struct object *device_add_mmio(struct device *dev,
+  uintptr_t addr,
+  size_t len,
+  uint64_t cache_type,
+  uint64_t info);
 struct device *device_create(struct device *parent,
   uint64_t bustype,
   uint64_t devtype,
