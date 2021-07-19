@@ -13,14 +13,28 @@ fn get_root_kso() -> twz::obj::Twzobj {
     twz::obj::Twzobj::init_guid(twz::kso::KSO_ROOT_ID).expect("failed to open KSO root")
 }
 
+use std::convert::TryInto;
 fn main() {
     println!("Hello!");
 
-    let root = get_root_kso();
-    let roothdr = root.base::<twz::kso::KSORootHdr>();
+    let root = twz::kso::get_root().unwrap();
+    
+    let subtree = root.get_subtree(twz::kso::KSOType::Device).unwrap();
+    let dir = subtree.get_dir().unwrap();
+    println!("{}", dir.len());
+    for c in dir {
+        let kso: twz::kso::KSO = c.try_into().unwrap();
+        println!("{:?} :: {}", c, kso.name());
+        let mut dev = kso.into_device();
+        for dc in dev.get_children() {
+            let kso: twz::kso::KSO = dc.try_into().unwrap();
+            println!("   {:?} :: {}", dc, kso.name());
+        }
 
-    for c in roothdr {
-        println!("{:?}", c);
+        let res = dev.get_mmio_child_obj(0);
+        println!("{}", res.is_ok());
+
+        //1let chobj: twz::obj::Twzobj = c.try_into().unwrap();
     }
 
     //twz::sapi::sapi_create_name("devmgr").expect("failed to init sapi");
