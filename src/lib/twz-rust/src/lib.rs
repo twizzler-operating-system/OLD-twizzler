@@ -16,6 +16,7 @@ pub mod sapi;
 
 pub mod log;
 pub mod bstream;
+pub mod device;
 pub mod kso;
 pub mod thread;
 pub mod vec;

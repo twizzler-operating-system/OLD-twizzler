@@ -38,33 +38,6 @@ __initializer static void __device_init(void)
 	kso_register(KSO_DEVICE, &_kso_device);
 }
 
-/*
-void device_rw_header(struct object *obj, int dir, void *ptr)
-{
-    assert(type == DEVICE || type == BUS);
-    size_t len = sizeof(struct kso_device_hdr);
-    if(dir == READ) {
-        obj_read_data(obj, 0, len, ptr);
-    } else if(dir == WRITE) {
-        obj_write_data(obj, 0, len, ptr);
-    } else {
-        panic("unknown IO direction");
-    }
-}
-void device_rw_specific(struct object *obj, int dir, void *ptr, int type, size_t rwlen)
-{
-    assert(type == DEVICE || type == BUS);
-    size_t len = type == DEVICE ? sizeof(struct kso_device_hdr) : sizeof(struct bus_repr);
-    if(dir == READ) {
-        obj_read_data(obj, len, rwlen, ptr);
-    } else if(dir == WRITE) {
-        obj_write_data(obj, len, rwlen, ptr);
-    } else {
-        panic("unknown IO direction");
-    }
-}
-*/
-
 void device_signal_interrupt(struct object *obj, int inum, uint64_t val)
 {
 	/* TODO: try to make this more efficient */
@@ -214,9 +187,11 @@ struct object *device_add_mmio(struct device *dev,
 
 	assert(align_up(addr, mm_page_size(0)) == addr);
 
-	for(uint64_t i = addr; i < addr + len; i += mm_page_size(0)) {
-		struct page *pg = mm_page_fake_create(addr, cache_type);
-		object_insert_page(obj, i, pg);
+	len = align_up(len, mm_page_size(0));
+
+	for(uint64_t i = 0; i < len / mm_page_size(0); i++) {
+		struct page *pg = mm_page_fake_create(addr + i * mm_page_size(0), cache_type);
+		object_insert_page(obj, i + 2, pg);
 	}
 
 	object_init_kso_data(obj, KSO_DATA);
@@ -234,7 +209,7 @@ struct object *device_add_info(struct device *dev, void *data, size_t len, uint6
 	obj_write_data(obj, 0, len, data);
 	object_init_kso_data(obj, KSO_DATA);
 	append_child(dev, obj, DEVICE_CHILD_INFO);
-	kso_tree_attach_child(dev->root, obj, (info << 32) | DEVICE_CHILD_MMIO);
+	kso_tree_attach_child(dev->root, obj, (info << 32) | DEVICE_CHILD_INFO);
 	return obj;
 }
 
@@ -255,7 +230,7 @@ struct object *device_get_busroot(void)
 			busroot = _dev_new_obj();
 			object_init_kso_data(busroot, KSO_DIRECTORY);
 			kso_setname(busroot, "Device Tree");
-			kso_tree_attach_child(kso_root, busroot, 0);
+			kso_tree_attach_child(kso_root, busroot, KSO_DEVICE);
 		}
 		spinlock_release_restore(&lock);
 	}
@@ -278,55 +253,3 @@ struct device *device_get_misc_bus(void)
 	}
 	return misc_bus;
 }
-
-#if 0
-struct object *device_register(uint32_t bustype, uint32_t devid)
-{
-	int r;
-	objid_t psid;
-	/* TODO: restrict write access. In fact, do this for ALL KSOs. */
-	r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &psid);
-	if(r < 0)
-		panic("failed to create device object: %d", r);
-	struct object *obj = obj_lookup(psid, OBJ_LOOKUP_HIDDEN);
-	assert(obj != NULL);
-	obj->kaction = __device_kaction;
-	struct device *data = object_get_kso_data_checked(obj, KSO_DEVICE);
-	data->uid = ((uint64_t)bustype << 32) | devid;
-
-	struct kso_device_hdr repr = {
-		.device_bustype = bustype,
-		.device_id = devid,
-	};
-	device_rw_header(obj, WRITE, &repr, DEVICE);
-	return obj; /* krc: move */
-}
-
-struct object *bus_register(uint32_t bustype, uint32_t busid, size_t bssz)
-{
-	int r;
-	objid_t psid;
-	/* TODO: restrict write access. In fact, do this for ALL KSOs. */
-	r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &psid);
-	if(r < 0)
-		panic("failed to create bus object: %d", r);
-	struct object *obj = obj_lookup(psid, OBJ_LOOKUP_HIDDEN);
-	assert(obj != NULL);
-	// obj->kaction = __device_kaction;
-	obj_kso_init(obj, KSO_DEVBUS);
-
-	struct bus_repr repr = {
-		.bus_id = busid,
-		.bus_type = bustype,
-		.children = (void *)align_up(sizeof(struct bus_repr) + bssz + OBJ_NULLPAGE_SIZE, 16),
-	};
-	device_rw_header(obj, WRITE, &repr, BUS);
-	return obj; /* krc: move */
-}
-
-void device_unregister(struct object *obj)
-{
-	panic("NI - device_unregister %p", obj);
-}
-
-#endif

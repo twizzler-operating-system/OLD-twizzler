@@ -210,17 +210,6 @@ int main()
 		abort();
 	}
 
-	if(!fork()) {
-		debug_printf("KLS\n");
-		execlp("kls", "kls", NULL);
-		exit(0);
-	}
-
-	for(;;)
-		usleep(1000);
-	int status;
-	r = wait(&status);
-
 	debug_printf("[init] starting unix server\n");
 	if(!fork()) {
 		execlp("/usr/bin/unix", "unix", NULL);
@@ -236,6 +225,16 @@ int main()
 	debug_printf("opened!\n");
 
 	/* start the device manager */
+	if(!fork()) {
+		execlp("devmgr", "devmgr", NULL);
+		exit(0);
+	}
+
+	int status;
+	r = wait(&status);
+
+	for(;;)
+		usleep(1000);
 #if 0
 	if(access("/dev/nvme", F_OK) == 0) {
 		if(!fork()) {

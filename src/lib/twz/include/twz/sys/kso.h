@@ -39,7 +39,7 @@ struct kso_hdr {
 
 struct kso_dir_attachments {
 	uint64_t flags;
-	size_t count;
+	uint64_t count;
 	struct kso_attachment children[];
 };
 
