@@ -279,7 +279,6 @@ void arch_object_space_init_bootstrap(struct object_space *space)
 	int pml4_max = PML4_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
 	int pdpt_max = PDPT_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
 
-	/* TODO: this is not verified for pdpt_max < 512 */
 	for(int pml4 = 0; pml4 < pml4_max; pml4++) {
 		space->arch.root.children[pml4] = table_level_new(true);
 		table_realize(space->arch.root.children[pml4]);
@@ -305,10 +304,6 @@ void arch_object_space_init(struct object_space *space)
 	table_realize(&space->arch.root);
 	int pml4_max = PML4_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
 	int pdpt_max = PDPT_IDX(arch_mm_objspace_kernel_size() - 1) + 1;
-	if(pdpt_max != 512) {
-		panic("NI -- sub-pml4 kernel region in object space");
-	}
-	/* TODO: this is not verified for pdpt_max < 512 */
 	for(int pml4 = 0; pml4 < pml4_max; pml4++) {
 		if((pml4 + 1 == pml4_max) && pdpt_max != 512) {
 			struct table_level *table = _bootstrap_object_space.arch.root.children[pml4];
