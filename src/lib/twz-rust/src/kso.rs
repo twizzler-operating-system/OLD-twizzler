@@ -62,7 +62,7 @@ pub struct KSODirHdr {
 
 #[derive(Clone)]
 pub struct KSO {
-    obj: Twzobj,
+    pub(crate) obj: Twzobj,
 }
 
 pub struct KSOAttachIterator<'a> {
