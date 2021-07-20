@@ -9,6 +9,9 @@ use twz;
     twz::sapi_return!(0, 0, 0, 0, 0);
 });*/
 
+mod busses;
+mod bus;
+
 fn get_root_kso() -> twz::obj::Twzobj {
     twz::obj::Twzobj::init_guid(twz::kso::KSO_ROOT_ID).expect("failed to open KSO root")
 }
@@ -31,8 +34,13 @@ fn main() {
             println!("   {:?} :: {}", dc, kso.name());
         }
 
-        let res = dev.get_mmio_child_obj(0);
+        
+        let res = dev.get_child_mmio::<u8>(0);
         println!("{}", res.is_ok());
+        if let Ok((h, m)) = res {
+            println!(":: {:p} {:p} :: {:x}", h, m, h.length);
+        }
+        
 
         //1let chobj: twz::obj::Twzobj = c.try_into().unwrap();
     }
