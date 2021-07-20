@@ -308,12 +308,12 @@ struct object *vm_vaddr_lookup_obj(void *a, uint64_t *off)
 	return obj;
 }
 
-bool vm_setview(struct thread *t, struct object *viewobj)
+void vm_setview(struct thread *t, struct object *viewobj)
 {
 	for(int i = 0; i < MAX_BACK_VIEWS; i++) {
 		if(t->backup_views[i].id == viewobj->id) {
 			t->ctx = t->backup_views[i].ctx;
-			return true;
+			return;
 		}
 	}
 
@@ -329,10 +329,9 @@ bool vm_setview(struct thread *t, struct object *viewobj)
 		if(t->backup_views[i].id == 0) {
 			t->backup_views[i].id = viewobj->id;
 			t->backup_views[i].ctx = t->ctx;
-			return true;
+			return;
 		}
 	}
-	return true;
 }
 
 static bool _vm_view_invl(struct object *obj, struct kso_invl_args *invl)
