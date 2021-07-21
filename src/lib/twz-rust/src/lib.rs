@@ -1,31 +1,29 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 
-pub mod flexarray;
 mod arch;
-mod libtwz;
 mod fault;
-pub mod ptr;
+pub mod flexarray;
+pub mod gate;
+mod libtwz;
 pub mod obj;
 mod persist;
+pub mod ptr;
 pub mod queue;
-pub mod sys;
-pub mod gate;
 #[cfg(feature = "expose_sapi")]
 pub mod sapi;
+pub mod sys;
 
-pub mod log;
 pub mod bstream;
 pub mod device;
 pub mod kso;
+pub mod log;
+pub mod pslice;
 pub mod thread;
 pub mod vec;
-pub mod pslice;
-
 
 #[no_mangle]
-pub extern fn __twz_libtwz_runtime_init()
-{
+pub extern "C" fn __twz_libtwz_runtime_init() {
     fault::__twz_fault_runtime_init();
 }
 
