@@ -74,6 +74,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	}
 }
 
+#if 0
 void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 {
 	if(slot > TWZSLOT_MAX_SLOT) {
@@ -107,6 +108,7 @@ void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 		}
 	}
 }
+#endif
 
 void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags)
 {
@@ -118,13 +120,15 @@ void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags)
 	if(obj) {
 		ves = &(((struct twzview_repr *)twz_object_base(obj))->ves[slot]);
 	} else {
+		/*
 		struct twzthread_ctrl_repr *tr = twz_thread_ctrl_repr_base();
 		ves = &tr->fixed_points[slot];
 		extra_flags |= VE_FIXED;
 		if(!(ves->flags & VE_VALID)) {
-			ves = &(((struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW))->ves[slot]);
-			extra_flags = 0;
+		    ves = &(((struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW))->ves[slot]);
+		    extra_flags = 0;
 		}
+		*/
 	}
 	if(flags)
 		*flags = atomic_load(&ves->flags) | extra_flags;

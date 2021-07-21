@@ -175,6 +175,10 @@ int main()
 		abort();
 	}
 
+	uint64_t gs;
+	asm volatile("rdgsbase %0" : "=r"(gs) :: "memory");
+	debug_printf("GS: %lx\n", gs);
+
 	pthread_t logging_thread;
 	objid_t lid = twz_object_guid(&lobj);
 	pthread_create(&logging_thread, NULL, logmain, &lid);

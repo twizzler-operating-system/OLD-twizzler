@@ -1119,8 +1119,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 
 	objid_t sid;
 	twzobj stack;
-	twz_view_fixedset(
-	  &pds[pid].thrd, TWZSLOT_THRD, twz_object_guid(&pds[pid].thrd), VE_READ | VE_WRITE | VE_FIXED);
+	size_t thrd_slot_nr = twz_view_allocate_slot(NULL, twz_object_guid(&pds[pid].thrd), VE_READ | VE_WRITE);
 	/* TODO: handle these */
 	if(twz_object_wire_guid(&view, twz_object_guid(&pds[pid].thrd)) < 0)
 		abort();
@@ -1185,11 +1184,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 			return r;
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&view, i, nid, flags);
+		twz_view_set(&view, i, nid, flags);
 		if(twz_object_wire_guid(&view, nid) < 0)
 			abort();
 		if(twz_object_delete_guid(nid, 0) < 0)
@@ -1219,11 +1214,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 			return r;
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&view, i, nid, flags);
+		twz_view_set(&view, i, nid, flags);
 		if(twz_object_wire_guid(&view, nid) < 0)
 			abort();
 		if(twz_object_delete_guid(nid, 0) < 0)
@@ -1248,7 +1239,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 		.stack_base = (void *)frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)fs,
-		.thrd_ctrl = TWZSLOT_THRD,
+		.thrd_ctrl = thrd_slot_nr,
 	};
 
 	//	debug_printf("== spawning\n");

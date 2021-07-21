@@ -202,8 +202,8 @@ long hook_fork(struct syscall_args *args)
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
-	twz_view_fixedset(
-	  &thread, TWZSLOT_THRD, twz_object_guid(&thread), VE_READ | VE_WRITE | VE_FIXED);
+	size_t thrd_slot_nr =
+	  twz_view_allocate_slot(NULL, twz_object_guid(&thread), VE_READ | VE_WRITE);
 
 	twz_view_set(&new_view, TWZSLOT_CVIEW, twz_object_guid(&new_view), VE_READ | VE_WRITE);
 
@@ -263,11 +263,7 @@ long hook_fork(struct syscall_args *args)
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
 		// IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&new_view, i, nid, flags);
+		twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
 		twz_object_delete_guid(nid, 0);
@@ -299,11 +295,7 @@ long hook_fork(struct syscall_args *args)
 		}
 		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
 		// IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&new_view, i, nid, flags);
+		twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
 		if(twz_object_delete_guid(nid, 0) < 0)
@@ -332,7 +324,7 @@ long hook_fork(struct syscall_args *args)
 		.stack_base = (void *)args->frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)fs,
-		.thrd_ctrl = TWZSLOT_THRD,
+		.thrd_ctrl = thrd_slot_nr,
 	};
 
 	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {

@@ -106,6 +106,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 	obj_write_data(
 	  t->thrctrl, offsetof(struct twzthread_ctrl_repr, ctrl_reprid), sizeof(objid_t), &ctrlid);
 
+#if 0
 	struct viewentry ve = {
 		.id = ctrlid,
 		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
@@ -122,7 +123,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_THRD,
 	  sizeof(struct viewentry),
 	  &ve2);
-
+#endif
 #if 0
 	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
 	ctrl_repr->reprid = tid;

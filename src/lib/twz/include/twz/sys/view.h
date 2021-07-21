@@ -22,7 +22,6 @@ extern "C" {
 #define VE_WRITE 0x8
 #define VE_EXEC 0x10
 #define VE_VALID 0x1000
-#define VE_FIXED 0x2000
 
 #define __VE_OFFSET (KSO_NAME_MAXLEN + 16 + 32)
 
@@ -84,7 +83,6 @@ _Static_assert(offsetof(struct twzview_repr, dbl_fault_handler) == __VE_DBL_FAUL
 
 void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags);
 void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags);
-void twz_view_fixedset(twzobj *obj, size_t slot, objid_t target, uint32_t flags);
 void twz_view_object_init(twzobj *obj);
 
 int twz_vaddr_to_obj(const void *v, objid_t *id, uint32_t *fl);
