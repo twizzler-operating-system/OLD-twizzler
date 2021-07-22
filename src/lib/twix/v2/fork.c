@@ -87,6 +87,10 @@ long hook_clone(struct syscall_args *args)
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
+	size_t thrd_slot_nr =
+	  twz_view_allocate_slot(NULL, twz_object_guid(&thread), VE_READ | VE_WRITE);
+	twz_view_set(NULL, thrd_slot_nr, newrepr->reprid, VE_READ | VE_WRITE);
+
 	struct twix_queue_entry tqe = build_tqe(
 	  TWIX_CMD_CLONE, 0, 0, 3, ID_LO(twz_object_guid(&thread)), ID_HI(twz_object_guid(&thread)), 0);
 	twix_sync_command(&tqe);
@@ -98,6 +102,7 @@ long hook_clone(struct syscall_args *args)
 	if(flags & CLONE_CHILD_SETTID) {
 		*ctid = tqe.ret;
 	}
+	uint32_t newid = get_new_twix_conn_id();
 	struct sys_thrd_spawn_args sa = {
 		.target_view = 0,
 		.start_func = (void *)__return_from_clone_v2,
@@ -105,7 +110,7 @@ long hook_clone(struct syscall_args *args)
 		.stack_base = (void *)child_stack, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)newtls,
-		.thrd_ctrl = TWZSLOT_THRD,
+		.thrd_ctrl_reg = thrd_slot_nr * OBJ_MAXSIZE | newid,
 	};
 
 	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {
@@ -202,9 +207,7 @@ long hook_fork(struct syscall_args *args)
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
-	size_t thrd_slot_nr =
-	  twz_view_allocate_slot(NULL, twz_object_guid(&thread), VE_READ | VE_WRITE);
-
+	twz_view_set(&new_view, TWZSLOT_THRD, newrepr->reprid, VE_READ | VE_WRITE);
 	twz_view_set(&new_view, TWZSLOT_CVIEW, twz_object_guid(&new_view), VE_READ | VE_WRITE);
 
 	void *rsp;
@@ -324,7 +327,7 @@ long hook_fork(struct syscall_args *args)
 		.stack_base = (void *)args->frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)fs,
-		.thrd_ctrl = thrd_slot_nr,
+		.thrd_ctrl_reg = TWZSLOT_THRD * OBJ_MAXSIZE,
 	};
 
 	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {

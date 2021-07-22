@@ -48,6 +48,7 @@ __attribute__((used)) static int __do_exec(uint64_t entry,
 		.target_rip = entry,
 		.rdi = (long)vector,
 		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_STACK) + 0x200000,
+		.gs = (long)SLOT_TO_VADDR(TWZSLOT_THRD),
 	};
 	int r = sys_become(&ba, 0, 0);
 	twz_thread_exit(r);
@@ -174,6 +175,9 @@ static int __internal_do_exec(twzobj *view,
 
 	/* TODO: we should really do this in assembly */
 	twz_view_set(view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
+
+	struct twzthread_repr *tr = twz_thread_repr_base();
+	twz_view_set(view, TWZSLOT_THRD, tr->reprid, VE_READ | VE_WRITE);
 
 	// memset(repr->faults, 0, sizeof(repr->faults));
 	objid_t vid = twz_object_guid(view);

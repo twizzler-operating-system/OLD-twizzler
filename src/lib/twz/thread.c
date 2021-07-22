@@ -21,6 +21,11 @@
 #include <twz/sys/thread.h>
 #include <twz/sys/view.h>
 
+void twz_thread_yield(void)
+{
+	sys_thrd_ctl(THRD_CTL_YIELD, 0);
+}
+
 void twz_thread_set_name(const char *name)
 {
 	kso_set_name(NULL, name);
@@ -37,8 +42,9 @@ struct twzthread_repr *twz_thread_repr_base(void)
 	uint64_t a;
 	asm volatile("rdgsbase %%rax" : "=a"(a));
 	if(!a) {
-		libtwz_panic("could not find twz_thread_repr_base");
+		libtwz_panic("could not find twz_thread_repr_base %p", __builtin_return_address(0));
 	}
+	a &= ~(OBJ_MAXSIZE - 1);
 	return (struct twzthread_repr *)(a + OBJ_NULLPAGE_SIZE);
 }
 

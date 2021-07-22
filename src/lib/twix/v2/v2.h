@@ -19,3 +19,7 @@ void twix_sync_command(struct twix_queue_entry *tqe);
 
 long hook_fork(struct syscall_args *args);
 void resetup_queue(long);
+
+uint32_t get_new_twix_conn_id(void);
+void release_twix_conn_id(uint32_t id);
+struct twix_conn *get_twix_conn(void);

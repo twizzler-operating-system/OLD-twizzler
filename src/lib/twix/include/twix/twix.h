@@ -12,12 +12,14 @@ extern "C" {
 static inline int twix_open_queue(struct secure_api *api, int flags, objid_t *_qid, objid_t *_bid)
 {
 	size_t ctx = 0;
-	void *qid = twz_secure_api_alloc_stackarg(sizeof(*_qid), &ctx);
-	void *bid = twz_secure_api_alloc_stackarg(sizeof(*_bid), &ctx);
-	int r = twz_secure_api_call3(api, TWIX_GATE_OPEN_QUEUE, flags, qid, bid);
-	*_qid = *(objid_t *)qid;
-	*_bid = *(objid_t *)bid;
-	return r;
+	long rets[4];
+	int r = twz_secure_api_call1(api, TWIX_GATE_OPEN_QUEUE, rets, flags);
+	if(r) return r;
+	if(rets[1] == 0)
+		return rets[0];
+	*_qid = MKID(rets[0], rets[1]);
+	*_bid = MKID(rets[2], rets[3]);
+	return 0;
 }
 
 struct twix_queue_entry {

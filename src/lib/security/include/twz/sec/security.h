@@ -46,6 +46,8 @@ int twz_key_new(twzobj *pri, twzobj *pub);
 
 void twz_secure_api_create(twzobj *obj, const char *name);
 
+void twz_secure_api_return_multiple(long a0, long a1, long a2, long a3);
+
 int twz_object_set_user_perms(twzobj *obj, uint64_t perms);
 int twz_context_add_perms(twzobj *sctx, twzobj *key, twzobj *obj, uint64_t perms);
 

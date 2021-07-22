@@ -339,6 +339,13 @@ void kernel_main(struct processor *proc)
 
 		kso_view_write(bv, 1, &v_d);
 
+		struct viewentry v_t = {
+			.id = bthrid,
+			.flags = VE_READ | VE_WRITE | VE_VALID,
+		};
+
+		kso_view_write(bv, TWZSLOT_THRD, &v_t);
+
 		kso_view_write(bv, TWZSLOT_STACK, &v_s);
 
 		char *init_argv0 = "___init";
@@ -370,7 +377,7 @@ void kernel_main(struct processor *proc)
 			.tls_base = stck_obj + 0x1000 + US_STACK_SIZE,
 			.arg = stck_obj + off + 0x1000,
 			.target_view = bsvid,
-			.thrd_ctrl = (uintptr_t)thrd_obj / mm_page_size(MAX_PGLEVEL),
+			.thrd_ctrl_reg = TWZSLOT_THRD * OBJ_MAXSIZE,
 		};
 #if 0
 		printk("stackbase: %lx, stacktop: %lx\ntlsbase: %lx, arg: %lx\n",

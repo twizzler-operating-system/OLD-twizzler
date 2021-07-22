@@ -8,6 +8,7 @@ impl TwzThread {
                 "rdgsbase {}",
                 out(reg) gsbase);
         }
+        gsbase &= ~(crate::obj::OBJ_MAXSIZE-1);
         gsbase += crate::obj::OBJ_NULLPAGE_SIZE;
         TwzThread {
             header: unsafe { std::mem::transmute::<u64, *mut crate::thread::ThreadRepr>(gsbase) },

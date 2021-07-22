@@ -163,7 +163,7 @@ long syscall_thread_spawn(uint64_t tidlo,
 	}
 
 	arch_thread_prep_start(
-	  t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl);
+	  t, start, tsa->arg, stack_base, tsa->stack_size, tls_base, tsa->thrd_ctrl_reg);
 
 	t->state = THREADSTATE_RUNNING;
 	processor_attach_thread(NULL, t);
@@ -191,6 +191,9 @@ long syscall_thrd_ctl(int op, long arg)
 				thread_sync_single(THREAD_SYNC_WAKE, eptr, INT_MAX, false);
 			}
 			thread_exit();
+			break;
+		case THRD_CTL_YIELD:
+			current_thread->timeslice_expire = 0;
 			break;
 		default:
 			ret = -EINVAL;

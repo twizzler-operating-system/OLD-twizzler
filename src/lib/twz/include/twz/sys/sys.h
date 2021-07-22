@@ -106,6 +106,24 @@ static inline long sys_become(const struct sys_become_args *ba, long arg0, long 
 	return __syscall6(SYS_BECOME, (long)ba, arg0, arg1, 0, 0, 0);
 }
 
+static inline long sys_become_return(const struct sys_become_args *ba, long *ret4)
+{
+	unsigned long ret, ret0, ret1, ret2, ret3;
+	register long r10 asm("r10");
+	__asm__ __volatile__("syscall;"
+	                     : "=a"(ret), "=D"(ret0), "=S"(ret1), "=d"(ret2), "=r"(r10)
+	                     : "a"(SYS_BECOME), "D"((long)ba), "S"(0), "d"(0), "r"(0), "r"(0), "r"(0)
+	                     : "r11", "rcx", "memory");
+	if(ret4) {
+		ret4[0] = ret0;
+		ret4[1] = ret1;
+		ret4[2] = ret2;
+		ret4[3] = r10;
+	}
+	return ret;
+
+}
+
 static inline long sys_thrd_ctl(int op, long arg)
 {
 	return __syscall6(SYS_THRD_CTL, op, arg, 0, 0, 0, 0);

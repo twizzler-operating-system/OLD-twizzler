@@ -61,7 +61,7 @@ install(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink /us
 install(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E make_directory ${SYSROOT_DIR}/bin)")
 install(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E create_symlink /usr/bin/bash ${SYSROOT_DIR}/bin/sh)")
 
-add_subdirectory(lib/net)
+#add_subdirectory(lib/net)
 add_subdirectory(lib/security)
 
 link_libraries(twz)

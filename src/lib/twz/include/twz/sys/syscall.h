@@ -102,6 +102,7 @@ struct sys_become_args {
 	uint64_t r13;
 	uint64_t r14;
 	uint64_t r15;
+	uint64_t gs;
 	objid_t sctx_hint;
 };
 
@@ -112,7 +113,7 @@ struct sys_thrd_spawn_args {
 	char *stack_base;           /* stack base address. */
 	size_t stack_size;
 	char *tls_base; /* tls base address. */
-	size_t thrd_ctrl;
+	uint64_t thrd_ctrl_reg;
 };
 
 /* TODO: arch-dep */
@@ -120,6 +121,7 @@ struct sys_thrd_spawn_args {
 #define THRD_CTL_SET_GS 2
 #define THRD_CTL_SET_IOPL 3
 #define THRD_CTL_EXIT 0x100
+#define THRD_CTL_YIELD 0x101
 
 #define KACTION_VALID 1
 

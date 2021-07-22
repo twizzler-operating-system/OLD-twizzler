@@ -26,5 +26,6 @@ struct arch_syscall_become_args {
 	uint64_t r13;
 	uint64_t r14;
 	uint64_t r15;
+	uint64_t gs;
 	objid_t sctx_hint;
 };

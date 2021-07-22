@@ -73,6 +73,10 @@ pthread_mutex_t logging_ready_lock = PTHREAD_MUTEX_INITIALIZER;
 void *logmain(void *arg)
 {
 	debug_printf("[init] started init logger\n");
+
+	uint64_t gs;
+	asm volatile("rdgsbase %0" : "=r"(gs)::"memory");
+	debug_printf("log GS: %lx\n", gs);
 	kso_set_name(NULL, "[instance] init-logger");
 	objid_t *lid = arg;
 
@@ -106,11 +110,12 @@ void reopen(const char *in, const char *out, const char *err)
 		EPRINTF("failed to open `%s' as stderr\n", err);
 }
 
+#include <twz/sys/thread.h>
 void *tm_1(void *a)
 {
 	debug_printf("Hello from thread!\n");
 	for(;;)
-		;
+		twz_thread_yield();
 }
 
 #include <twz/obj/queue.h>
@@ -176,7 +181,7 @@ int main()
 	}
 
 	uint64_t gs;
-	asm volatile("rdgsbase %0" : "=r"(gs) :: "memory");
+	asm volatile("rdgsbase %0" : "=r"(gs)::"memory");
 	debug_printf("GS: %lx\n", gs);
 
 	pthread_t logging_thread;
@@ -227,6 +232,17 @@ int main()
 			break;
 	}
 	debug_printf("opened!\n");
+
+	if(!fork()) {
+		debug_printf("Hello from forked process\n");
+		exit(0);
+	}
+
+	pthread_t thread;
+	pthread_create(&thread, NULL, tm_1, NULL);
+
+	for(;;)
+		;
 
 	/* start the device manager */
 	if(!fork()) {

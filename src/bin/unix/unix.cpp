@@ -233,6 +233,9 @@ class handler
 
 	void handler_thread()
 	{
+		uint64_t a;
+		asm volatile("rdgsbase %%rax" : "=a"(a));
+		debug_printf("handler thread started %lx\n", a);
 		for(;;) {
 			// debug_printf("WAITING\n");
 			ssize_t ret = queue_sub_dequeue_multiple(qspec_len, qspec);
@@ -261,8 +264,12 @@ std::vector<handler *> handlers;
 std::mutex handlers_lock;
 
 extern "C" {
-DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qid, objid_t *bid)
+DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 {
+	asm volatile("wrgsbase %0" ::"r"(TWZSLOT_THRD * OBJ_MAXSIZE));
+	uint64_t a;
+	asm volatile("rdgsbase %%rax" : "=a"(a));
+	debug_printf("SAPI ENTRY %lx\n", a);
 	(void)flags;
 	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
@@ -278,8 +285,17 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 		handler *handler = handlers[0]; // TODO
 		handler->add_client(client);
 	}
-	*qid = twz_object_guid(&client->queue);
-	*bid = twz_object_guid(&client->buffer);
+	objid_t qid = twz_object_guid(&client->queue);
+	objid_t bid = twz_object_guid(&client->buffer);
+
+	long r0 = ID_HI(qid);
+	long r1 = ID_LO(qid);
+	long r2 = ID_HI(bid);
+	long r3 = ID_LO(bid);
+
+	debug_printf("return %x %x :: %x %x\n", r0, r1, r2, r3);
+	twz_secure_api_return_multiple(r0, r1, r2, r3);
+
 	return 0;
 }
 }
@@ -289,7 +305,9 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 #include <twz/name.h>
 int main()
 {
-	debug_printf("\n\n\n\nUNIX STARTED\n");
+	uint64_t a;
+	asm volatile("rdgsbase %%rax" : "=a"(a));
+	debug_printf("\n\n\n\nUNIX STARTED %lx\n", a);
 	twzobj api_obj;
 	int r = twz_object_new(&api_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {

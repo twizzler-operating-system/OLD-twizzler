@@ -116,22 +116,13 @@ void twz_view_get(twzobj *obj, size_t slot, objid_t *target, uint32_t *flags)
 		libtwz_panic("slot number too large (get): %ld (%p)", slot, __builtin_return_address(1));
 	}
 	struct viewentry *ves;
-	uint32_t extra_flags = 0;
 	if(obj) {
 		ves = &(((struct twzview_repr *)twz_object_base(obj))->ves[slot]);
 	} else {
-		/*
-		struct twzthread_ctrl_repr *tr = twz_thread_ctrl_repr_base();
-		ves = &tr->fixed_points[slot];
-		extra_flags |= VE_FIXED;
-		if(!(ves->flags & VE_VALID)) {
-		    ves = &(((struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW))->ves[slot]);
-		    extra_flags = 0;
-		}
-		*/
+		ves = &(((struct twzview_repr *)twz_slot_to_base(TWZSLOT_CVIEW))->ves[slot]);
 	}
 	if(flags)
-		*flags = atomic_load(&ves->flags) | extra_flags;
+		*flags = atomic_load(&ves->flags);
 	if(target)
 		*target = ves->id;
 }

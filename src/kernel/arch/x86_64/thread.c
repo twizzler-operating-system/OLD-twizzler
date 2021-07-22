@@ -168,6 +168,7 @@ void arch_thread_become(struct arch_syscall_become_args *ba,
 
 		current_thread->arch.exception.rip = ba->target_rip;
 	}
+	current_thread->arch.gs = ba->gs;
 }
 
 int arch_syscall_thrd_ctl(int op, long arg)
@@ -289,7 +290,7 @@ void arch_thread_prep_start(struct thread *thread,
   void *stack,
   size_t stacksz,
   void *tls,
-  size_t thrd_ctrl_slot)
+  size_t thrd_ctrl_reg)
 {
 	memset(&thread->arch.syscall, 0, sizeof(thread->arch.syscall));
 	thread->arch.syscall.rcx = (uint64_t)entry;
@@ -298,8 +299,8 @@ void arch_thread_prep_start(struct thread *thread,
 	thread->arch.syscall.rsi = ID_LO(thread->thrid);
 	thread->arch.syscall.rdx = ID_HI(thread->thrid);
 	thread->arch.was_syscall = 1;
-	thread->arch.fs = (long)tls; /* TODO: only set one of these */
-	thread->arch.gs = (long)thrd_ctrl_slot * mm_page_size(MAX_PGLEVEL);
+	thread->arch.fs = (long)tls;
+	thread->arch.gs = (long)thrd_ctrl_reg;
 }
 
 void arch_thread_init(struct thread *thread)

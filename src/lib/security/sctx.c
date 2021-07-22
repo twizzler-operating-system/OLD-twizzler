@@ -35,8 +35,32 @@ __asm__(".global libtwzsec_gate_return;\n"
         "movq %rdi, %rsi\n"
         "xorq %rdx, %rdx\n"
         "xorq %rdi, %rdi\n"
+        "xorq %rdx, %rdx\n"
+        "xorq %r8, %r8\n"
+        "xorq %r9, %r9\n"
         "movq $6, %rax\n"
         "syscall\nud2");
+
+__asm__(".global libtwzsec_gate_return_multiple;\n"
+        "libtwzsec_gate_return_multiple:\n"
+        "lea __twz_secapi_nextstack_backup(%rip), %r12\n"
+        "movq (%r12), %rax\n"
+        "mfence\n"
+        "lea __twz_secapi_nextstack(%rip), %r12\n"
+        "movq %rax, (%r12)\n"
+        "mfence\n"
+		"movq %rcx, %r9\n"
+		"movq %rdx, %r8\n"
+		"movq %rsi, %rdx\n"
+        "movq %rdi, %rsi\n"
+        "movq $6, %rax\n"
+        "syscall\nud2");
+
+extern void libtwzsec_gate_return_multiple(long, long, long, long);
+void twz_secure_api_return_multiple(long a0, long a1, long a2, long a3)
+{
+	libtwzsec_gate_return_multiple(a0, a1, a2, a3);
+}
 
 extern int main();
 extern int libtwz_panic();

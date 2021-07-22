@@ -45,6 +45,7 @@ struct twzthread_ctrl_repr {
 
 #ifndef __KERNEL__
 
+void twz_thread_yield(void);
 void twz_thread_set_name(const char *name);
 __attribute__((noreturn)) void twz_thread_exit(uint64_t ecode);
 struct twzthread_repr *twz_thread_repr_base(void);
