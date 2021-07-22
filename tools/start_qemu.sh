@@ -13,9 +13,20 @@ if [ ! -f pmem.img ]; then
 	truncate -s 4G pmem.img
 fi
 
+QEMU_EXTRA='
+-device ioh3420,id=root_port1,bus=pcie.0 
+-device x3130-upstream,id=upstream1,bus=root_port1 
+-device xio3130-downstream,id=downstream1,bus=upstream1,chassis=9 
+-device e1000e,bus=downstream1'
+
+#QEMU_EXTRA='
+#-device pxb-pcie,id=pcie.1,bus_nr=2,bus=pcie.0
+#-device ioh3420,id=pcie_bridge1,bus=pcie.1,chassis=1
+#-device e1000,bus=pcie_bridge1'
+
 if [[ "$INSTANCES" == "" ]]; then
 	#echo $QEMU
-	qemu-system-x86_64  --trace '*ept*' --trace '*kvm_exit*' --trace '*vtx*' --trace '*vmx*' $QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom boot.iso -serial mon:stdio $QEMU_FLAGS
+	qemu-system-x86_64  --trace '*ept*' --trace '*kvm_exit*' --trace '*vtx*' --trace '*vmx*' $QEMU -enable-kvm -vnc '0.0.0.0:0' -cdrom boot.iso -serial mon:stdio $QEMU_FLAGS $QEMU_EXTRA
 	#-device nvme,drive=D22,serial=1234,share-rw=on $QEMU_FLAGS
 	#-drive file=$BUILDDIR/us/nvme.img,if=none,id=D22 
 	exit

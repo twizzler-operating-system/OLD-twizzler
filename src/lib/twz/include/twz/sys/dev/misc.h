@@ -1,5 +1,7 @@
 #pragma once
 
+#include <twz/sys/kso.h>
+
 enum {
 	MISC_FRAMEBUFFER_TYPE_UNKNOWN,
 	MISC_FRAMEBUFFER_TYPE_TEXT,
@@ -7,6 +9,7 @@ enum {
 };
 
 struct misc_framebuffer {
+	struct kso_hdr hdr;
 	uint64_t offset;
 	uint32_t width;
 	uint32_t height;

@@ -203,11 +203,13 @@ static long pcie_function_init(struct device *busdev,
 		.vendorid = space->header.vendor_id,
 		.deviceid = space->header.device_id,
 		.progif = space->header.progif,
+		.header_type = space->header.header_type,
 	};
 
 	/* map the BARs */
 	// size_t start = mm_page_size(1);
-	for(int i = 0; i < 6; i++) {
+	int is_normal = (space->header.header_type & 0x7f) == 0;
+	for(int i = 0; i < (is_normal ? 6 : 2); i++) {
 		uint32_t bar = space->device.bar[i];
 		if(!bar)
 			continue;
@@ -267,7 +269,8 @@ static long pcie_function_init(struct device *busdev,
 	// unsigned int fnid = function | device << 3 | bus << 8;
 	// kso_tree_attach_child(pbobj, fobj, fnid);
 
-	device_add_info(dev, &hdr, sizeof(hdr), 0);
+	obj = device_add_info(dev, &hdr, sizeof(hdr), 0);
+	kso_setnamef(obj, "info");
 	return 0;
 }
 

@@ -22,7 +22,9 @@ struct pcie_function_header {
 	uint16_t device;
 	uint16_t function;
 	uint16_t segment;
-	uint32_t resv;
+	uint8_t header_type;
+	uint8_t resv2;
+	uint16_t resv;
 	uint32_t prefetch[6];
 	volatile void *bars[6];
 	size_t barsz[6];
@@ -31,6 +33,7 @@ struct pcie_function_header {
 
 struct pcie_config_space;
 struct pcie_bus_header {
+	struct kso_hdr hdr;
 	uint32_t magic;
 	uint32_t start_bus;
 	uint32_t end_bus;

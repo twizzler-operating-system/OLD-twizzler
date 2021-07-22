@@ -21,5 +21,7 @@ pub trait Bus {
 	fn new(root: Device) -> Self
 	where
 		Self: Sized;
-	fn init(&mut self) {}
+	fn init(&mut self) -> Result<(), TwzErr> {
+		Ok(())
+	}
 }

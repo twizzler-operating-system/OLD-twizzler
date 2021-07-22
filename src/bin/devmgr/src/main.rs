@@ -32,12 +32,6 @@ fn main() {
 			println!("   {:?} :: {}", dc, kso.name());
 		}
 
-		let res = dev.get_child_mmio::<u8>(0);
-		println!("{}", res.is_ok());
-		if let Ok((h, m)) = res {
-			println!(":: {:p} {:p} :: {:x}", h, m, h.length);
-		}
-
 		//1let chobj: twz::obj::Twzobj = c.try_into().unwrap();
 	}
 

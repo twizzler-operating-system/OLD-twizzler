@@ -81,6 +81,10 @@ impl Device {
 		self.kso.name()
 	}
 
+	pub fn kaction(&self, cmd: u64, arg: u64) -> i32 {
+		crate::libtwz::twz_object_kaction(&self.kso.obj, cmd, arg)
+	}
+
 	pub fn get_children<'a>(&'a self) -> KSOAttachIterator<'a> {
 		self.kso.get_dir().unwrap().into_iter()
 	}
@@ -100,6 +104,7 @@ impl Device {
 					if count == idx {
 						obj = Some(KSO::try_from(child)?);
 					}
+					count += 1;
 				}
 			}
 
@@ -113,12 +118,18 @@ impl Device {
 		}
 	}
 
-	pub fn get_child_mmio<'a, T>(&'a mut self, idx: usize) -> Result<(&'a DeviceMMIOHdr, &'a mut T), TwzErr> {
+	pub fn get_child_mmio<'a, T>(
+		&'a mut self,
+		idx: usize,
+		offset: u64,
+	) -> Result<(&'a DeviceMMIOHdr, &'a mut T), TwzErr> {
 		let kso = self.get_child_obj(idx, DEVICE_CHILD_MMIO as usize)?;
 
-		let t = unsafe { kso.obj.offset_lea_mut::<T>(crate::obj::OBJ_NULLPAGE_SIZE * 2) };
-
 		let h = kso.obj.base::<DeviceMMIOHdr>();
+		if offset >= h.length {
+			return Err(TwzErr::Invalid);
+		}
+		let t = unsafe { kso.obj.offset_lea_mut::<T>(crate::obj::OBJ_NULLPAGE_SIZE * 2 + offset) };
 
 		Ok((h, t))
 	}
@@ -144,6 +155,7 @@ impl Device {
 
 					return Ok(obj);
 				}
+				count += 1;
 			}
 		}
 
