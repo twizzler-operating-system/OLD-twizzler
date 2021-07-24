@@ -327,6 +327,7 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 				break;
 			case 2:
 			case 6:
+#if 1
 				c = uart_read(u, UART_REG_DATA);
 
 				if(debug_trigger_state >= array_len(debug_trigger_seq)) {
@@ -353,6 +354,10 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 					long tmp = c;
 					device_signal_sync(ser_dev->root, 0, tmp);
 				}
+#endif
+				// c = uart_read(u, UART_REG_DATA);
+				// printk("INTERRUPT!\n");
+				// device_signal_interrupt(ser_dev->root, 0, 1);
 				break;
 			case 3:
 				ls = uart_read(u, UART_REG_LSR);

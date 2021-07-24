@@ -126,22 +126,6 @@ impl PcieBus {
 			KACTION_CMD_PCIE_INIT_DEVICE,
 			(info.segnr as u64) << 16 | (bus as u64) << 8 | (device as u64) << 3 | (function as u64) | (wc << 32),
 		);
-
-		let dev = self.root.get_child_device(self.devidx);
-		if let Ok(dev) = dev {
-			self.devidx += 1;
-
-			let mut dev = dev.into_device();
-			let devinfo = *dev.get_child_info::<PcieFunctionInfo>(0).unwrap();
-			if devinfo.bus as u32 != bus || devinfo.device as u32 != device || devinfo.function as u32 != function {
-				println!(
-					"[pcie] failed to create child object for device {} {} {}",
-					bus, device, function
-				);
-			} else {
-				self.setup_device(info, &devinfo, dev);
-			}
-		}
 	}
 
 	fn init_bridge(&mut self, info: &PcieInfo, bus: u32, device: u32, function: u32) -> Option<u32> {
@@ -180,7 +164,20 @@ impl PcieBus {
 	}
 }
 
+use crate::devtree::DeviceIdent;
 impl Bus for PcieBus {
+	fn identify(&self, dev: &mut Device) -> Option<DeviceIdent> {
+		let devinfo = *dev.get_child_info::<PcieFunctionInfo>(0).unwrap();
+
+		Some(DeviceIdent::new(
+			Self::get_bus_type(),
+			devinfo.vendorid,
+			devinfo.deviceid,
+			devinfo.classid,
+			devinfo.subclassid,
+		))
+	}
+
 	fn get_bus_root(&self) -> &Device {
 		&self.root
 	}

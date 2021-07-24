@@ -1,9 +1,10 @@
+use crate::devtree::DeviceIdent;
 use twz::device::{BusType, Device};
 use twz::TwzErr;
 
 pub trait Bus {
 	fn get_bus_root(&self) -> &Device;
-	fn enumerate(&self, f: &dyn Fn(Device) -> Result<(), TwzErr>) {
+	fn enumerate(&self, f: &mut dyn FnMut(Device) -> Result<(), TwzErr>) {
 		let mut idx = 0;
 		let root = self.get_bus_root();
 		loop {
@@ -23,5 +24,11 @@ pub trait Bus {
 		Self: Sized;
 	fn init(&mut self) -> Result<(), TwzErr> {
 		Ok(())
+	}
+
+	fn start_device(&self, dev: &Device) {}
+
+	fn identify(&self, dev: &mut Device) -> Option<DeviceIdent> {
+		None
 	}
 }

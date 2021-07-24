@@ -14,7 +14,7 @@
 #include <syscall.h>
 #include <thread.h>
 #include <twz/meta.h>
-#include <twz/sys/dev/bus.h>
+#include <twz/sys/dev/device.h>
 
 static void __kso_device_ctor(struct object *obj)
 {
@@ -41,9 +41,9 @@ __initializer static void __device_init(void)
 void device_signal_interrupt(struct object *obj, int inum, uint64_t val)
 {
 	/* TODO: try to make this more efficient */
-	obj_write_data_atomic64(obj, offsetof(struct kso_device_hdr, interrupts[inum]), val);
+	obj_write_data_atomic64(obj, offsetof(struct kso_device_hdr, interrupts[inum].sp), val);
 	thread_wake_object(
-	  obj, offsetof(struct kso_device_hdr, interrupts[inum]) + OBJ_NULLPAGE_SIZE, INT_MAX);
+	  obj, offsetof(struct kso_device_hdr, interrupts[inum].sp) + OBJ_NULLPAGE_SIZE, INT_MAX);
 }
 
 void device_signal_sync(struct object *obj, int snum, uint64_t val)

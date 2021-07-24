@@ -3,7 +3,6 @@ use crate::obj::Twzobj;
 use crate::TwzErr;
 
 #[repr(C)]
-
 pub struct DeviceInterrupt {
 	local: u16,
 	vector: u16,
@@ -12,17 +11,14 @@ pub struct DeviceInterrupt {
 }
 
 pub const MAX_DEVICE_SYNCS: usize = 2;
-
 pub const MAX_DEVICE_INTERRUPTS: usize = 32;
-
 pub const DEVICE_CHILD_DEVICE: u64 = 0;
-
 pub const DEVICE_CHILD_MMIO: u64 = 1;
-
 pub const DEVICE_CHILD_INFO: u64 = 2;
+pub const DEVICE_ID_SERIAL: u64 = 2;
 
 #[repr(u64)]
-
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BusType {
 	Isa = 0,
 	Pcie = 1,
@@ -76,7 +72,59 @@ impl KSO {
 
 use std::convert::TryFrom;
 
+pub struct DeviceEventsIter<'a> {
+	idx: usize,
+	device: &'a Device,
+}
+
+#[derive(Debug)]
+pub enum DeviceEvent {
+	DeviceSync(usize, u64),
+	DeviceInterrupt(usize, u16, u64),
+}
+
+impl<'a> Iterator for DeviceEventsIter<'a> {
+	type Item = DeviceEvent;
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.idx < MAX_DEVICE_SYNCS {
+			let idx = self.idx;
+			let val = self.device.get_device_hdr().syncs[idx].swap(0, std::sync::atomic::Ordering::SeqCst);
+			self.idx += 1;
+			if val == 0 {
+				return self.next();
+			}
+			Some(DeviceEvent::DeviceSync(idx, val))
+		} else if self.idx < (MAX_DEVICE_SYNCS + MAX_DEVICE_INTERRUPTS) {
+			let idx = self.idx - MAX_DEVICE_SYNCS;
+			let val = self.device.get_device_hdr().interrupts[idx]
+				.sync
+				.swap(0, std::sync::atomic::Ordering::SeqCst);
+			self.idx += 1;
+			if val == 0 {
+				return self.next();
+			}
+			Some(DeviceEvent::DeviceInterrupt(
+				idx,
+				self.device.get_device_hdr().interrupts[idx].local,
+				val,
+			))
+		} else {
+			None
+		}
+	}
+}
+
 impl Device {
+	pub fn check_for_events<'a>(&'a self) -> DeviceEventsIter<'a> {
+		DeviceEventsIter { device: self, idx: 0 }
+	}
+
+	pub fn wait_for_event(&self) {
+		use std::{thread, time};
+		let ten_millis = time::Duration::from_millis(1);
+		thread::sleep(ten_millis);
+	}
+
 	pub fn get_kso_name(&self) -> &str {
 		self.kso.name()
 	}
