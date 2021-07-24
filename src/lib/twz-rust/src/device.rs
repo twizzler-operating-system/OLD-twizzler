@@ -120,9 +120,23 @@ impl Device {
 	}
 
 	pub fn wait_for_event(&self) {
-		use std::{thread, time};
-		let ten_millis = time::Duration::from_millis(1);
-		thread::sleep(ten_millis);
+		use crate::sys::thread_sync;
+		use crate::sys::ThreadSyncArgs;
+		let mut vec = vec![];
+		let hdr = self.get_device_hdr();
+		for i in 0..MAX_DEVICE_SYNCS {
+			let ts = ThreadSyncArgs::new_sleep(&hdr.syncs[i], 0);
+			vec.push(ts);
+		}
+
+		for i in 0..MAX_DEVICE_INTERRUPTS {
+			let ts = ThreadSyncArgs::new_sleep(&hdr.interrupts[i].sync, 0);
+			vec.push(ts);
+		}
+
+		unsafe {
+			thread_sync(&mut vec, None);
+		}
 	}
 
 	pub fn get_kso_name(&self) -> &str {
