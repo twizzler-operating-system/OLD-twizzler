@@ -2,8 +2,39 @@ pub struct DevTree {
 	busses: Vec<Box<dyn Bus>>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct DeviceIdent {
+	bustype: twz::device::BusType,
+	vendor_id: u64,
+	device_id: u64,
+	class: u64,
+	subclass: u64,
+}
+
+impl DeviceIdent {
+	pub fn is_match(&self, other: &DeviceIdent) -> bool {
+		other.bustype == self.bustype
+			&& ((other.class == self.class && other.subclass == self.subclass && self.class > 0 && other.class > 0)
+				|| (other.vendor_id == self.vendor_id
+					&& other.device_id == self.device_id
+					&& self.device_id > 0
+					&& other.device_id > 0))
+	}
+
+	pub fn new<T: Into<u64>>(bustype: twz::device::BusType, vendor: T, device: T, class: T, sc: T) -> DeviceIdent {
+		DeviceIdent {
+			bustype: bustype.into(),
+			vendor_id: vendor.into(),
+			device_id: device.into(),
+			class: class.into(),
+			subclass: sc.into(),
+		}
+	}
+}
+
 use crate::bus::Bus;
 use crate::busses::create_bus;
+use crate::drivers::RegisteredDrivers;
 use std::convert::TryInto;
 use twz::kso::KSO;
 
@@ -28,8 +59,20 @@ impl DevTree {
 	pub fn init_busses(&mut self) {
 		for bus in &mut self.busses {
 			let br = bus.get_bus_root();
-			println!("{}", br.get_kso_name());
 			bus.init();
+		}
+	}
+
+	pub fn init_devices(&mut self, drivers: &mut RegisteredDrivers) {
+		for bus in &mut self.busses {
+			let br = bus.get_bus_root();
+			bus.enumerate(&mut |mut dev| {
+				let ident = bus.identify(&mut dev);
+				if let Some(ident) = ident {
+					drivers.start_driver(bus, dev, ident);
+				}
+				Ok(())
+			});
 		}
 	}
 }
