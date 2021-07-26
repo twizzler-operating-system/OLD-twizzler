@@ -18,34 +18,35 @@ pub mod bstream;
 pub mod device;
 pub mod kso;
 pub mod log;
+pub mod mutex;
 pub mod pslice;
 pub mod thread;
 pub mod vec;
 
 #[no_mangle]
 pub extern "C" fn __twz_libtwz_runtime_init() {
-    fault::__twz_fault_runtime_init();
+	fault::__twz_fault_runtime_init();
 }
 
 #[derive(Debug)]
 pub enum TxResultErr<E> {
-    UserErr(E),
-    OSError(i32),
-    OutOfLog,
+	UserErr(E),
+	OSError(i32),
+	OutOfLog,
 }
 
 #[derive(Debug)]
 pub enum TwzErr {
-    NameResolve(i32),
-    OSError(i32),
-    Invalid,
-    OutOfSlots,
+	NameResolve(i32),
+	OSError(i32),
+	Invalid,
+	OutOfSlots,
 }
 
 #[cfg(test)]
 mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
+	#[test]
+	fn it_works() {
+		assert_eq!(2 + 2, 4);
+	}
 }
