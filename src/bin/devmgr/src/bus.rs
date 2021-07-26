@@ -9,7 +9,7 @@ pub trait Bus {
 		let root = self.get_bus_root();
 		loop {
 			if let Ok(k) = root.get_child_device(idx) {
-				f(k.into_device());
+				let _res = f(k.into_device());
 				idx += 1;
 			} else {
 				return;
@@ -26,9 +26,9 @@ pub trait Bus {
 		Ok(())
 	}
 
-	fn start_device(&self, dev: &Device) {}
+	fn start_device(&self, _dev: &Device) {}
 
-	fn identify(&self, dev: &mut Device) -> Option<DeviceIdent> {
+	fn identify(&self, _dev: &mut Device) -> Option<DeviceIdent> {
 		None
 	}
 }

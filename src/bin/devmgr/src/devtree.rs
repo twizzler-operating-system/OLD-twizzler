@@ -45,7 +45,7 @@ impl DevTree {
 
 		for chattach in dir {
 			let chkso: KSO = chattach.try_into()?;
-			let mut dev = chkso.into_device();
+			let dev = chkso.into_device();
 
 			let bus = create_bus(dev);
 			if let Some(bus) = bus {
@@ -58,14 +58,12 @@ impl DevTree {
 
 	pub fn init_busses(&mut self) {
 		for bus in &mut self.busses {
-			let br = bus.get_bus_root();
-			bus.init();
+			let _res = bus.init();
 		}
 	}
 
 	pub fn init_devices(&mut self, drivers: &mut RegisteredDrivers) {
 		for bus in &mut self.busses {
-			let br = bus.get_bus_root();
 			bus.enumerate(&mut |mut dev| {
 				let ident = bus.identify(&mut dev);
 				if let Some(ident) = ident {

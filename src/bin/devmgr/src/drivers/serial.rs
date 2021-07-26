@@ -1,13 +1,15 @@
 use crate::bus::Bus;
+use crate::devnode;
 use crate::devtree::DeviceIdent;
 use crate::driver::Driver;
-use std::thread::{sleep, spawn, JoinHandle};
+use std::thread::{spawn, JoinHandle};
 use twz::device::{BusType, Device, DEVICE_ID_SERIAL};
 
 struct Instance {
 	device: Device,
-	ident: DeviceIdent,
+	_ident: DeviceIdent,
 	thread: Option<JoinHandle<()>>,
+	_nodes: Vec<devnode::DeviceNode>,
 }
 
 fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>) {
@@ -23,10 +25,11 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 
 impl Instance {
 	fn new(device: Device, ident: &DeviceIdent) -> std::sync::Arc<std::sync::Mutex<Instance>> {
-		let mut inst = std::sync::Arc::new(std::sync::Mutex::new(Instance {
-			device,
-			ident: *ident,
+		let inst = std::sync::Arc::new(std::sync::Mutex::new(Instance {
+			device: device,
+			_ident: *ident,
 			thread: None,
+			_nodes: devnode::allocate(&vec![("ttyS", 0)]),
 		}));
 
 		let inst2 = inst.clone();
@@ -48,7 +51,7 @@ impl Driver for SerialDriver {
 		vec![DeviceIdent::new(BusType::Isa, 0, DEVICE_ID_SERIAL, 0, 0)]
 	}
 
-	fn start(&mut self, bus: &Box<dyn Bus>, device: Device, ident: &DeviceIdent) {
+	fn start(&mut self, _bus: &Box<dyn Bus>, device: Device, ident: &DeviceIdent) {
 		self.instances.push(Instance::new(device, ident));
 	}
 }
