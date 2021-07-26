@@ -1,6 +1,7 @@
 const SYS_ATTACH: i64 = 4;
 const SYS_BECOME: i64 = 6;
 const SYS_THREAD_SYNC: i64 = 7;
+const SYS_KCONF: i64 = 14;
 
 pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
 	let mut num = SYS_ATTACH;
@@ -15,6 +16,21 @@ pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
          out("r11") _,
          out("rcx") _);
 	num as i64
+}
+
+pub const KCONF_RDRESET: u64 = 1;
+pub const KCONF_ARCH_TSC_PSPERIOD: u64 = 1001;
+pub fn kconf(cmd: u64, arg: u64) -> u64 {
+	let mut num = SYS_KCONF;
+	unsafe {
+		asm!("syscall",
+         inout("rax") num,
+         in("rdi") cmd,
+         in("rsi") arg,
+         out("r11") _,
+         out("rcx") _);
+	}
+	num as u64
 }
 
 #[allow(dead_code)]
