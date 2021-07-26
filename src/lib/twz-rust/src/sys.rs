@@ -1,12 +1,11 @@
-
 const SYS_ATTACH: i64 = 4;
 const SYS_BECOME: i64 = 6;
 const SYS_THREAD_SYNC: i64 = 7;
 
 pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
-    let mut num = SYS_ATTACH;
+	let mut num = SYS_ATTACH;
 	let sf: u64 = (ty & 0xffff) as u64 | (flags as u64) << 32;
-    asm!("syscall",
+	asm!("syscall",
          inout("rax") num,
          in("rdi") (pid & 0xffffffffffffffff) as u64,
          in("rsi") ((pid >> 64) & 0xffffffffffffffff) as u64,
@@ -15,9 +14,10 @@ pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
          in("r9") sf,
          out("r11") _,
          out("rcx") _);
-    num as i64
+	num as i64
 }
 
+#[allow(dead_code)]
 pub struct ThreadSyncArgs {
 	addr: *const std::sync::atomic::AtomicU64,
 	arg: u64,
@@ -28,50 +28,50 @@ pub struct ThreadSyncArgs {
 }
 
 impl ThreadSyncArgs {
-    pub fn new_sleep(addr: &std::sync::atomic::AtomicU64, val: u64) -> ThreadSyncArgs {
-        ThreadSyncArgs {
-            addr: addr as *const std::sync::atomic::AtomicU64,
-            arg: val,
-            op: 0,
-            flags: 0,
-            __resv: 0,
-            res: 0,
-        }
-    }
+	pub fn new_sleep(addr: &std::sync::atomic::AtomicU64, val: u64) -> ThreadSyncArgs {
+		ThreadSyncArgs {
+			addr: addr as *const std::sync::atomic::AtomicU64,
+			arg: val,
+			op: 0,
+			flags: 0,
+			__resv: 0,
+			res: 0,
+		}
+	}
 
-    pub fn new_wake(addr: &std::sync::atomic::AtomicU64, count: u64) -> ThreadSyncArgs {
-        ThreadSyncArgs {
-            addr: addr as *const std::sync::atomic::AtomicU64,
-            arg: count,
-            op: 1,
-            flags: 0,
-            __resv: 0,
-            res: 0,
-        }
-    }
+	pub fn new_wake(addr: &std::sync::atomic::AtomicU64, count: u64) -> ThreadSyncArgs {
+		ThreadSyncArgs {
+			addr: addr as *const std::sync::atomic::AtomicU64,
+			arg: count,
+			op: 1,
+			flags: 0,
+			__resv: 0,
+			res: 0,
+		}
+	}
 }
 
 #[repr(C)]
 struct KernelTimeSpec {
-    sec: u64,
-    nsec: u64,
+	sec: u64,
+	nsec: u64,
 }
 
 pub unsafe fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
-    let timespec = timeout.map(|t| KernelTimeSpec {
-        sec: t.as_secs(),
-        nsec: t.subsec_nanos() as u64,
-    });
+	let timespec = timeout.map(|t| KernelTimeSpec {
+		sec: t.as_secs(),
+		nsec: t.subsec_nanos() as u64,
+	});
 
-    let mut num = SYS_THREAD_SYNC;
-    asm!("syscall",
+	let mut num = SYS_THREAD_SYNC;
+	asm!("syscall",
          inout("rax") num,
          in("rdi") specs.len(),
          in("rsi") specs.as_ptr(),
          in("rdx") if let Some(timespec) = timespec { (&timespec) as *const KernelTimeSpec } else { std::ptr::null() },
          out("r11") _,
          out("rcx") _);
-    num as i64
+	num as i64
 }
 
 #[derive(Default)]
@@ -99,14 +99,14 @@ pub struct BecomeArgs {
 }
 
 pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<BecomeArgs, i64> {
-    let mut num: i64 = SYS_BECOME;
-    let mut rdi = std::mem::transmute::<*const BecomeArgs, i64>(args);
-    let mut rsi = arg0;
-    let mut rdx = arg1;
-    let mut r8: i64;
-    let mut r9: i64;
-    let mut r10: i64;
-    asm!("syscall",
+	let mut num: i64 = SYS_BECOME;
+	let mut rdi = std::mem::transmute::<*const BecomeArgs, i64>(args);
+	let mut rsi = arg0;
+	let mut rdx = arg1;
+	let mut r8: i64;
+	let mut r9: i64;
+	let mut r10: i64;
+	asm!("syscall",
          inout("rax") num,
          inout("rdi") rdi,
          inout("rsi") rsi,
@@ -116,16 +116,16 @@ pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<
          out("r9") r9,
          out("r11") _,
          out("rcx") _);
-    if num < 0 {
-        return Err(num);
-    }
-    Ok(BecomeArgs {
-        rdi: rdi,
-        rsi: rsi,
-        rdx: rdx,
-        r10: r10,
-        r8: r8,
-        r9: r9,
-        ..Default::default()
-    })
+	if num < 0 {
+		return Err(num);
+	}
+	Ok(BecomeArgs {
+		rdi: rdi,
+		rsi: rsi,
+		rdx: rdx,
+		r10: r10,
+		r8: r8,
+		r9: r9,
+		..Default::default()
+	})
 }

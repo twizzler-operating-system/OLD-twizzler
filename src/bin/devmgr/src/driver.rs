@@ -14,12 +14,3 @@ pub trait Driver {
 		std::default::Default::default()
 	}
 }
-
-pub fn supports<T: Driver>(drv: Box<T>, dev: &DeviceIdent) -> bool {
-	for di in &T::supported() {
-		if di.is_match(dev) {
-			return true;
-		}
-	}
-	false
-}

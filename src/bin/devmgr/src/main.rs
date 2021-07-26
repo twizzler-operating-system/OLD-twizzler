@@ -11,13 +11,13 @@ use twz;
 
 mod bus;
 mod busses;
+mod devnode;
 mod devtree;
 mod driver;
 #[macro_use]
 mod drivers;
 
 use std::convert::TryInto;
-use twz::kso::KSO;
 fn main() {
 	println!("Hello!");
 
@@ -29,7 +29,7 @@ fn main() {
 	for c in dir {
 		let kso: twz::kso::KSO = c.try_into().unwrap();
 		println!("{:?} :: {}", c, kso.name());
-		let mut dev = kso.into_device();
+		let dev = kso.into_device();
 		for dc in dev.get_children() {
 			let kso: twz::kso::KSO = dc.try_into().unwrap();
 			println!("   {:?} :: {}", dc, kso.name());

@@ -72,6 +72,7 @@ impl QueueMultiSpec {
 		}
 	}
 
+	#[allow(dead_code)]
 	pub(crate) fn new_empty() -> QueueMultiSpec {
 		QueueMultiSpec {
 			obj_or_word: ObjOrWord {
@@ -155,6 +156,7 @@ pub(crate) mod twz_c {
 	}
 }
 
+#[allow(dead_code)]
 pub(crate) fn twz_object_guid(obj: &Twzobj) -> ObjID {
 	unsafe {
 		obj.alloc_libtwz_data();

@@ -1,5 +1,4 @@
 use crate::kso::{KSOAttachIterator, KSODirAttachments, KSOHdr, KSOType, KSO};
-use crate::obj::Twzobj;
 use crate::TwzErr;
 
 #[repr(C)]

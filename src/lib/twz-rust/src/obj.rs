@@ -85,7 +85,7 @@ impl Twzobj {
 			Self::init_guid(self.id)
 		} else {
 			let r = libtwz::ptr_load_foreign(self, p.p);
-			let mut obj = Twzobj {
+			let obj = Twzobj {
 				id: 0,
 				slot: r / OBJ_MAX_SIZE,
 				libtwz_data: std::sync::Arc::new(std::sync::Mutex::new(None)),
@@ -188,12 +188,12 @@ impl Twzobj {
 	}
 
 	pub(crate) fn free_slice<T>(&self, slice: &mut crate::pslice::Pslice<T>) {
-		let res = libtwz::twz_object_free::<T>(self, &mut slice.p, 0);
+		libtwz::twz_object_free::<T>(self, &mut slice.p, 0);
 	}
 
 	pub(crate) fn free_item<T>(&self, item: &T) {
 		let mut p = unsafe { std::mem::transmute::<&T, u64>(item) };
-		let res = libtwz::twz_object_free::<T>(self, &mut p, 0);
+		libtwz::twz_object_free::<T>(self, &mut p, 0);
 	}
 
 	pub fn transaction<F, T, E>(&self, func: F) -> Result<T, crate::TxResultErr<E>>
@@ -253,7 +253,7 @@ impl Twzobj {
 	}
 
 	pub unsafe fn store_ptr_unchecked<T>(&self, pptr: &mut Pptr<T>, dest: &T, dest_obj: &Twzobj) -> Result<(), TwzErr> {
-		let mut p = unsafe { std::mem::transmute::<*const T, u64>(dest as *const T) };
+		let mut p = std::mem::transmute::<*const T, u64>(dest as *const T);
 		p = p & (OBJ_MAX_SIZE - 1);
 		let res = libtwz::ptr_store_guid(self, &mut pptr.p, p, dest_obj);
 		if res < 0 {

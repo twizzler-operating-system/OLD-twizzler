@@ -9,7 +9,6 @@ const KACTION_CMD_PCIE_INIT_DEVICE: u64 = 1;
 
 pub struct PcieBus {
 	root: Device,
-	devidx: usize,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -65,6 +64,7 @@ struct PcieConfigSpaceHdr {
 	bist: u8,
 }
 
+/*
 #[repr(C, packed)]
 struct PcieConfigSpaceDevice {
 	hdr: PcieConfigSpaceHdr,
@@ -87,6 +87,7 @@ struct PcieConfigSpaceDevice {
 	min_grant: u8,
 	max_latency: u8,
 }
+*/
 
 #[repr(C, packed)]
 struct PcieConfigSpaceBridge {
@@ -116,10 +117,6 @@ struct PcieConfigSpaceBridge {
 }
 
 impl PcieBus {
-	fn setup_device(&mut self, info: &PcieInfo, fninfo: &PcieFunctionInfo, device: Device) {
-		println!("setup {} {} {}", fninfo.bus, fninfo.device, fninfo.function);
-	}
-
 	fn init_device(&mut self, info: &PcieInfo, bus: u32, device: u32, function: u32) {
 		let wc: u64 = 0;
 		self.root.kaction(
@@ -187,7 +184,7 @@ impl Bus for PcieBus {
 	}
 
 	fn new(root: Device) -> Self {
-		PcieBus { root: root, devidx: 0 }
+		PcieBus { root: root }
 	}
 
 	fn init(&mut self) -> Result<(), TwzErr> {
