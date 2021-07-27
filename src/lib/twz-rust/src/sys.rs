@@ -68,16 +68,22 @@ impl ThreadSyncArgs {
 }
 
 #[repr(C)]
-struct KernelTimeSpec {
-	sec: u64,
-	nsec: u64,
+pub struct KernelTimeSpec {
+	pub sec: u64,
+	pub nsec: u64,
+}
+
+impl From<std::time::Duration> for KernelTimeSpec {
+	fn from(dur: std::time::Duration) -> KernelTimeSpec {
+		KernelTimeSpec {
+			sec: dur.as_secs(),
+			nsec: dur.subsec_nanos() as u64,
+		}
+	}
 }
 
 pub unsafe fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
-	let timespec = timeout.map(|t| KernelTimeSpec {
-		sec: t.as_secs(),
-		nsec: t.subsec_nanos() as u64,
-	});
+	let timespec: Option<KernelTimeSpec> = timeout.map(|t| t.into());
 
 	let mut num = SYS_THREAD_SYNC;
 	asm!("syscall",
