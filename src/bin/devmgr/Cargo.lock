@@ -7,8 +7,16 @@ name = "devmgr"
 version = "0.1.0"
 dependencies = [
  "twz",
+ "twzobj",
 ]
 
 [[package]]
 name = "twz"
 version = "0.1.0"
+
+[[package]]
+name = "twzobj"
+version = "0.1.0"
+dependencies = [
+ "twz",
+]

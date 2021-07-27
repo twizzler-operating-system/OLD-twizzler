@@ -82,17 +82,19 @@ impl From<std::time::Duration> for KernelTimeSpec {
 	}
 }
 
-pub unsafe fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
+pub fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
 	let timespec: Option<KernelTimeSpec> = timeout.map(|t| t.into());
 
 	let mut num = SYS_THREAD_SYNC;
-	asm!("syscall",
+	unsafe {
+		asm!("syscall",
          inout("rax") num,
          in("rdi") specs.len(),
          in("rsi") specs.as_ptr(),
          in("rdx") if let Some(timespec) = timespec { (&timespec) as *const KernelTimeSpec } else { std::ptr::null() },
          out("r11") _,
          out("rcx") _);
+	}
 	num as i64
 }
 

@@ -62,6 +62,18 @@ impl std::ops::Drop for Twzobj {
 
 pub struct Tx {}
 
+enum SpecBaseType<T> {
+	None,
+	Base(T),
+}
+
+pub struct ObjCreateSpec<'a, T> {
+	src: Option<&'a Twzobj>,
+	kuid: Option<&'a Twzobj>,
+	flags: i32,
+	base: SpecBaseType<T>,
+}
+
 impl Twzobj {
 	pub fn id(&self) -> ObjID {
 		self.id
@@ -125,7 +137,12 @@ impl Twzobj {
 	pub const TWZ_OBJ_CREATE_DFL_USE: i32 = 0x20;
 	pub const TWZ_OBJ_CREATE_DFL_DEL: i32 = 0x40;
 
-	pub fn create<T>(flags: i32, base: Option<T>, kuid: Option<Twzobj>, src: Option<Twzobj>) -> Result<Twzobj, TwzErr> {
+	pub fn create<T>(
+		flags: i32,
+		base: Option<T>,
+		kuid: Option<&Twzobj>,
+		src: Option<&Twzobj>,
+	) -> Result<Twzobj, TwzErr> {
 		let res = libtwz::twz_object_create(flags, kuid.map_or(0, |o| o.id), src.map_or(0, |o| o.id));
 		match res {
 			Err(e) => return Err(TwzErr::OSError(-e)),
@@ -145,6 +162,13 @@ impl Twzobj {
 				}
 				Ok(obj)
 			}
+		}
+	}
+
+	pub fn create_spec<T: Copy>(spec: &ObjCreateSpec<T>) -> Result<Twzobj, TwzErr> {
+		match &spec.base {
+			SpecBaseType::Base(t) => Twzobj::create::<T>(spec.flags, Some(*t), spec.kuid, spec.src),
+			SpecBaseType::None => Twzobj::create::<T>(spec.flags, None, spec.kuid, spec.src),
 		}
 	}
 
