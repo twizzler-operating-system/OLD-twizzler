@@ -1,19 +1,31 @@
-struct BstreamHdr {
-	struct mutex lock;
-	uint32_t flags;
-	atomic_uint_least32_t head;
-	atomic_uint_least32_t tail;
-	uint32_t nbits;
-	struct evhdr ev;
-	struct twzio_hdr io;
-	unsigned char data[];
-};
+use crate::event::EventHdr;
+use crate::io::TwzIOHdr;
+use std::sync::atomic::AtomicU32;
+use twz::mutex::TwzMutex;
 
-static inline size_t bstream_hdr_size(uint32_t nbits)
-{
-	return sizeof(struct bstream_hdr) + (1ul << nbits);
+const BSTREAM_METAEXT_TAG: u64 = 0x00000000bbbbbbbb;
+
+#[repr(C)]
+pub struct BstreamHdr {
+	lock: TwzMutex<BstreamInternal>,
 }
 
-#define BSTREAM_METAEXT_TAG 0x00000000bbbbbbbb
+#[repr(C)]
+struct BstreamInternal {
+	flags: u32,
+	head: AtomicU32,
+	tail: AtomicU32,
+	nbits: u32,
+	ev: EventHdr,
+	io: TwzIOHdr,
+}
 
+impl BstreamHdr {
+	pub fn total_size(&self) -> usize {
+		std::mem::size_of::<BstreamHdr>() + self.buffer_size()
+	}
 
+	pub fn buffer_size(&self) -> usize {
+		1usize << self.lock.lock().nbits
+	}
+}

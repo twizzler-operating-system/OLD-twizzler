@@ -10,4 +10,5 @@ debug = true
 
 [dependencies]
 twz = { path = "../../lib/twz-rust", features = ["expose_sapi"] }
+twzobj = { path = "../../lib/twzobj" }
 

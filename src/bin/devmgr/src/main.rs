@@ -3,6 +3,7 @@
 #![feature(once_cell)]
 
 use twz;
+use twzobj;
 //use std::{lazy::SyncLazy, sync::Mutex};
 
 /*twz::twz_gate!(1, __logboi_open, logboi_open (flags: i32) {
