@@ -26,6 +26,12 @@ impl<T: Copy> TwzMutex<T> {
 	}
 }
 
+impl<T: Default + Copy> Default for TwzMutex<T> {
+	fn default() -> Self {
+		TwzMutex::<T>::new(T::default())
+	}
+}
+
 static RESET_CODE: AtomicU64 = AtomicU64::new(0);
 
 impl<'a, T> TwzMutex<T> {

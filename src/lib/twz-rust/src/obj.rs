@@ -1,3 +1,94 @@
+pub const MAX_SIZE: u64 = 1 << 30;
+pub const NULLPAGE_SIZE: u64 = 0x1000;
+pub type ObjID = u128;
+
+pub struct Twzobj<T> {
+	id: ObjID,
+	slot: u64,
+	_pd: std::marker::PhantomData<T>,
+}
+
+impl<T> Drop for Twzobj<T> {
+	fn drop(&mut self) {
+		/* TODO: release slot */
+	}
+}
+
+pub fn objid_split(id: ObjID) -> (u64, u64) {
+	((id >> 64) as u64, (id & 0xffffffffffffffff) as u64)
+}
+
+pub fn objid_join(hi: i64, lo: i64) -> ObjID {
+	u128::from(lo as u64) | (u128::from(hi as u64)) << 64
+}
+
+pub struct CreateSpec {}
+
+crate::bitflags! {
+	pub struct ProtFlags: u32 {
+		/* TODO: match these to view stuff */
+		const Read = 0x1;
+		const Write = 0x2;
+		const Execute = 0x4;
+	}
+}
+
+pub struct Transaction {}
+pub enum TransactionErr<E> {
+	LogFull,
+	Abort(E),
+}
+
+use crate::name::NameError;
+use crate::TwzErr;
+impl<T> Twzobj<T> {
+	pub fn id(&self) -> ObjID {
+		self.id
+	}
+
+	pub fn init_guid(id: ObjID, prot: ProtFlags) -> Twzobj<T> {
+		panic!("")
+	}
+
+	pub fn init_name(name: &str, prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
+		panic!("")
+	}
+
+	unsafe fn base_unchecked_mut(&self) -> &mut T {
+		panic!("")
+	}
+
+	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
+	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
+		panic!("")
+	}
+
+	pub fn create_base(spec: &CreateSpec, base: T) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut();
+			(ob as *mut T).write(base);
+			Ok(obj)
+		}
+	}
+
+	pub fn base<'a>(&'a self, tx: Option<Transaction>) -> &'a T {
+		panic!("")
+	}
+
+	pub fn base_mut<'a>(&'a self, tx: Transaction) -> &'a T {
+		panic!("")
+	}
+
+	pub fn transaction<O, E>(
+		&self,
+		f: &(dyn Fn(Transaction) -> Result<O, E> + 'static),
+	) -> Result<O, TransactionErr<E>> {
+		panic!("")
+	}
+}
+
+/*
 use crate::libtwz::*;
 use crate::ptr::*;
 use crate::*;
@@ -65,13 +156,58 @@ pub struct Tx {}
 enum SpecBaseType<T> {
 	None,
 	Base(T),
+	Ctor(fn(&Twzobj, &mut T)),
 }
+
+impl<T: Clone> Clone for SpecBaseType<T> {
+	fn clone(&self) -> SpecBaseType<T> {
+		match self {
+			SpecBaseType::None => SpecBaseType::None,
+			SpecBaseType::Base(t) => SpecBaseType::Base(t.clone()),
+			SpecBaseType::Ctor(f) => SpecBaseType::Ctor(*f),
+		}
+	}
+}
+
+impl<T: Copy> Copy for SpecBaseType<T> {}
 
 pub struct ObjCreateSpec<'a, T> {
 	src: Option<&'a Twzobj>,
-	kuid: Option<&'a Twzobj>,
+	ku: Option<&'a Twzobj>,
 	flags: i32,
 	base: SpecBaseType<T>,
+}
+
+impl<'a, T> ObjCreateSpec<'a, T> {
+	pub fn clone_with_base<B>(&self, t: B) -> ObjCreateSpec<B> {
+		ObjCreateSpec {
+			src: self.src,
+			ku: self.ku,
+			flags: self.flags,
+			base: SpecBaseType::Base(t),
+		}
+	}
+
+	pub fn clone_with_ctor<B>(&self, t: fn(&Twzobj, &mut B)) -> ObjCreateSpec<B> {
+		ObjCreateSpec {
+			src: self.src,
+			ku: self.ku,
+			flags: self.flags,
+			base: SpecBaseType::Ctor(t),
+		}
+	}
+}
+
+impl<T: Copy> Copy for ObjCreateSpec<'_, T> {}
+impl<T: Clone> Clone for ObjCreateSpec<'_, T> {
+	fn clone(&self) -> Self {
+		ObjCreateSpec {
+			src: self.src,
+			ku: self.ku,
+			flags: self.flags,
+			base: self.base.clone(),
+		}
+	}
 }
 
 impl Twzobj {
@@ -165,10 +301,29 @@ impl Twzobj {
 		}
 	}
 
+	pub fn create_spec_ctor<T>(spec: &ObjCreateSpec<T>) -> Result<Twzobj, TwzErr> {
+		match &spec.base {
+			SpecBaseType::Ctor(t) => {
+				let obj = Twzobj::create::<()>(spec.flags, None, spec.ku, spec.src)?;
+				let b = unsafe { obj.base_unchecked_mut::<T>() };
+				t(&obj, b);
+				Ok(obj)
+			}
+			SpecBaseType::None => Twzobj::create::<T>(spec.flags, None, spec.ku, spec.src),
+			_ => Err(TwzErr::Invalid),
+		}
+	}
+
 	pub fn create_spec<T: Copy>(spec: &ObjCreateSpec<T>) -> Result<Twzobj, TwzErr> {
 		match &spec.base {
-			SpecBaseType::Base(t) => Twzobj::create::<T>(spec.flags, Some(*t), spec.kuid, spec.src),
-			SpecBaseType::None => Twzobj::create::<T>(spec.flags, None, spec.kuid, spec.src),
+			SpecBaseType::Base(t) => Twzobj::create::<T>(spec.flags, Some(*t), spec.ku, spec.src),
+			SpecBaseType::Ctor(t) => {
+				let obj = Twzobj::create::<()>(spec.flags, None, spec.ku, spec.src)?;
+				let b = unsafe { obj.base_unchecked_mut::<T>() };
+				t(&obj, b);
+				Ok(obj)
+			}
+			SpecBaseType::None => Twzobj::create::<T>(spec.flags, None, spec.ku, spec.src),
 		}
 	}
 
@@ -287,3 +442,5 @@ impl Twzobj {
 		}
 	}
 }
+
+*/
