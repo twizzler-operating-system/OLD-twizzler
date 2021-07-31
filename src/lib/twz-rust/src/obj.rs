@@ -22,7 +22,60 @@ pub fn objid_join(hi: i64, lo: i64) -> ObjID {
 	u128::from(lo as u64) | (u128::from(hi as u64)) << 64
 }
 
-pub struct CreateSpec {}
+crate::bitflags! {
+	pub struct CreateFlags: u64 {
+		const DflRead = 0x1;
+		const DflWrite = 0x2;
+		const DflExec = 0x4;
+		const DflUse = 0x8;
+		const DflDel = 0x10;
+		const HashData = 0x20;
+		const ZeroNonce = 0x40;
+	}
+}
+
+pub enum BackingType {
+	Normal = 0,
+}
+
+pub enum LifetimeType {
+	Volatile = 0,
+	Persistent = 1,
+}
+
+pub enum KuSpec {
+	None,
+	Obj(ObjID),
+}
+
+pub enum TieSpec {
+	None,
+	View,
+	Thread,
+	Sctx,
+	Obj(ObjID),
+}
+
+pub struct SrcSpec {
+	srcid: Option<ObjID>,
+	start: u64,
+	length: u64,
+}
+
+pub struct CreateSpec {
+	srcs: Vec<SrcSpec>,
+	ku: KuSpec,
+	lt: LifetimeType,
+	bt: BackingType,
+	ties: Vec<TieSpec>,
+	flags: CreateFlags,
+}
+
+impl CreateSpec {
+	pub fn new(lt: LifetimeType, bt: BackingType, flags: CreateFlags) -> CreateSpec {}
+	pub fn src(&self) -> CreateSpec {}
+	pub fn tie(&self) -> CreateSpec {}
+}
 
 crate::bitflags! {
 	pub struct ProtFlags: u32 {
@@ -72,6 +125,10 @@ impl<T> Twzobj<T> {
 		}
 	}
 
+	pub fn create_ctor(spec: &CreateSpec, ctor: &(dyn Fn(&Twzobj<T>, &mut std::mem::MaybeUninit<T>) + 'static)) {}
+
+	pub fn create_base_ctor(spec: &CreateSpec, base: T, ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static)) {}
+
 	pub fn base<'a>(&'a self, tx: Option<Transaction>) -> &'a T {
 		panic!("")
 	}
@@ -86,6 +143,10 @@ impl<T> Twzobj<T> {
 	) -> Result<O, TransactionErr<E>> {
 		panic!("")
 	}
+
+	pub fn lea<R>(&self, ptr: &Pptr<R>) -> &R {}
+
+	pub fn lea_mut<R>(&self, ptr: &Pptr<R>, tx: &Transaction) -> &mut R {}
 }
 
 /*
