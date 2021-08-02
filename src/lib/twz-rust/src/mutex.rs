@@ -40,7 +40,7 @@ impl<'a, T> TwzMutex<T> {
 			let r = crate::sys::kconf(crate::sys::KCONF_RDRESET, 0);
 			/* this code will always be the same within the same power cycle. We can afford a few
 			 * overwrites. */
-			RESET_CODE.store(r, Ordering::SeqCst);
+			RESET_CODE.store(r as u64, Ordering::SeqCst);
 		}
 
 		if self.resetcode.load(Ordering::SeqCst) != RESET_CODE.load(Ordering::SeqCst) {

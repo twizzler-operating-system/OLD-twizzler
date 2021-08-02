@@ -1,7 +1,7 @@
 use crate::bstream::BstreamHdr;
 use crate::io::TwzIOHdr;
 use twz::mutex::TwzMutex;
-use twz::obj::ObjCreateSpec;
+use twz::obj::CreateSpec;
 use twz::obj::Twzobj;
 use twz::ptr::Pptr;
 use twz::TwzErr;
@@ -78,7 +78,7 @@ impl Default for PtyBuffer {
 
 #[derive(Default, Clone)]
 #[repr(C)]
-struct PtyServerHdr {
+pub struct PtyServerHdr {
 	stoc: Pptr<BstreamHdr>,
 	ctos: Pptr<BstreamHdr>,
 	io: TwzIOHdr,
@@ -88,37 +88,38 @@ struct PtyServerHdr {
 }
 
 #[repr(C)]
-struct PtyClientHdr {
+pub struct PtyClientHdr {
 	server: Pptr<PtyServerHdr>,
 	io: TwzIOHdr,
 }
 
 pub fn create_pty_pair(
-	client_spec: &ObjCreateSpec<()>,
-	server_spec: &ObjCreateSpec<()>,
-) -> Result<(Twzobj, Twzobj), TwzErr> {
-	fn _init(obj: &Twzobj, base: &mut PtyServerHdr) {
-		base.stoc = Pptr::new_null();
-		base.ctos = Pptr::new_null();
-		base.io = TwzIOHdr::default();
-		base.termios = Termios::default();
-		base.wsz = WinSize::default();
-		base.buflock = TwzMutex::<PtyBuffer>::default();
-	}
+	client_spec: &CreateSpec,
+	server_spec: &CreateSpec,
+) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
+	/*
+		fn _init(obj: &Twzobj, base: &mut PtyServerHdr) {
+			base.stoc = Pptr::new_null();
+			base.ctos = Pptr::new_null();
+			base.io = TwzIOHdr::default();
+			base.termios = Termios::default();
+			base.wsz = WinSize::default();
+			base.buflock = TwzMutex::<PtyBuffer>::default();
+		}
 
-	fn _init_client(obj: &Twzobj, base: &mut PtyClientHdr) {
-		base.server = Pptr::new_null();
-		base.io = TwzIOHdr::default();
-	}
-	let server_spec = server_spec.clone_with_ctor(_init);
-	let server = Twzobj::create_spec_ctor(&server_spec)?;
+		fn _init_client(obj: &Twzobj, base: &mut PtyClientHdr) {
+			base.server = Pptr::new_null();
+			base.io = TwzIOHdr::default();
+		}
+		let server_spec = server_spec.clone_with_ctor(_init);
+		let server = Twzobj::create_spec_ctor(&server_spec)?;
 
-	let client_spec = client_spec.clone_with_ctor(_init_client);
-	let client = Twzobj::create_spec_ctor(&client_spec)?;
+		let client_spec = client_spec.clone_with_ctor(_init_client);
+		let client = Twzobj::create_spec_ctor(&client_spec)?;
 
-	let client_base = client.base_mut::<PtyClientHdr>(None);
-	let server_base = server.base_mut::<PtyServerHdr>(None);
-
+		let client_base = client.base_mut::<PtyClientHdr>(None);
+		let server_base = server.base_mut::<PtyServerHdr>(None);
+	*/
 	//server.move_item((),
 	panic!("")
 }

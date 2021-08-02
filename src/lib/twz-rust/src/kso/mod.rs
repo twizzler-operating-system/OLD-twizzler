@@ -1,3 +1,5 @@
+pub mod view;
+
 use crate::flexarray::{FlexArray, FlexArrayField};
 use crate::obj::{ObjID, Twzobj};
 use crate::TwzErr;
@@ -63,7 +65,7 @@ pub struct KSODirHdr {
 
 #[derive(Clone)]
 pub struct KSO {
-	pub(crate) obj: Twzobj,
+	pub(crate) obj: Twzobj<KSOHdr>,
 }
 
 pub struct KSOAttachIterator<'a> {
@@ -76,7 +78,9 @@ impl TryFrom<&KSOAttachment> for KSO {
 	type Error = TwzErr;
 	fn try_from(at: &KSOAttachment) -> Result<Self, Self::Error> {
 		if at.id != 0 {
-			Twzobj::init_guid(at.id).map(|i| KSO { obj: i })
+			Ok(KSO {
+				obj: Twzobj::init_guid(at.id, crate::obj::ProtFlags::Read),
+			})
 		} else {
 			Err(TwzErr::Invalid)
 		}
@@ -86,7 +90,7 @@ impl TryFrom<&KSOAttachment> for KSO {
 use std::convert::TryInto;
 impl KSO {
 	pub fn name(&self) -> &str {
-		let hdr = self.obj.base::<KSOHdr>();
+		let hdr = self.obj.base(None);
 		unsafe {
 			std::ffi::CStr::from_ptr(((&hdr.name) as *const u8) as *const i8)
 				.to_str()
@@ -95,14 +99,14 @@ impl KSO {
 	}
 
 	pub fn get_dir(&self) -> Option<&KSODirAttachments> {
-		let hdr = self.obj.base::<KSOHdr>();
+		let hdr = self.obj.base(None);
 		if hdr.dir_offset == 0 {
 			None
 		} else {
 			unsafe {
 				Some(
 					self.obj
-						.offset_lea::<KSODirAttachments>(crate::obj::OBJ_NULLPAGE_SIZE + hdr.dir_offset as u64),
+						.offset_lea::<KSODirAttachments>(crate::obj::NULLPAGE_SIZE + hdr.dir_offset as u64),
 				)
 			}
 		}
@@ -121,8 +125,10 @@ impl KSO {
 	}
 }
 
-pub fn get_root() -> Result<KSO, TwzErr> {
-	Twzobj::init_guid(KSO_ROOT_ID).map(|i| KSO { obj: i })
+pub fn get_root() -> KSO {
+	KSO {
+		obj: Twzobj::init_guid(KSO_ROOT_ID, crate::obj::ProtFlags::Read),
+	}
 }
 
 impl<'a> Iterator for KSOAttachIterator<'a> {
