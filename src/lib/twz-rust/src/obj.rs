@@ -2,6 +2,7 @@ pub const MAX_SIZE: u64 = 1 << 30;
 pub const NULLPAGE_SIZE: u64 = 0x1000;
 pub type ObjID = u128;
 
+#[derive(Clone)]
 pub struct Twzobj<T> {
 	id: ObjID,
 	slot: u64,
@@ -43,11 +44,13 @@ pub enum LifetimeType {
 	Persistent = 1,
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum KuSpec {
 	None,
 	Obj(ObjID),
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum TieSpec {
 	None,
 	View,
@@ -56,6 +59,7 @@ pub enum TieSpec {
 	Obj(ObjID),
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct SrcSpec {
 	srcid: Option<ObjID>,
 	start: u64,
@@ -72,9 +76,28 @@ pub struct CreateSpec {
 }
 
 impl CreateSpec {
-	pub fn new(lt: LifetimeType, bt: BackingType, flags: CreateFlags) -> CreateSpec {}
-	pub fn src(&self) -> CreateSpec {}
-	pub fn tie(&self) -> CreateSpec {}
+	pub fn new(lt: LifetimeType, bt: BackingType, flags: CreateFlags) -> CreateSpec {
+		CreateSpec {
+			srcs: vec![],
+			ku: KuSpec::None,
+			lt,
+			bt,
+			ties: vec![],
+			flags,
+		}
+	}
+	pub fn src(mut self, src: SrcSpec) -> CreateSpec {
+		self.srcs.push(src);
+		self
+	}
+	pub fn tie(mut self, tie: TieSpec) -> CreateSpec {
+		self.ties.push(tie);
+		self
+	}
+	pub fn ku(mut self, kuspec: KuSpec) -> CreateSpec {
+		self.ku = kuspec;
+		self
+	}
 }
 
 crate::bitflags! {
@@ -93,14 +116,24 @@ pub enum TransactionErr<E> {
 }
 
 use crate::name::NameError;
+use crate::ptr::Pptr;
 use crate::TwzErr;
 impl<T> Twzobj<T> {
 	pub fn id(&self) -> ObjID {
 		self.id
 	}
 
+	pub(crate) fn init_slot(id: ObjID, slot: u64) -> Twzobj<T> {
+		Twzobj {
+			id,
+			slot,
+			_pd: std::marker::PhantomData,
+		}
+	}
+
 	pub fn init_guid(id: ObjID, prot: ProtFlags) -> Twzobj<T> {
-		panic!("")
+		let slot = crate::kso::view::View::current().reserve_slot(id, prot);
+		Twzobj::init_slot(id, slot)
 	}
 
 	pub fn init_name(name: &str, prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
@@ -144,9 +177,17 @@ impl<T> Twzobj<T> {
 		panic!("")
 	}
 
-	pub fn lea<R>(&self, ptr: &Pptr<R>) -> &R {}
+	pub(crate) fn offset_lea<R>(&self, off: u64) -> &R {
+		panic!("")
+	}
 
-	pub fn lea_mut<R>(&self, ptr: &Pptr<R>, tx: &Transaction) -> &mut R {}
+	pub fn lea<R>(&self, ptr: &Pptr<R>) -> &R {
+		panic!("")
+	}
+
+	pub fn lea_mut<R>(&self, ptr: &Pptr<R>, tx: &Transaction) -> &mut R {
+		panic!("")
+	}
 }
 
 /*

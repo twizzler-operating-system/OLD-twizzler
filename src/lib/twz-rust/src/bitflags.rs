@@ -26,7 +26,7 @@ macro_rules! bitflags {
             /// Return set of all flags
             #[inline]
             pub const fn all() -> $name {
-                $($name::$flag)|+
+                $name { val: $($name::$flag.val)|+ }
             }
 
             /// Return empty set of flags

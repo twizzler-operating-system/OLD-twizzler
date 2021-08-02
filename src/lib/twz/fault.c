@@ -262,8 +262,17 @@ void _twz_try_unhandled(int fault, void *data)
 	twz_thread_exit(EXIT_CODE_FAULT(fault));
 }
 
+static void (*takeover_fault)(int, void *) = NULL;
+
+void twz_fault_runtime_fault_takeover(void (*fn)(int, void *))
+{
+	takeover_fault = fn;
+}
+
 void twz_fault_raise(int fault, void *data)
 {
+	if(takeover_fault)
+		return takeover_fault(fault, data);
 	void (*fn)(int, void *, void *) = atomic_load(&_fault_table[fault].fn);
 	void *userdata = _fault_table[fault].userdata;
 	if(fn) {
@@ -278,6 +287,8 @@ void twz_fault_raise(int fault, void *data)
 
 void twz_fault_raise_data(int fault, void *data, void *userdata)
 {
+	if(takeover_fault)
+		return takeover_fault(fault, data);
 	void (*fn)(int, void *, void *) = atomic_load(&_fault_table[fault].fn);
 	if(fn) {
 		fn(fault, data, userdata);

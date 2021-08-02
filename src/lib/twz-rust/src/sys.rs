@@ -1,36 +1,28 @@
+use crate::arch::sys::raw_syscall;
+use crate::obj::{objid_split, ObjID};
+
 const SYS_ATTACH: i64 = 4;
 const SYS_BECOME: i64 = 6;
 const SYS_THREAD_SYNC: i64 = 7;
 const SYS_KCONF: i64 = 14;
+const SYS_THRD_CTL: i64 = 10;
 
-pub unsafe fn attach(pid: u128, cid: u128, flags: i32, ty: i32) -> i64 {
-	let mut num = SYS_ATTACH;
-	let sf: u64 = (ty & 0xffff) as u64 | (flags as u64) << 32;
-	asm!("syscall",
-         inout("rax") num,
-         in("rdi") (pid & 0xffffffffffffffff) as u64,
-         in("rsi") ((pid >> 64) & 0xffffffffffffffff) as u64,
-         in("rdx") (cid & 0xffffffffffffffff) as u64,
-         in("r8") ((cid >> 64) & 0xffffffffffffffff) as u64,
-         in("r9") sf,
-         out("r11") _,
-         out("rcx") _);
-	num as i64
+pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
+pub fn thrd_ctl(op: i32, arg: u64) -> i64 {
+	unsafe { raw_syscall(SYS_THRD_CTL, op as u64, arg, 0, 0, 0, 0) }
+}
+
+pub fn attach(pid: ObjID, cid: ObjID, flags: i32, ty: i32) -> i64 {
+	let (pid_hi, pid_lo) = objid_split(pid);
+	let (cid_hi, cid_lo) = objid_split(cid);
+	let sf = (ty & 0xffff) as u64 | (flags as u64) << 32;
+	unsafe { raw_syscall(SYS_ATTACH, pid_lo, pid_hi, cid_lo, cid_hi, sf, 0) }
 }
 
 pub const KCONF_RDRESET: u64 = 1;
 pub const KCONF_ARCH_TSC_PSPERIOD: u64 = 1001;
-pub fn kconf(cmd: u64, arg: u64) -> u64 {
-	let mut num = SYS_KCONF;
-	unsafe {
-		asm!("syscall",
-         inout("rax") num,
-         in("rdi") cmd,
-         in("rsi") arg,
-         out("r11") _,
-         out("rcx") _);
-	}
-	num as u64
+pub fn kconf(cmd: u64, arg: u64) -> i64 {
+	unsafe { raw_syscall(SYS_KCONF, cmd, arg, 0, 0, 0, 0) }
 }
 
 #[allow(dead_code)]
@@ -85,17 +77,22 @@ impl From<std::time::Duration> for KernelTimeSpec {
 pub fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Duration>) -> i64 {
 	let timespec: Option<KernelTimeSpec> = timeout.map(|t| t.into());
 
-	let mut num = SYS_THREAD_SYNC;
+	let to = if let Some(timespec) = timespec {
+		(&timespec) as *const KernelTimeSpec
+	} else {
+		std::ptr::null()
+	};
 	unsafe {
-		asm!("syscall",
-         inout("rax") num,
-         in("rdi") specs.len(),
-         in("rsi") specs.as_ptr(),
-         in("rdx") if let Some(timespec) = timespec { (&timespec) as *const KernelTimeSpec } else { std::ptr::null() },
-         out("r11") _,
-         out("rcx") _);
+		raw_syscall(
+			SYS_THREAD_SYNC,
+			specs.len() as u64,
+			specs.as_ptr() as u64,
+			to as u64,
+			0,
+			0,
+			0,
+		)
 	}
-	num as i64
 }
 
 #[derive(Default)]
@@ -122,6 +119,7 @@ pub struct BecomeArgs {
 	pub sctx_hint: u128,
 }
 
+/* TODO: move this to arch-specific */
 pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<BecomeArgs, i64> {
 	let mut num: i64 = SYS_BECOME;
 	let mut rdi = std::mem::transmute::<*const BecomeArgs, i64>(args);

@@ -19,11 +19,11 @@ pub mod sys;
 
 //pub mod bstream;
 //pub mod device;
-//pub mod kso;
+pub mod kso;
 //pub mod log;
-//pub mod mutex;
+pub mod mutex;
 //pub mod pslice;
-//pub mod thread;
+pub mod thread;
 //pub mod vec;
 
 #[no_mangle]
