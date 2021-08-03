@@ -70,7 +70,10 @@ __noinstrument void x86_64_exception_entry(struct x86_64_exception_frame *frame,
 			if(!was_userspace) {
 				panic("floating-point operations used in kernel-space");
 			}
-			panic("NI - FP exception");
+			struct fault_exception_info info =
+			  twz_fault_build_exception_info((void *)frame->rip, frame->int_no, frame->err_code, 0);
+			thread_raise_fault(current_thread, FAULT_EXCEPTION, &info, sizeof(info));
+
 		} else if(frame->int_no == 14) {
 			/* page fault */
 			uint64_t cr2;

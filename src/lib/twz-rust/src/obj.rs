@@ -4,16 +4,20 @@ pub const MAX_SIZE: u64 = 1 << 30;
 pub const NULLPAGE_SIZE: u64 = 0x1000;
 pub type ObjID = u128;
 
+const ALLOCATED: i32 = 1;
 #[derive(Clone)]
 pub struct Twzobj<T> {
 	id: ObjID,
 	slot: u64,
+	flags: i32,
 	_pd: std::marker::PhantomData<T>,
 }
 
 impl<T> Drop for Twzobj<T> {
 	fn drop(&mut self) {
-		View::current().release_slot(self.slot);
+		if self.flags & ALLOCATED != 0 {
+			View::current().release_slot(self.slot);
+		}
 	}
 }
 
@@ -69,12 +73,12 @@ pub struct SrcSpec {
 }
 
 pub struct CreateSpec {
-	srcs: Vec<SrcSpec>,
-	ku: KuSpec,
-	lt: LifetimeType,
-	bt: BackingType,
-	ties: Vec<TieSpec>,
-	flags: CreateFlags,
+	pub(crate) srcs: Vec<SrcSpec>,
+	pub(crate) ku: KuSpec,
+	pub(crate) lt: LifetimeType,
+	pub(crate) bt: BackingType,
+	pub(crate) ties: Vec<TieSpec>,
+	pub(crate) flags: CreateFlags,
 }
 
 impl CreateSpec {
@@ -128,17 +132,19 @@ impl<T> Twzobj<T> {
 		self.id = id;
 	}
 
-	pub(crate) fn init_slot(id: ObjID, slot: u64) -> Twzobj<T> {
+	pub(crate) fn init_slot(id: ObjID, slot: u64, allocated: bool) -> Twzobj<T> {
+		let flags = if allocated { ALLOCATED } else { 0 };
 		Twzobj {
 			id,
 			slot,
+			flags,
 			_pd: std::marker::PhantomData,
 		}
 	}
 
 	pub fn init_guid(id: ObjID, prot: ProtFlags) -> Twzobj<T> {
 		let slot = crate::kso::view::View::current().reserve_slot(id, prot);
-		Twzobj::init_slot(id, slot)
+		Twzobj::init_slot(id, slot, true)
 	}
 
 	pub fn init_name(_name: &str, _prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
@@ -147,6 +153,10 @@ impl<T> Twzobj<T> {
 
 	pub(crate) unsafe fn base_unchecked_mut(&self) -> &mut T {
 		std::mem::transmute::<u64, &mut T>(self.slot * MAX_SIZE + NULLPAGE_SIZE)
+	}
+
+	fn base_unchecked_mut_uninit(&self) -> &mut std::mem::MaybeUninit<T> {
+		unsafe { std::mem::transmute::<u64, &mut std::mem::MaybeUninit<T>>(self.slot * MAX_SIZE + NULLPAGE_SIZE) }
 	}
 
 	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
@@ -163,9 +173,31 @@ impl<T> Twzobj<T> {
 		}
 	}
 
-	pub fn create_ctor(_spec: &CreateSpec, _ctor: &(dyn Fn(&Twzobj<T>, &mut std::mem::MaybeUninit<T>) + 'static)) {}
+	pub fn create_ctor(
+		spec: &CreateSpec,
+		ctor: &(dyn Fn(&Twzobj<T>, &mut std::mem::MaybeUninit<T>) + 'static),
+	) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut_uninit();
+			ctor(&obj, ob);
+			Ok(obj)
+		}
+	}
 
-	pub fn create_base_ctor(_spec: &CreateSpec, _base: T, _ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static)) {}
+	pub fn create_base_ctor(
+		spec: &CreateSpec,
+		base: T,
+		ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static),
+	) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut();
+			(ob as *mut T).write(base);
+			ctor(&obj, ob);
+			Ok(obj)
+		}
+	}
 
 	pub fn base<'a>(&'a self, tx: Option<Transaction>) -> &'a T {
 		if let Some(_tx) = tx {
