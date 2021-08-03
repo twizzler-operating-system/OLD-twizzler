@@ -1,3 +1,5 @@
+use crate::kso::view::{View, ViewFlags};
+
 pub const MAX_SIZE: u64 = 1 << 30;
 pub const NULLPAGE_SIZE: u64 = 0x1000;
 pub type ObjID = u128;
@@ -11,7 +13,7 @@ pub struct Twzobj<T> {
 
 impl<T> Drop for Twzobj<T> {
 	fn drop(&mut self) {
-		/* TODO: release slot */
+		View::current().release_slot(self.slot);
 	}
 }
 
@@ -25,13 +27,13 @@ pub fn objid_join(hi: i64, lo: i64) -> ObjID {
 
 crate::bitflags! {
 	pub struct CreateFlags: u64 {
-		const DflRead = 0x1;
-		const DflWrite = 0x2;
-		const DflExec = 0x4;
-		const DflUse = 0x8;
-		const DflDel = 0x10;
-		const HashData = 0x20;
-		const ZeroNonce = 0x40;
+		const HASH_DATA = 0x1;
+		const DFL_READ = 0x4;
+		const DFL_WRITE = 0x8;
+		const DFL_EXEC = 0x10;
+		const DFL_USE = 0x20;
+		const DFL_DEL = 0x40;
+		const ZERO_NONCE = 0x1000;
 	}
 }
 
@@ -102,10 +104,9 @@ impl CreateSpec {
 
 crate::bitflags! {
 	pub struct ProtFlags: u32 {
-		/* TODO: match these to view stuff */
-		const Read = 0x1;
-		const Write = 0x2;
-		const Execute = 0x4;
+		const READ = ViewFlags::READ.bits();
+		const WRITE = ViewFlags::WRITE.bits();
+		const EXEC = ViewFlags::EXEC.bits();
 	}
 }
 
@@ -123,6 +124,10 @@ impl<T> Twzobj<T> {
 		self.id
 	}
 
+	pub(crate) fn set_id(&mut self, id: ObjID) {
+		self.id = id;
+	}
+
 	pub(crate) fn init_slot(id: ObjID, slot: u64) -> Twzobj<T> {
 		Twzobj {
 			id,
@@ -136,16 +141,16 @@ impl<T> Twzobj<T> {
 		Twzobj::init_slot(id, slot)
 	}
 
-	pub fn init_name(name: &str, prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
+	pub fn init_name(_name: &str, _prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
 		panic!("")
 	}
 
-	unsafe fn base_unchecked_mut(&self) -> &mut T {
-		panic!("")
+	pub(crate) unsafe fn base_unchecked_mut(&self) -> &mut T {
+		std::mem::transmute::<u64, &mut T>(self.slot * MAX_SIZE + NULLPAGE_SIZE)
 	}
 
 	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
-	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
+	unsafe fn internal_create(_spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
 		panic!("")
 	}
 
@@ -158,34 +163,39 @@ impl<T> Twzobj<T> {
 		}
 	}
 
-	pub fn create_ctor(spec: &CreateSpec, ctor: &(dyn Fn(&Twzobj<T>, &mut std::mem::MaybeUninit<T>) + 'static)) {}
+	pub fn create_ctor(_spec: &CreateSpec, _ctor: &(dyn Fn(&Twzobj<T>, &mut std::mem::MaybeUninit<T>) + 'static)) {}
 
-	pub fn create_base_ctor(spec: &CreateSpec, base: T, ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static)) {}
+	pub fn create_base_ctor(_spec: &CreateSpec, _base: T, _ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static)) {}
 
 	pub fn base<'a>(&'a self, tx: Option<Transaction>) -> &'a T {
-		panic!("")
+		if let Some(_tx) = tx {
+			panic!("")
+		} else {
+			/* TODO: check log */
+			unsafe { self.base_unchecked_mut() }
+		}
 	}
 
-	pub fn base_mut<'a>(&'a self, tx: Transaction) -> &'a T {
+	pub fn base_mut<'a>(&'a self, _tx: Transaction) -> &'a T {
 		panic!("")
 	}
 
 	pub fn transaction<O, E>(
 		&self,
-		f: &(dyn Fn(Transaction) -> Result<O, E> + 'static),
+		_f: &(dyn Fn(Transaction) -> Result<O, E> + 'static),
 	) -> Result<O, TransactionErr<E>> {
 		panic!("")
 	}
 
-	pub(crate) fn offset_lea<R>(&self, off: u64) -> &R {
+	pub(crate) unsafe fn offset_lea<R>(&self, _off: u64) -> &R {
 		panic!("")
 	}
 
-	pub fn lea<R>(&self, ptr: &Pptr<R>) -> &R {
+	pub fn lea<R>(&self, _ptr: &Pptr<R>) -> &R {
 		panic!("")
 	}
 
-	pub fn lea_mut<R>(&self, ptr: &Pptr<R>, tx: &Transaction) -> &mut R {
+	pub fn lea_mut<R>(&self, _ptr: &Pptr<R>, _tx: &Transaction) -> &mut R {
 		panic!("")
 	}
 }

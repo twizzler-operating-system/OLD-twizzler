@@ -119,7 +119,7 @@ static void _twz_default_exception_handler(int fault, void *data)
 static void __twz_fault_unhandled(struct fault_fault_info *info, struct fault_frame *frame)
 {
 	struct twzthread_repr *repr = twz_thread_repr_base();
-	PRINT("\e[1;31munhandled fault\e[0;1m: \e[1;35m%s\e[0;1m in thread " IDFMT " (%s)\e[0m\n",
+	PRINT("\e[1;31mUnhandled Fault\e[0;1m: \e[1;35m%s\e[0;1m in thread " IDFMT " (%s)\e[0m\n",
 	  fault_names[info->fault_nr],
 	  IDPR(repr->reprid),
 	  repr->hdr.name);

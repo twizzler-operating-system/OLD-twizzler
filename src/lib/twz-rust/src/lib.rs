@@ -1,5 +1,6 @@
 #![feature(asm)]
 #![feature(naked_functions)]
+#![allow(dead_code)]
 
 mod bitflags;
 
@@ -26,6 +27,8 @@ pub mod mutex;
 pub mod thread;
 //pub mod vec;
 
+pub fn use_runtime() {}
+
 #[no_mangle]
 pub extern "C" fn __twz_libtwz_runtime_init() {
 	fault::__twz_fault_runtime_init();
@@ -46,10 +49,4 @@ pub enum TwzErr {
 	OutOfSlots,
 }
 
-#[cfg(test)]
-mod tests {
-	#[test]
-	fn it_works() {
-		assert_eq!(2 + 2, 4);
-	}
-}
+pub fn foo() {}

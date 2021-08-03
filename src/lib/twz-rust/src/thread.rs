@@ -36,7 +36,7 @@ impl TwzThread {
 	pub fn repr_obj(&self) -> Twzobj<ThreadRepr> {
 		Twzobj::init_guid(
 			self.repr().reprid,
-			crate::obj::ProtFlags::Read | crate::obj::ProtFlags::Write,
+			crate::obj::ProtFlags::READ | crate::obj::ProtFlags::WRITE,
 		)
 	}
 }

@@ -80,9 +80,7 @@ impl<'a, T> TwzMutex<T> {
 		/* actually sleep for the lock */
 		let mut ts = vec![ThreadSyncArgs::new_sleep(&self.sleep, 2)];
 		while v != 0 {
-			unsafe {
-				thread_sync(&mut ts, None);
-			}
+			thread_sync(&mut ts, None);
 
 			v = self.sleep.swap(2, Ordering::SeqCst);
 		}
@@ -102,9 +100,7 @@ impl<'a, T> TwzMutex<T> {
 		}
 
 		let mut ts = vec![ThreadSyncArgs::new_wake(&self.sleep, 1)];
-		unsafe {
-			thread_sync(&mut ts, None);
-		}
+		thread_sync(&mut ts, None);
 	}
 }
 
