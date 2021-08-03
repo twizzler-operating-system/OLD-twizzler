@@ -300,6 +300,7 @@ extern "C" {
 }
 
 pub(crate) fn __twz_fault_runtime_init() {
+	println!("INIT RUNTIME");
 	unsafe {
 		/* tell libtwz to call us for all of these faults */
 		twz_fault_runtime_fault_takeover(__twz_fault_handler);

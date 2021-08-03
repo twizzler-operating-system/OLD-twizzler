@@ -79,7 +79,7 @@ impl TryFrom<&KSOAttachment> for KSO {
 	fn try_from(at: &KSOAttachment) -> Result<Self, Self::Error> {
 		if at.id != 0 {
 			Ok(KSO {
-				obj: Twzobj::init_guid(at.id, crate::obj::ProtFlags::Read),
+				obj: Twzobj::init_guid(at.id, crate::obj::ProtFlags::READ),
 			})
 		} else {
 			Err(TwzErr::Invalid)
@@ -127,7 +127,7 @@ impl KSO {
 
 pub fn get_root() -> KSO {
 	KSO {
-		obj: Twzobj::init_guid(KSO_ROOT_ID, crate::obj::ProtFlags::Read),
+		obj: Twzobj::init_guid(KSO_ROOT_ID, crate::obj::ProtFlags::READ),
 	}
 }
 

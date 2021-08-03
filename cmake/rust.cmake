@@ -23,7 +23,7 @@ install(CODE "execute_process(WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/${pa
 	\"RUSTC=${TOOLCHAIN_DIR}/bin/rustc\" \
 	\"RUSTFLAGS=--target=${TWIZZLER_TRIPLE} -C linker=${TOOLCHAIN_DIR}/bin/clang -C link-arg=--sysroot=${SYSROOT_DIR}\" \
 	\"CARGO_INSTALL_ROOT=${SYSROOT_DIR}/usr\" \
-	cargo install --path .)"
+	cargo install --path . --color=always)"
 )
 
 endfunction()

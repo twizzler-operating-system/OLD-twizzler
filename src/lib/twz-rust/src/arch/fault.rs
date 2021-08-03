@@ -1,5 +1,5 @@
 #[repr(C)]
-struct FaultFrame {
+pub struct FaultFrame {
 	flags: u64,
 	pad: u64,
 	r15: u64,
@@ -21,10 +21,19 @@ struct FaultFrame {
 }
 
 #[no_mangle]
-fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _frame: FaultFrame) {
+#[link_section = ".text.keep"]
+pub fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _frame: FaultFrame) {
 	crate::fault::__twz_fault_handler(fid, info);
 }
 
+#[used]
+pub static UPCALL_KEEP: extern "C" fn() = __twz_fault_upcall_entry;
+
+#[used]
+pub static UPCALL_KEEP2: fn(i32, *mut std::ffi::c_void, FaultFrame) = __twz_fault_upcall_entry_rust;
+
+#[link_section = ".text.keep"]
+#[no_mangle]
 #[naked]
 pub extern "C" fn __twz_fault_upcall_entry() {
 	unsafe {

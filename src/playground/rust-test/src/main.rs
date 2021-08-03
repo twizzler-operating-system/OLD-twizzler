@@ -1,6 +1,6 @@
 #![feature(asm)]
 
-use twz;
+extern crate twz;
 
 extern "C" fn foo() {
 	unsafe {
@@ -9,6 +9,7 @@ extern "C" fn foo() {
 }
 
 fn main() {
+	twz::use_runtime();
 	foo();
 	panic!("Hello");
 }
