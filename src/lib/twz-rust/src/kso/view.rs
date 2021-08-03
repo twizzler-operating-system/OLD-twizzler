@@ -58,7 +58,7 @@ const TWZSLOT_CVIEW: u64 = 0x1fff0;
 impl View {
 	pub(crate) fn current() -> View {
 		let mut view = View {
-			obj: Twzobj::init_slot(0 /*TODO: get ID */, TWZSLOT_CVIEW),
+			obj: Twzobj::init_slot(0 /*TODO: get ID */, TWZSLOT_CVIEW, false),
 		};
 		let hdr = view.obj.base(None);
 		let entry = &hdr.entries[TWZSLOT_CVIEW as usize];
