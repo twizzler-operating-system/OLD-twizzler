@@ -10,13 +10,14 @@ pub struct Twzobj<T> {
 	id: ObjID,
 	slot: u64,
 	flags: i32,
+	prot: ProtFlags,
 	_pd: std::marker::PhantomData<T>,
 }
 
 impl<T> Drop for Twzobj<T> {
 	fn drop(&mut self) {
 		if self.flags & ALLOCATED != 0 {
-			View::current().release_slot(self.slot);
+			View::current().release_slot(self.id, self.prot, self.slot);
 		}
 	}
 }
@@ -132,19 +133,20 @@ impl<T> Twzobj<T> {
 		self.id = id;
 	}
 
-	pub(crate) fn init_slot(id: ObjID, slot: u64, allocated: bool) -> Twzobj<T> {
+	pub(crate) fn init_slot(id: ObjID, prot: ProtFlags, slot: u64, allocated: bool) -> Twzobj<T> {
 		let flags = if allocated { ALLOCATED } else { 0 };
 		Twzobj {
 			id,
 			slot,
 			flags,
+			prot,
 			_pd: std::marker::PhantomData,
 		}
 	}
 
 	pub fn init_guid(id: ObjID, prot: ProtFlags) -> Twzobj<T> {
 		let slot = crate::kso::view::View::current().reserve_slot(id, prot);
-		Twzobj::init_slot(id, slot, true)
+		Twzobj::init_slot(id, prot, slot, true)
 	}
 
 	pub fn init_name(_name: &str, _prot: ProtFlags) -> Result<Twzobj<T>, NameError> {
