@@ -98,6 +98,7 @@ struct twix_conn *get_twix_conn(void)
 	asm volatile("rdgsbase %0" : "=r"(gs)::"memory");
 
 	uint32_t id = gs & (OBJ_MAXSIZE - 1);
+	debug_printf("get_twix_conn id = %d\n", id);
 
 	if(conn_obj_init == false) {
 		if(atomic_exchange(&conn_obj_lock, 1) == 0) {
@@ -310,7 +311,7 @@ void resetup_queue(long is_thread)
 		abort();
 	}
 
-	// twix_log("reopen! " IDFMT "\n", IDPR(qid));
+	twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
 	// objid_t stateid;
 	// if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE, 0, 0, &stateid))
@@ -359,6 +360,7 @@ static bool setup_queue(void)
 			return false;
 		}
 		int r = twix_open_queue(&userver.api, 0, &qid, &bid);
+		debug_printf(":: %x\n", r);
 		if(r) {
 			return false;
 		}

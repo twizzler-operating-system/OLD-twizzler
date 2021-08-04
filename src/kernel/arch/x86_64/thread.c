@@ -168,7 +168,8 @@ void arch_thread_become(struct arch_syscall_become_args *ba,
 
 		current_thread->arch.exception.rip = ba->target_rip;
 	}
-	current_thread->arch.gs = ba->gs;
+	if(!noupdate)
+		current_thread->arch.gs = ba->gs;
 }
 
 int arch_syscall_thrd_ctl(int op, long arg)

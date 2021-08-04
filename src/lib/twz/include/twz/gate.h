@@ -13,6 +13,7 @@ extern "C" {
 #define TWZ_GATE_SIZE 64
 
 extern void libtwz_gate_return(long);
+extern void libtwz_entry_setup();
 extern void *__twz_secapi_nextstack;
 
 __attribute__((weak)) extern void *__twz_secapi_nextstack;
@@ -31,6 +32,7 @@ __attribute__((used)) static void **__nextstack_binding = &__twz_secapi_nextstac
 	        "lock xchgq (%rax), %rsp;"                                                             \
 	        "test %rsp, %rsp;\n"                                                                   \
 	        "jz __twz_gate_" #fn "\n"                                                              \
+	        "call libtwzsec_entry_setup\n"                                                         \
 	        "movabs $" #fn ", %rax\n"                                                              \
 	        "call *%rax\n"                                                                         \
 	        "movq %rax, %rdi\n"                                                                    \

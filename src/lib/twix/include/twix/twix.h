@@ -14,7 +14,6 @@ static inline int twix_open_queue(struct secure_api *api, int flags, objid_t *_q
 	size_t ctx = 0;
 	long rets[4];
 	int r = twz_secure_api_call1(api, TWIX_GATE_OPEN_QUEUE, rets, flags);
-	if(r) return r;
 	if(rets[1] == 0)
 		return rets[0];
 	*_qid = MKID(rets[0], rets[1]);

@@ -24,6 +24,29 @@
 __attribute__((visibility("protected"))) void *__twz_secapi_nextstack = NULL;
 __attribute__((used)) static void *__twz_secapi_nextstack_backup = NULL;
 
+void libtwzsec_entry_setup_c()
+{
+}
+
+__asm__(".global libtwzsec_entry_setup;\n"
+        "libtwzsec_entry_setup:\n"
+        "push %rbp\n"
+        "push %rdi\n"
+        "push %rsi\n"
+        "push %rdx\n"
+        "push %rcx\n"
+        "push %r8\n"
+        "push %r9\n"
+        "call libtwzsec_entry_setup_c\n"
+        "pop %r9\n"
+        "pop %r8\n"
+        "pop %rcx\n"
+        "pop %rdx\n"
+        "pop %rsi\n"
+        "pop %rdi\n"
+        "pop %rbp\n"
+        "ret");
+
 __asm__(".global libtwzsec_gate_return;\n"
         "libtwzsec_gate_return:\n"
         "lea __twz_secapi_nextstack_backup(%rip), %r12\n"
@@ -49,10 +72,12 @@ __asm__(".global libtwzsec_gate_return_multiple;\n"
         "lea __twz_secapi_nextstack(%rip), %r12\n"
         "movq %rax, (%r12)\n"
         "mfence\n"
-		"movq %rcx, %r9\n"
-		"movq %rdx, %r8\n"
-		"movq %rsi, %rdx\n"
-        "movq %rdi, %rsi\n"
+        "movq %rcx, %r10\n"
+        "movq %rdx, %r9\n"
+        "movq %rsi, %r8\n"
+        "movq %rdi, %rdx\n"
+        "xorq %rdi, %rdi\n"
+        "xorq %rsi, %rsi\n"
         "movq $6, %rax\n"
         "syscall\nud2");
 

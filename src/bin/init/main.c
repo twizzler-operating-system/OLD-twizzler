@@ -227,16 +227,17 @@ int main()
 	debug_printf("trying open connection to unix server\n");
 	while(1) {
 		usleep(10000);
-		// debug_printf("trying...\n");
+		debug_printf("trying...\n");
 		if(twix_force_v2_retry())
 			break;
+		debug_printf("failed...\n");
 	}
 	debug_printf("opened!\n");
 
-	if(!fork()) {
-		debug_printf("Hello from forked process\n");
-		exit(0);
-	}
+	// if(!fork()) {
+	//	debug_printf("Hello from forked process\n");
+	//	exit(0);
+	//}
 
 	pthread_t thread;
 	pthread_create(&thread, NULL, tm_1, NULL);

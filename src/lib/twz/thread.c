@@ -42,7 +42,14 @@ struct twzthread_repr *twz_thread_repr_base(void)
 	uint64_t a;
 	asm volatile("rdgsbase %%rax" : "=a"(a));
 	if(!a) {
-		libtwz_panic("could not find twz_thread_repr_base %p", __builtin_return_address(0));
+		objid_t id;
+		sys_thrd_ctl(THRD_CTL_GET_ID, (long)&id);
+		twzobj obj;
+		twz_object_init_guid(&obj, id, FE_READ | FE_WRITE);
+		uint64_t addr = (uint64_t)twz_object_base(&obj);
+		a = addr - OBJ_NULLPAGE_SIZE;
+		asm volatile("wrgsbase %%rax" : "=a"(a));
+		// libtwz_panic("could not find twz_thread_repr_base %p", __builtin_return_address(0));
 	}
 	a &= ~(OBJ_MAXSIZE - 1);
 	return (struct twzthread_repr *)(a + OBJ_NULLPAGE_SIZE);

@@ -122,6 +122,7 @@ struct sys_thrd_spawn_args {
 #define THRD_CTL_SET_IOPL 3
 #define THRD_CTL_EXIT 0x100
 #define THRD_CTL_YIELD 0x101
+#define THRD_CTL_GET_ID 0x102
 
 #define KACTION_VALID 1
 

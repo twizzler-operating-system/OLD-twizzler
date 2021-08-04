@@ -266,10 +266,10 @@ std::mutex handlers_lock;
 extern "C" {
 DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 {
-	asm volatile("wrgsbase %0" ::"r"(TWZSLOT_THRD * OBJ_MAXSIZE));
-	uint64_t a;
-	asm volatile("rdgsbase %%rax" : "=a"(a));
-	debug_printf("SAPI ENTRY %lx\n", a);
+	// asm volatile("wrgsbase %0" ::"r"(TWZSLOT_THRD * OBJ_MAXSIZE));
+	// uint64_t a;
+	// asm volatile("rdgsbase %%rax" : "=a"(a));
+	// debug_printf("SAPI ENTRY %lx\n", a);
 	(void)flags;
 	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
@@ -288,12 +288,14 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 	objid_t qid = twz_object_guid(&client->queue);
 	objid_t bid = twz_object_guid(&client->buffer);
 
+	debug_printf("RETURN QB: " IDFMT " " IDFMT "\n", IDPR(qid), IDPR(bid));
+
 	long r0 = ID_HI(qid);
 	long r1 = ID_LO(qid);
 	long r2 = ID_HI(bid);
 	long r3 = ID_LO(bid);
 
-	debug_printf("return %x %x :: %x %x\n", r0, r1, r2, r3);
+	// debug_printf("return %x %x :: %x %x\n", r0, r1, r2, r3);
 	twz_secure_api_return_multiple(r0, r1, r2, r3);
 
 	return 0;

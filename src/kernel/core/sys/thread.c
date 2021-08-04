@@ -195,6 +195,12 @@ long syscall_thrd_ctl(int op, long arg)
 		case THRD_CTL_YIELD:
 			current_thread->timeslice_expire = 0;
 			break;
+		case THRD_CTL_GET_ID: {
+			objid_t *id = (objid_t *)arg;
+			if(id && verify_user_pointer(id, sizeof(void *))) {
+				*id = current_thread->thrid;
+			}
+		} break;
 		default:
 			ret = -EINVAL;
 	}
@@ -244,6 +250,7 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 {
 	long extra_args[] = { 4, a1, a2, a3, a4 };
 	if(_ba == NULL) {
+		printk("%lx %lx %lx %lx\n", a1, a2, a3, a4);
 		return __syscall_become_return(a0, extra_args);
 	}
 	if(!verify_user_pointer(_ba, sizeof(*_ba))) {
