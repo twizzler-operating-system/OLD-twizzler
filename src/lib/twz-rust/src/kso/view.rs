@@ -175,6 +175,10 @@ impl View {
 		view
 	}
 
+	pub(crate) fn id(&self) -> ObjID {
+		self.obj.id()
+	}
+
 	pub(crate) fn set_entry(&mut self, slot: usize, id: ObjID, mut flags: ViewFlags) {
 		let hdr = unsafe { self.obj.base_unchecked_mut() };
 		let entry = &mut hdr.entries[slot];
