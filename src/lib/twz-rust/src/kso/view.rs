@@ -1,5 +1,7 @@
 use crate::kso::KSOHdr;
-use crate::obj::{ObjID, ProtFlags, Twzobj};
+use crate::obj::{ObjID, ProtFlags, Twzobj, MAX_SIZE};
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
 
 const NR_VIEW_ENTRIES: usize = 0x20000;
 const NR_VIEW_BUCKETS: usize = 1024;
@@ -13,11 +15,19 @@ crate::bitflags! {
 	}
 }
 
+impl From<ProtFlags> for ViewFlags {
+	fn from(v: ProtFlags) -> ViewFlags {
+		ViewFlags {
+			val: ViewFlags::all().bits() & v.bits(),
+		}
+	}
+}
+
 #[repr(C)]
 struct ViewEntry {
 	id: ObjID,
 	res0: u64,
-	flags: u32,
+	flags: AtomicU32,
 	res1: u32,
 }
 
@@ -165,21 +175,47 @@ impl View {
 		view
 	}
 
-	pub(crate) fn set_entry(entry: usize, id: ObjID, flags: ViewFlags) {
-		panic!("")
+	pub(crate) fn set_entry(&mut self, slot: usize, id: ObjID, mut flags: ViewFlags) {
+		let hdr = unsafe { self.obj.base_unchecked_mut() };
+		let entry = &mut hdr.entries[slot];
+		let old = entry.flags.fetch_and(!ViewFlags::VALID.bits(), Ordering::SeqCst);
+		entry.id = id;
+		entry.res0 = 0;
+		entry.res1 = 0;
+		if flags.contains_any(ViewFlags::WRITE) {
+			flags = flags & !ViewFlags::EXEC;
+		}
+		entry
+			.flags
+			.store(flags.bits() | ViewFlags::VALID.bits(), Ordering::SeqCst);
+
+		if old & ViewFlags::VALID.bits() != 0 {
+			let invl = crate::sys::InvalidateOp::new_current(
+				crate::sys::InvalidateCurrent::View,
+				slot as u64 * MAX_SIZE,
+				MAX_SIZE as u32,
+			);
+			crate::sys::invalidate(&mut [invl]);
+		}
 	}
 
-	pub(crate) fn reserve_slot(&self, id: ObjID, prot: ProtFlags) -> u64 {
-		let allocator = &mut *unsafe { self.obj.base_unchecked_mut() }.lock.lock();
-		let bucket = lookup_bucket(allocator, id, prot.bits());
-		if let Some(bucket) = bucket {
-			bucket.refs += 1;
-			return bucket.slot as u64;
-		} else {
-			let slot = alloc_slot(allocator);
-			insert_obj(allocator, id, prot.bits(), slot);
-			return slot as u64;
+	pub(crate) fn reserve_slot(&mut self, id: ObjID, prot: ProtFlags) -> u64 {
+		let (new, slot) = {
+			let allocator = &mut *unsafe { self.obj.base_unchecked_mut() }.lock.lock();
+			let bucket = lookup_bucket(allocator, id, prot.bits());
+			if let Some(bucket) = bucket {
+				bucket.refs += 1;
+				(false, bucket.slot as u64)
+			} else {
+				let slot = alloc_slot(allocator);
+				insert_obj(allocator, id, prot.bits(), slot);
+				(true, slot as u64)
+			}
+		};
+		if new {
+			self.set_entry(slot as usize, id, prot.into());
 		}
+		return slot;
 	}
 
 	pub(crate) fn release_slot(&self, id: ObjID, prot: ProtFlags, slot: u64) {

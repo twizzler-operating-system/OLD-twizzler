@@ -71,6 +71,15 @@ macro_rules! bitflags {
                 $name { val: self.val & other.val }
             }
         }
+
+        impl core::ops::Not for $name {
+            type Output = $name;
+
+            /// Returns the complement of a bitflag
+            fn not(self) -> $name {
+                $name { val: ( !(0 as $T) & $name::all().bits() ) }
+            }
+        }
     };
     () => {};
 }
