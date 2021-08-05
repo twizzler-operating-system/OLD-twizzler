@@ -92,13 +92,18 @@ void release_twix_conn_id(uint32_t id)
 	mutex_release(&idlist_lock);
 }
 
-struct twix_conn *get_twix_conn(void)
+__attribute__((const)) uint32_t get_twix_thr_id(void)
 {
 	uint64_t gs;
 	asm volatile("rdgsbase %0" : "=r"(gs)::"memory");
-
 	uint32_t id = gs & (OBJ_MAXSIZE - 1);
-	debug_printf("get_twix_conn id = %d\n", id);
+	return id;
+}
+
+struct twix_conn *get_twix_conn(void)
+{
+	uint32_t id = get_twix_thr_id();
+	debug_printf("get_twix_conn id = %d (%d)\n", id, conn_obj_init);
 
 	if(conn_obj_init == false) {
 		if(atomic_exchange(&conn_obj_lock, 1) == 0) {
@@ -117,6 +122,9 @@ struct twix_conn *get_twix_conn(void)
 	}
 
 	struct twix_conn *conn = twz_object_base(&conn_obj);
+	debug_printf("ID: %d -> " IDFMT "\n", id, IDPR(conn[id].qid));
+	debug_printf(
+	  "   " IDFMT "%p\n", IDPR(twz_object_guid(&conn[id].cmdqueue)), conn[id].cmdqueue.base);
 	return &conn[id];
 }
 
@@ -327,11 +335,18 @@ void resetup_queue(long is_thread)
 	// debug_printf(
 	//  "resetup objects: " IDFMT " " IDFMT " " IDFMT "\n", IDPR(stateid), IDPR(bid), IDPR(qid));
 
-	if(twz_object_init_guid(&conn->cmdqueue, qid, FE_READ | FE_WRITE))
-		abort();
-
-	if(twz_object_init_guid(&conn->buffer, bid, FE_READ | FE_WRITE))
-		abort();
+	twz_view_set(NULL,
+	  TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_QUEUE),
+	  conn->qid,
+	  VE_READ | VE_WRITE);
+	twz_view_set(NULL,
+	  TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_BUFFER),
+	  conn->bid,
+	  VE_READ | VE_WRITE);
+	twz_object_init_ptr(&conn->cmdqueue,
+	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_QUEUE)));
+	twz_object_init_ptr(&conn->buffer,
+	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_BUFFER)));
 
 	// twz_object_tie_guid(twz_object_guid(&conn->cmdqueue), stateid, 0);
 	// twz_object_delete_guid(stateid, 0);
@@ -382,11 +397,24 @@ static bool setup_queue(void)
 	//}
 	// debug_printf("OPEN WITH " IDFMT "  " IDFMT "\n", IDPR(conn->qid), IDPR(conn->bid));
 
+	twz_view_set(NULL,
+	  TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_QUEUE),
+	  conn->qid,
+	  VE_READ | VE_WRITE);
+	twz_view_set(NULL,
+	  TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_BUFFER),
+	  conn->bid,
+	  VE_READ | VE_WRITE);
+	twz_object_init_ptr(&conn->cmdqueue,
+	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_QUEUE)));
+	twz_object_init_ptr(&conn->buffer,
+	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_BUFFER)));
+	/*
 	if(twz_object_init_guid(&conn->cmdqueue, conn->qid, FE_READ | FE_WRITE))
-		return false;
+	    return false;
 	if(twz_object_init_guid(&conn->buffer, conn->bid, FE_READ | FE_WRITE))
-		return false;
-
+	    return false;
+*/
 	userver.ok = true;
 	userver.inited = true;
 
@@ -496,6 +524,10 @@ static ssize_t __twix_mmap_get_slot(void)
 	for(size_t i = 0; i < TWZSLOT_MMAP_NUM; i++) {
 		if(!(mmap_bitmap[i / 8] & (1 << (i % 8)))) {
 			mmap_bitmap[i / 8] |= (1 << (i % 8));
+			uint32_t flags;
+			twz_view_get(NULL, i + TWZSLOT_MMAP_BASE, NULL, &flags);
+			if(flags & VE_VALID)
+				continue;
 			return i + TWZSLOT_MMAP_BASE;
 		}
 	}
@@ -524,7 +556,7 @@ long hook_mmap(struct syscall_args *args)
 	objid_t id;
 	int r;
 
-	// debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
+	debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
 	ssize_t slot = -1;
 	size_t adj = OBJ_NULLPAGE_SIZE;
 	if(addr && (flags & MAP_FIXED)) {
@@ -567,7 +599,7 @@ long hook_mmap(struct syscall_args *args)
 	if(slot == -1) {
 		slot = __twix_mmap_get_slot();
 	}
-	// twix_log("   mmap slot %ld\n", slot);
+	twix_log("   mmap slot %ld\n", slot);
 	if(slot == -1) {
 		return -ENOMEM;
 	}

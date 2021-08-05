@@ -47,8 +47,8 @@ __attribute__((used)) static int __do_exec(uint64_t entry,
 		.target_view = vid,
 		.target_rip = entry,
 		.rdi = (long)vector,
-		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_STACK) + 0x200000,
-		.gs = (long)SLOT_TO_VADDR(TWZSLOT_THRD),
+		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK)) + 0x200000,
+		.gs = (long)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL)),
 	};
 	int r = sys_become(&ba, 0, 0);
 	twz_thread_exit(r);
@@ -122,7 +122,7 @@ static int __internal_do_exec(twzobj *view,
 		const char *s = argv[i];
 		str -= strlen(s) + 1;
 		strcpy(str, s);
-		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 	}
 	vector[v++] = 0;
 
@@ -130,13 +130,13 @@ static int __internal_do_exec(twzobj *view,
 		const char *s = env[i];
 		str -= strlen(s) + 1;
 		strcpy(str, s);
-		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 	}
 	str -= strlen(exename) + 1 + 1 + strlen("TWZEXENAME");
 	strcpy(str, "TWZEXENAME=");
 	strcpy(str + strlen("TWZEXENAME="), exename);
 	char *copied_exename = str + strlen("TWZEXENAME=");
-	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 
 	vector[v++] = 0;
 
@@ -159,7 +159,8 @@ static int __internal_do_exec(twzobj *view,
 	vector[v++] = (long)phdr;
 
 	vector[v++] = AT_EXECFN;
-	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, copied_exename);
+	vector[v++] =
+	  (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), copied_exename);
 
 	vector[v++] = AT_UID;
 	vector[v++] = 0;
@@ -174,10 +175,11 @@ static int __internal_do_exec(twzobj *view,
 	vector[v++] = 0;
 
 	/* TODO: we should really do this in assembly */
-	twz_view_set(view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
+	twz_view_set(view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), sid, VE_READ | VE_WRITE);
 
 	struct twzthread_repr *tr = twz_thread_repr_base();
-	twz_view_set(view, TWZSLOT_THRD, tr->reprid, VE_READ | VE_WRITE);
+	twz_view_set(
+	  view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL), tr->reprid, VE_READ | VE_WRITE);
 
 	// memset(repr->faults, 0, sizeof(repr->faults));
 	objid_t vid = twz_object_guid(view);
@@ -189,8 +191,10 @@ static int __internal_do_exec(twzobj *view,
 
 	/* TODO: copy-in everything for the vector */
 	int ret;
-	uint64_t p = (uint64_t)SLOT_TO_VADDR(TWZSLOT_STACK) + (OBJ_NULLPAGE_SIZE + 0x200000);
-	register long r8 asm("r8") = (long)vector_off + (long)SLOT_TO_VADDR(TWZSLOT_STACK);
+	uint64_t p = (uint64_t)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK))
+	             + (OBJ_NULLPAGE_SIZE + 0x200000);
+	register long r8 asm("r8") =
+	  (long)vector_off + (long)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK));
 	__asm__ __volatile__("movq %%rax, %%rsp\n"
 	                     "call __do_exec\n"
 	                     : "=a"(ret)
@@ -281,7 +285,7 @@ static int __internal_load_elf_object(twzobj *view,
 		abort();
 	/* TODO: delete these too */
 
-	size_t base_slot = interp ? 0x10003 : 0;
+	size_t base_slot = interp ? TWZSLOT_INTERP : TWZSLOT_EXEC;
 	twz_view_set(view, base_slot, twz_object_guid(&new_text), VE_READ | VE_EXEC);
 	twz_view_set(view, base_slot + 1, twz_object_guid(&new_data), VE_READ | VE_WRITE);
 

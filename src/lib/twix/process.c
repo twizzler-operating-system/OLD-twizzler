@@ -57,8 +57,8 @@ __attribute__((used)) static int __do_exec(uint64_t entry,
 		.target_view = vid,
 		.target_rip = entry,
 		.rdi = (long)vector,
-		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_STACK) + 0x200000,
-		.gs = TWZSLOT_THRD * OBJ_MAXSIZE,
+		.rsp = (long)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK)) + 0x200000,
+		.gs = TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL) * OBJ_MAXSIZE,
 	};
 	int r = sys_become(&ba, 0, 0);
 	twz_thread_exit(r);
@@ -131,7 +131,7 @@ static int __internal_do_exec(twzobj *view,
 		const char *s = argv[i];
 		str -= strlen(s) + 1;
 		strcpy(str, s);
-		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 	}
 	vector[v++] = 0;
 
@@ -139,13 +139,13 @@ static int __internal_do_exec(twzobj *view,
 		const char *s = env[i];
 		str -= strlen(s) + 1;
 		strcpy(str, s);
-		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+		vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 	}
 	str -= strlen(exename) + 1 + 1 + strlen("TWZEXENAME");
 	strcpy(str, "TWZEXENAME=");
 	strcpy(str + strlen("TWZEXENAME="), exename);
 	char *copied_exename = str + strlen("TWZEXENAME=");
-	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, str);
+	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), str);
 
 	vector[v++] = 0;
 
@@ -168,7 +168,8 @@ static int __internal_do_exec(twzobj *view,
 	vector[v++] = (long)phdr;
 
 	vector[v++] = AT_EXECFN;
-	vector[v++] = (long)twz_ptr_rebase(TWZSLOT_STACK, copied_exename);
+	vector[v++] =
+	  (long)twz_ptr_rebase(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), copied_exename);
 
 	vector[v++] = AT_UID;
 	vector[v++] = 0;
@@ -183,15 +184,17 @@ static int __internal_do_exec(twzobj *view,
 	vector[v++] = 0;
 
 	/* TODO: we should really do this in assembly */
-	twz_view_set(view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
+	twz_view_set(view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), sid, VE_READ | VE_WRITE);
 
 	// memset(repr->faults, 0, sizeof(repr->faults));
 	objid_t vid = twz_object_guid(view);
 
 	/* TODO: copy-in everything for the vector */
 	int ret;
-	uint64_t p = (uint64_t)SLOT_TO_VADDR(TWZSLOT_STACK) + (OBJ_NULLPAGE_SIZE + 0x200000);
-	register long r8 asm("r8") = (long)vector_off + (long)SLOT_TO_VADDR(TWZSLOT_STACK);
+	uint64_t p = (uint64_t)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK))
+	             + (OBJ_NULLPAGE_SIZE + 0x200000);
+	register long r8 asm("r8") =
+	  (long)vector_off + (long)SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK));
 	__asm__ __volatile__("movq %%rax, %%rsp\n"
 	                     "call __do_exec\n"
 	                     : "=a"(ret)
@@ -292,12 +295,13 @@ static int __internal_load_elf_object(twzobj *view,
 		abort();
 	/* TODO: delete these too */
 
-	size_t base_slot = interp ? 0x10003 : 0;
+	size_t base_slot = interp ? TWZSLOT_INTERP : TWZSLOT_EXEC;
 	twz_view_set(view, base_slot, twz_object_guid(&new_text), VE_READ | VE_EXEC);
 	twz_view_set(view, base_slot + 1, twz_object_guid(&new_data), VE_READ | VE_WRITE);
 
 	struct twzthread_repr *tr = twz_thread_repr_base();
-	twz_view_set(view, TWZSLOT_THRD, tr->reprid, VE_READ | VE_WRITE);
+	twz_view_set(
+	  view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL), tr->reprid, VE_READ | VE_WRITE);
 
 	if(base) {
 		*base = (void *)(SLOT_TO_VADDR(base_slot) + OBJ_NULLPAGE_SIZE);
@@ -622,8 +626,7 @@ long linux_sys_clone(struct twix_register_frame *frame,
 		return r;
 		/* TODO CLEANUP */
 	}
-	size_t thrd_slot_nr =
-	  twz_view_allocate_slot(NULL, twz_object_guid(&thr), VE_READ | VE_WRITE);
+	size_t thrd_slot_nr = twz_view_allocate_slot(NULL, twz_object_guid(&thr), VE_READ | VE_WRITE);
 
 	struct twzthread_repr *newrepr = twz_object_base(&thr);
 	newrepr->reprid = twz_object_guid(&thr);
@@ -681,6 +684,8 @@ static ssize_t __twix_mmap_get_slot(void)
 {
 	for(size_t i = 0; i < TWZSLOT_MMAP_NUM; i++) {
 		if(!(mmap_bitmap[i / 8] & (1 << (i % 8)))) {
+			if(i == 0)
+				continue;
 			mmap_bitmap[i / 8] |= (1 << (i % 8));
 			return i + TWZSLOT_MMAP_BASE;
 		}
@@ -913,7 +918,7 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 	}
 
 	/* TODO: fix all this up so its better */
-	size_t slot = 0x10006ul;
+	size_t slot = TWZSLOT_MMAP_BASE;
 	objid_t o;
 	uint32_t fl;
 	twz_view_get(NULL, slot, &o, &fl);
@@ -979,7 +984,7 @@ long linux_sys_mmap(void *addr, size_t len, int prot, int flags, int fd, size_t 
 
 long linux_sys_munmap(void *addr, size_t len)
 {
-	size_t slot = 0x10006ul;
+	size_t slot = TWZSLOT_MMAP_BASE;
 	void *base = (void *)(slot * 1024 * 1024 * 1024 + 0x1000);
 	struct mmap_anon_header *hdr = base;
 	long v = (long)addr;
@@ -1145,19 +1150,25 @@ long linux_sys_fork(struct twix_register_frame *frame)
 	if(twz_object_tie(&pds[pid].thrd, &stack, 0) < 0)
 		abort();
 	sid = twz_object_guid(&stack);
-	twz_view_set(&view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
+	twz_view_set(
+	  &view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), sid, VE_READ | VE_WRITE);
 
-	twz_view_set(&view, TWZSLOT_THRD, newrepr->reprid, VE_READ | VE_WRITE);
+	twz_view_set(&view,
+	  TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL),
+	  newrepr->reprid,
+	  VE_READ | VE_WRITE);
 	// twz_object_wire_guid(&view, sid);
 
 	// twix_log("FORK view = " IDFMT ", stack = " IDFMT "\n",
 	//  IDPR(twz_object_guid(&view)),
 	//  IDPR(twz_object_guid(&stack)));
 	size_t slots_to_copy[] = {
-		1, TWZSLOT_UNIX, 0x10004, 0x10006 /* mmap */
+		TWZSLOT_EXEC_DATA,
+		TWZSLOT_UNIX,
+		TWZSLOT_INTERP_DATA,
 	};
 
-	size_t slots_to_tie[] = { 0, 0x10003 };
+	size_t slots_to_tie[] = { 0, TWZSLOT_INTERP };
 
 	/* TODO: move this all to just mmap */
 	for(size_t j = 0; j < sizeof(slots_to_tie) / sizeof(slots_to_tie[0]); j++) {
@@ -1247,7 +1258,7 @@ long linux_sys_fork(struct twix_register_frame *frame)
 		.stack_base = (void *)frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)fs,
-		.thrd_ctrl_reg = TWZSLOT_THRD * OBJ_MAXSIZE,
+		.thrd_ctrl_reg = TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL) * OBJ_MAXSIZE,
 	};
 
 	//	debug_printf("== spawning\n");

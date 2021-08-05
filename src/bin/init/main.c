@@ -234,13 +234,15 @@ int main()
 	}
 	debug_printf("opened!\n");
 
-	// if(!fork()) {
-	//	debug_printf("Hello from forked process\n");
-	//	exit(0);
-	//}
+	if(!fork()) {
+		debug_printf("Hello from forked process\n");
+		exit(0);
+	}
 
 	pthread_t thread;
 	pthread_create(&thread, NULL, tm_1, NULL);
+
+	debug_printf("Im here\n");
 
 	for(;;)
 		;

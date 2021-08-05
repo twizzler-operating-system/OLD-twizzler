@@ -116,7 +116,7 @@ static inline long __do_sapi_call(struct secure_api *api,
 			.rdx = 0,                                                                              \
 			.rdi = (unsigned long)arg,                                                             \
 			.rsi = 0,                                                                              \
-			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+			.rsp = 0,                                                                              \
 			.rbp = 0,                                                                              \
 			.r8 = 0,                                                                               \
 			.r9 = 0,                                                                               \
@@ -142,7 +142,7 @@ static inline long __do_sapi_call(struct secure_api *api,
 			.rdx = (unsigned long)arg3,                                                            \
 			.rdi = (unsigned long)arg1,                                                            \
 			.rsi = (unsigned long)arg2,                                                            \
-			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+			.rsp = 0,                                                                              \
 			.rbp = 0,                                                                              \
 			.r8 = 0,                                                                               \
 			.r9 = 0,                                                                               \
@@ -168,7 +168,7 @@ static inline long __do_sapi_call(struct secure_api *api,
 			.rdx = (unsigned long)arg3,                                                            \
 			.rdi = (unsigned long)arg1,                                                            \
 			.rsi = (unsigned long)arg2,                                                            \
-			.rsp = (TWZSLOT_TMPSTACK * OBJ_MAXSIZE + 0x200000),                                    \
+			.rsp = 0,                                                                              \
 			.rbp = 0,                                                                              \
 			.r8 = (unsigned long)arg5,                                                             \
 			.r9 = (unsigned long)arg6,                                                             \

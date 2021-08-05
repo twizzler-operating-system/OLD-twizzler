@@ -274,8 +274,8 @@ void kernel_main(struct processor *proc)
 		obj_put(initobj);
 
 #define US_STACK_SIZE 0x200000 - 0x1000
-		char *stck_obj = (void *)(0x400040000000ull);
-		char *thrd_obj = (void *)(0x400000000000ull);
+		char *thrd_obj = (void *)(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL) * OBJ_MAXSIZE);
+		char *stck_obj = (void *)(TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK) * OBJ_MAXSIZE);
 		size_t off = US_STACK_SIZE - 0x100, tmp = 0;
 
 		char name_id[64];
@@ -344,9 +344,9 @@ void kernel_main(struct processor *proc)
 			.flags = VE_READ | VE_WRITE | VE_VALID,
 		};
 
-		kso_view_write(bv, TWZSLOT_THRD, &v_t);
+		kso_view_write(bv, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL), &v_t);
 
-		kso_view_write(bv, TWZSLOT_STACK, &v_s);
+		kso_view_write(bv, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK), &v_s);
 
 		char *init_argv0 = "___init";
 		obj_write_data(bstck, off, strlen(init_argv0) + 1, init_argv0);
@@ -377,7 +377,7 @@ void kernel_main(struct processor *proc)
 			.tls_base = stck_obj + 0x1000 + US_STACK_SIZE,
 			.arg = stck_obj + off + 0x1000,
 			.target_view = bsvid,
-			.thrd_ctrl_reg = TWZSLOT_THRD * OBJ_MAXSIZE,
+			.thrd_ctrl_reg = TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL) * OBJ_MAXSIZE,
 		};
 #if 0
 		printk("stackbase: %lx, stacktop: %lx\ntlsbase: %lx, arg: %lx\n",

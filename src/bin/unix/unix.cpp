@@ -315,7 +315,10 @@ int main()
 	if(r) {
 		abort();
 	}
+
+	debug_printf("API CREATE\n");
 	twz_secure_api_create(&api_obj, "twix-unix");
+	debug_printf("API CREATE: done\n");
 	// struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
 
 	auto h = new handler();

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
+#include <assert.h>
 #include <twix/twix.h>
 #include <twz/obj.h>
 #include <twz/sys/obj.h>
@@ -87,8 +88,10 @@ long hook_clone(struct syscall_args *args)
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
-	size_t thrd_slot_nr =
-	  twz_view_allocate_slot(NULL, twz_object_guid(&thread), VE_READ | VE_WRITE);
+	uint32_t newid = get_new_twix_conn_id();
+	assert(newid != 0);
+	size_t thrd_slot_nr = TWZSLOT_THREAD_OBJ(newid, TWZSLOT_THREAD_OFFSET_CTRL);
+	// twz_view_allocate_slot(NULL, twz_object_guid(&thread), VE_READ | VE_WRITE);
 	twz_view_set(NULL, thrd_slot_nr, newrepr->reprid, VE_READ | VE_WRITE);
 
 	struct twix_queue_entry tqe = build_tqe(
@@ -102,7 +105,6 @@ long hook_clone(struct syscall_args *args)
 	if(flags & CLONE_CHILD_SETTID) {
 		*ctid = tqe.ret;
 	}
-	uint32_t newid = get_new_twix_conn_id();
 	struct sys_thrd_spawn_args sa = {
 		.target_view = 0,
 		.start_func = (void *)__return_from_clone_v2,
@@ -200,6 +202,7 @@ long hook_fork(struct syscall_args *args)
 	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		goto cleanup_view;
 	}
+	debug_printf("=============> %p\n", thread.base);
 
 	twz_object_tie(&new_view, &thread, 0);
 	twz_object_delete(&thread, 0);
@@ -207,7 +210,10 @@ long hook_fork(struct syscall_args *args)
 	struct twzthread_repr *newrepr = twz_object_base(&thread);
 	newrepr->reprid = twz_object_guid(&thread);
 
-	twz_view_set(&new_view, TWZSLOT_THRD, newrepr->reprid, VE_READ | VE_WRITE);
+	twz_view_set(&new_view,
+	  TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL),
+	  newrepr->reprid,
+	  VE_READ | VE_WRITE);
 	twz_view_set(&new_view, TWZSLOT_CVIEW, twz_object_guid(&new_view), VE_READ | VE_WRITE);
 
 	void *rsp;
@@ -222,15 +228,16 @@ long hook_fork(struct syscall_args *args)
 	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		goto cleanup_thread;
 	}
-	twz_view_set(&new_view, TWZSLOT_STACK, twz_object_guid(&new_stack), VE_READ | VE_WRITE);
+	twz_view_set(&new_view,
+	  TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_STACK),
+	  twz_object_guid(&new_stack),
+	  VE_READ | VE_WRITE);
 	twz_object_tie(&thread, &new_stack, 0);
 	twz_object_delete(&new_stack, 0);
 
-	size_t slots_to_copy[] = {
-		1, TWZSLOT_UNIX, 0x10004, 0x10006 /* mmap */
-	};
+	size_t slots_to_copy[] = { TWZSLOT_EXEC_DATA, TWZSLOT_UNIX, TWZSLOT_INTERP_DATA };
 
-	size_t slots_to_tie[] = { 0, 0x10003 };
+	size_t slots_to_tie[] = { 0, TWZSLOT_INTERP };
 
 	/* TODO: move this all to just mmap */
 	for(size_t j = 0; j < sizeof(slots_to_tie) / sizeof(slots_to_tie[0]); j++) {
@@ -327,7 +334,7 @@ long hook_fork(struct syscall_args *args)
 		.stack_base = (void *)args->frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
 		.stack_size = 8,
 		.tls_base = (void *)fs,
-		.thrd_ctrl_reg = TWZSLOT_THRD * OBJ_MAXSIZE,
+		.thrd_ctrl_reg = TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL) * OBJ_MAXSIZE,
 	};
 
 	if((r = sys_thrd_spawn(twz_object_guid(&thread), &sa, 0, NULL))) {
@@ -339,6 +346,7 @@ long hook_fork(struct syscall_args *args)
 
 	// debug_printf(":: NEW VIEW IS " IDFMT "\n", IDPR(twz_object_guid(&new_view)));
 	twz_object_delete(&new_view, 0);
+	debug_printf("====== %p %p %p\n", thread.base, new_view.base, new_stack.base);
 	twz_object_release(&thread);
 	twz_object_release(&new_view);
 	twz_object_release(&new_stack);

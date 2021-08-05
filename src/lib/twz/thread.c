@@ -31,12 +31,6 @@ void twz_thread_set_name(const char *name)
 	kso_set_name(NULL, name);
 }
 
-struct twzthread_ctrl_repr *twz_thread_ctrl_repr_base(void)
-{
-	return (
-	  struct twzthread_ctrl_repr *)((char *)(TWZSLOT_TCTRL * OBJ_MAXSIZE) + OBJ_NULLPAGE_SIZE);
-}
-
 struct twzthread_repr *twz_thread_repr_base(void)
 {
 	uint64_t a;

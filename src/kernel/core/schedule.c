@@ -218,7 +218,6 @@ __initializer static void _init_kso_view(void)
 static void __print_fault_info(struct thread *t, int fault, void *info)
 {
 	printk("unhandled fault: %ld: %d\n", t ? (long)t->id : -1, fault);
-	// debug_print_backtrace();
 	switch(fault) {
 		struct fault_object_info *foi;
 		struct fault_null_info *fni;

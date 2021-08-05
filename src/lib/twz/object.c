@@ -325,6 +325,7 @@ void twz_object_release(twzobj *obj)
 		libtwz_panic("tried to release an object marked no-release-needed");
 	}
 	if(obj->flags & TWZ_OBJ_VALID) {
+		debug_printf("release slot (called from %p)\n", __builtin_return_address(0));
 		twz_view_release_slot(NULL, twz_object_guid(obj), obj->vf, VADDR_TO_SLOT(obj->base));
 	}
 	obj->base = NULL;
