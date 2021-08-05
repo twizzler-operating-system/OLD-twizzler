@@ -7,6 +7,7 @@ const SYS_THREAD_SYNC: i64 = 7;
 const SYS_KCONF: i64 = 14;
 const SYS_THRD_CTL: i64 = 10;
 const SYS_INVL_KSO: i64 = 3;
+const SYS_OCREATE: i64 = 8;
 
 pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
 pub fn thrd_ctl(op: i32, arg: u64) -> i64 {
@@ -183,4 +184,71 @@ pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<
 		r9: r9,
 		..Default::default()
 	})
+}
+
+#[repr(C)]
+pub(crate) struct KernelCreateSpec {
+	ku: ObjID,
+	srcs: *const KernelCreateSrc,
+	srcs_len: u64,
+	ties: *const ObjID,
+	ties_len: u64,
+	flags: u32,
+	backing_type: u16,
+	lifetime: u16,
+}
+
+#[repr(C)]
+struct KernelCreateSrc {
+	id: ObjID,
+	start: u64,
+	length: u64,
+}
+
+use crate::obj::{CreateSpec, KuSpec, TieSpec};
+pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
+	let kuid = if let KuSpec::Obj(id) = spec.ku { id } else { 0 };
+	let srcs: Vec<KernelCreateSrc> = spec
+		.srcs
+		.iter()
+		.map(|src| KernelCreateSrc {
+			id: src.srcid,
+			start: src.start,
+			length: src.length,
+		})
+		.collect();
+	let ties: Vec<ObjID> = spec
+		.ties
+		.iter()
+		.map(|tie| {
+			if let TieSpec::Obj(id) = tie {
+				*id
+			} else {
+				crate::kso::view::View::current().id()
+			}
+		})
+		.collect();
+	let ks = KernelCreateSpec {
+		ku: kuid,
+		srcs: (&srcs).as_ptr(),
+		srcs_len: srcs.len() as u64,
+		ties: (&ties).as_ptr(),
+		ties_len: ties.len() as u64,
+		flags: spec.flags.bits() as u32,
+		backing_type: spec.bt as u16,
+		lifetime: spec.lt as u16,
+	};
+	let mut id: ObjID = 0;
+	let res = unsafe {
+		raw_syscall(
+			SYS_OCREATE,
+			(&ks as *const KernelCreateSpec) as u64,
+			(&mut id as *mut ObjID) as u64,
+			0,
+			0,
+			0,
+			0,
+		)
+	};
+	(id, res)
 }

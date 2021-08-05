@@ -42,10 +42,12 @@ crate::bitflags! {
 	}
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum BackingType {
 	Normal = 0,
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum LifetimeType {
 	Volatile = 0,
 	Persistent = 1,
@@ -59,18 +61,15 @@ pub enum KuSpec {
 
 #[derive(Debug, Copy, Clone)]
 pub enum TieSpec {
-	None,
 	View,
-	Thread,
-	Sctx,
 	Obj(ObjID),
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct SrcSpec {
-	srcid: Option<ObjID>,
-	start: u64,
-	length: u64,
+	pub(crate) srcid: ObjID,
+	pub(crate) start: u64,
+	pub(crate) length: u64,
 }
 
 pub struct CreateSpec {
@@ -162,8 +161,13 @@ impl<T> Twzobj<T> {
 	}
 
 	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
-	unsafe fn internal_create(_spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
-		panic!("")
+	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
+		let (id, res) = crate::sys::create(spec);
+		if res != 0 {
+			Err(TwzErr::OSError(res as i32))
+		} else {
+			Ok(Twzobj::init_guid(id, ProtFlags::READ | ProtFlags::WRITE))
+		}
 	}
 
 	pub fn create_base(spec: &CreateSpec, base: T) -> Result<Twzobj<T>, TwzErr> {
