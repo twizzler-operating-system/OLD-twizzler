@@ -6,6 +6,7 @@ const SYS_BECOME: i64 = 6;
 const SYS_THREAD_SYNC: i64 = 7;
 const SYS_KCONF: i64 = 14;
 const SYS_THRD_CTL: i64 = 10;
+const SYS_INVL_KSO: i64 = 3;
 
 pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
 pub fn thrd_ctl(op: i32, arg: u64) -> i64 {
@@ -57,6 +58,38 @@ impl ThreadSyncArgs {
 			res: 0,
 		}
 	}
+}
+
+#[repr(C)]
+pub(crate) struct InvalidateOp {
+	id: ObjID,
+	offset: u64,
+	length: u32,
+	flags: u16,
+	result: u16,
+}
+
+pub(crate) enum InvalidateCurrent {
+	View = 1,
+}
+
+const KSOI_VALID: u16 = 1;
+const KSOI_CURRENT: u16 = 2;
+
+impl InvalidateOp {
+	pub(crate) fn new_current(which: InvalidateCurrent, offset: u64, length: u32) -> InvalidateOp {
+		InvalidateOp {
+			id: which as u128,
+			offset: offset,
+			length: length,
+			flags: KSOI_VALID | KSOI_CURRENT,
+			result: 0,
+		}
+	}
+}
+
+pub(crate) fn invalidate(specs: &mut [InvalidateOp]) -> i64 {
+	unsafe { raw_syscall(SYS_INVL_KSO, specs.as_ptr() as u64, specs.len() as u64, 0, 0, 0, 0) }
 }
 
 #[repr(C)]
