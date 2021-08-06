@@ -103,7 +103,7 @@ __attribute__((const)) uint32_t get_twix_thr_id(void)
 struct twix_conn *get_twix_conn(void)
 {
 	uint32_t id = get_twix_thr_id();
-	debug_printf("get_twix_conn id = %d (%d)\n", id, conn_obj_init);
+	// debug_printf("get_twix_conn id = %d (%d)\n", id, conn_obj_init);
 
 	if(conn_obj_init == false) {
 		if(atomic_exchange(&conn_obj_lock, 1) == 0) {
@@ -122,9 +122,6 @@ struct twix_conn *get_twix_conn(void)
 	}
 
 	struct twix_conn *conn = twz_object_base(&conn_obj);
-	debug_printf("ID: %d -> " IDFMT "\n", id, IDPR(conn[id].qid));
-	debug_printf(
-	  "   " IDFMT "%p\n", IDPR(twz_object_guid(&conn[id].cmdqueue)), conn[id].cmdqueue.base);
 	return &conn[id];
 }
 
@@ -362,39 +359,26 @@ static bool setup_queue(void)
 	userver.ok = false;
 	userver.inited = true;
 	uint32_t flags;
-	// twz_view_get(NULL, TWZSLOT_UNIX, NULL, &flags);
-	// bool already = (flags & VE_VALID) && (flags & VE_FIXED);
 	objid_t qid, bid;
-	if(0) {
-		// debug_printf("reopening existing connection\n");
-		if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
-			return false;
-		}
-	} else {
-		if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
-			return false;
-		}
+	twz_view_get(NULL, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_BUFFER), &bid, &flags);
+	twz_view_get(NULL, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_QUEUE), &qid, &flags);
+	bool already = (flags & VE_VALID) && qid && bid;
+	if(twz_secure_api_open_name("/dev/unix", &userver.api)) {
+		return false;
+	}
+	// debug_printf("Calling OPEN " IDFMT "\n", IDPR(twz_thread_repr_base()->reprid));
+	if(!already) {
 		int r = twix_open_queue(&userver.api, 0, &qid, &bid);
-		debug_printf(":: %x\n", r);
 		if(r) {
 			return false;
 		}
-		debug_printf("GOT QUEUE AND BUFFER: " IDFMT " " IDFMT "\n", IDPR(qid), IDPR(bid));
-
-		// objid_t stateid;
-		// if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE, 0, 0, &stateid)) {
-		//	return false;
-		//}
-		// twz_view_fixedset(NULL, TWZSLOT_UNIX, stateid, VE_READ | VE_WRITE | VE_FIXED | VE_VALID);
 	}
 
 	// twz_object_init_ptr(&state_object, SLOT_TO_VADDR(TWZSLOT_UNIX));
 
 	struct twix_conn *conn = get_twix_conn();
-	// if(!already) {
 	conn->qid = qid;
 	conn->bid = bid;
-	//}
 	// debug_printf("OPEN WITH " IDFMT "  " IDFMT "\n", IDPR(conn->qid), IDPR(conn->bid));
 
 	twz_view_set(NULL,
@@ -409,22 +393,18 @@ static bool setup_queue(void)
 	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_QUEUE)));
 	twz_object_init_ptr(&conn->buffer,
 	  SLOT_TO_VADDR(TWZSLOT_THREAD_OBJ(get_twix_thr_id(), TWZSLOT_THREAD_OFFSET_BUFFER)));
-	/*
-	if(twz_object_init_guid(&conn->cmdqueue, conn->qid, FE_READ | FE_WRITE))
-	    return false;
-	if(twz_object_init_guid(&conn->buffer, conn->bid, FE_READ | FE_WRITE))
-	    return false;
-*/
 	userver.ok = true;
 	userver.inited = true;
 
 	static bool file_inited = false;
-	if(!file_inited) {
+	/* TODO: is this necessary at all? */
+	if(!file_inited && 0) {
 		file_inited = true;
 		for(int fd = 0; fd < MAX_FD; fd++) {
 			struct file *file = twix_get_fd(fd);
 			if(file) {
 				objid_t id = twz_object_guid(&file->obj);
+				debug_printf("REOPEN! %d " IDFMT "\n", fd, IDPR(id));
 				struct twix_queue_entry tqe = build_tqe(TWIX_CMD_REOPEN_V1_FD,
 				  0,
 				  0,
@@ -556,7 +536,7 @@ long hook_mmap(struct syscall_args *args)
 	objid_t id;
 	int r;
 
-	debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
+	// debug_printf("sys_mmap (v2): %p %lx %x %x %d %lx\n", addr, len, prot, flags, fd, offset);
 	ssize_t slot = -1;
 	size_t adj = OBJ_NULLPAGE_SIZE;
 	if(addr && (flags & MAP_FIXED)) {
@@ -599,7 +579,6 @@ long hook_mmap(struct syscall_args *args)
 	if(slot == -1) {
 		slot = __twix_mmap_get_slot();
 	}
-	twix_log("   mmap slot %ld\n", slot);
 	if(slot == -1) {
 		return -ENOMEM;
 	}

@@ -114,6 +114,7 @@ void tmain(const char *username)
 	exit(1);
 }
 
+#include <err.h>
 #include <twz/debug.h>
 int main(int argc, char **argv)
 {
@@ -129,7 +130,9 @@ int main(int argc, char **argv)
 		char buffer[1024];
 		printf("Twizzler Login: ");
 		fflush(NULL);
-		fgets(buffer, 1024, stdin);
+		if(fgets(buffer, 1024, stdin) == NULL) {
+			err(1, "failed to read stdin");
+		}
 		// strcpy(buffer, "bob");
 
 		// debug_printf("LOGIN HIIIII %s\n", buffer);

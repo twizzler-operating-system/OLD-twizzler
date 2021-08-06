@@ -43,7 +43,7 @@ void twz_view_set(twzobj *obj, size_t slot, objid_t target, uint32_t flags)
 	}
 	atomic_store(&ves[slot].flags, flags | (target == 0 ? 0 : VE_VALID));
 
-#if 1
+#if 0
 	twzobj vo;
 	twz_view_object_init(&vo);
 	debug_printf("mapping in %p " IDFMT " --> %p (%x) (old = %x) :: %p %x in " IDFMT

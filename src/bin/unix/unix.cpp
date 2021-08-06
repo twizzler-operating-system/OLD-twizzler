@@ -224,7 +224,7 @@ class handler
 				  queue_receive(&client->queue, (struct queue_entry *)&tqe, QUEUE_NONBLOCK) == 0) {
 					handle_client(client, &tqe, true);
 				}
-				// fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
+				fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
 				client->exit();
 			} break;
 		}
@@ -273,6 +273,7 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 	(void)flags;
 	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
+	debug_printf("SAPI ENTRY " IDFMT "\n", IDPR(twz_object_guid(&client->thrdobj)));
 	int r = twz_object_wire(NULL, &client->thrdobj);
 	(void)r;
 	r = client_init(client);
@@ -316,9 +317,7 @@ int main()
 		abort();
 	}
 
-	debug_printf("API CREATE\n");
 	twz_secure_api_create(&api_obj, "twix-unix");
-	debug_printf("API CREATE: done\n");
 	// struct secure_api_header *sah = (struct secure_api_header *)twz_object_base(&api_obj);
 
 	auto h = new handler();

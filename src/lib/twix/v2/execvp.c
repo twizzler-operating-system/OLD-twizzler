@@ -430,7 +430,17 @@ static int __twz_exec_create_view(twzobj *view, objid_t id, objid_t *vid)
 
 	twz_view_set(view, TWZSLOT_CVIEW, *vid, VE_READ | VE_WRITE);
 
-	twz_view_set(view, 0, id, VE_READ | VE_EXEC);
+	twz_view_set(view, TWZSLOT_EXEC, id, VE_READ | VE_EXEC);
+
+	uint32_t tid = get_twix_thr_id();
+	objid_t cid;
+	uint32_t cf;
+	twz_view_get(NULL, TWZSLOT_THREAD_OBJ(tid, TWZSLOT_THREAD_OFFSET_CTRL), &cid, &cf);
+	twz_view_set(view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_CTRL), cid, cf);
+	twz_view_get(NULL, TWZSLOT_THREAD_OBJ(tid, TWZSLOT_THREAD_OFFSET_QUEUE), &cid, &cf);
+	twz_view_set(view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_QUEUE), cid, cf);
+	twz_view_get(NULL, TWZSLOT_THREAD_OBJ(tid, TWZSLOT_THREAD_OFFSET_BUFFER), &cid, &cf);
+	twz_view_set(view, TWZSLOT_THREAD_OBJ(0, TWZSLOT_THREAD_OFFSET_BUFFER), cid, cf);
 
 	if((r = twz_object_wire(NULL, view)))
 		return r;

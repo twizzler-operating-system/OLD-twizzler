@@ -23,3 +23,4 @@ void resetup_queue(long);
 uint32_t get_new_twix_conn_id(void);
 void release_twix_conn_id(uint32_t id);
 struct twix_conn *get_twix_conn(void);
+__attribute__((const)) uint32_t get_twix_thr_id(void);

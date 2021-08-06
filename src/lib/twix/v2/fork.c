@@ -202,7 +202,6 @@ long hook_fork(struct syscall_args *args)
 	      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE))) {
 		goto cleanup_view;
 	}
-	debug_printf("=============> %p\n", thread.base);
 
 	twz_object_tie(&new_view, &thread, 0);
 	twz_object_delete(&thread, 0);
@@ -346,7 +345,6 @@ long hook_fork(struct syscall_args *args)
 
 	// debug_printf(":: NEW VIEW IS " IDFMT "\n", IDPR(twz_object_guid(&new_view)));
 	twz_object_delete(&new_view, 0);
-	debug_printf("====== %p %p %p\n", thread.base, new_view.base, new_stack.base);
 	twz_object_release(&thread);
 	twz_object_release(&new_view);
 	twz_object_release(&new_stack);

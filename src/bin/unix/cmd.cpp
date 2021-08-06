@@ -242,7 +242,7 @@ static const char *cmd_strs[] = {
 std::pair<long, bool> handle_command(std::shared_ptr<queue_client> client, twix_queue_entry *tqe)
 {
 	if(tqe->cmd >= 0 && tqe->cmd < NUM_TWIX_COMMANDS && call_table[tqe->cmd]) {
-#if 0
+#if 1
 		debug_printf("[twix-server] got command %d from proc %d, thr %d: %d (%s)\n",
 		  tqe->qe.info,
 		  client->proc->pid,
