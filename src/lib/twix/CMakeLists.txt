@@ -5,7 +5,8 @@ project(twix VERSION 0.1 DESCRIPTION "Twizzler Unix Emulation Library")
 # TODO: remove oa
 if(BUILD_SHARED_LIBS)
 add_library(twix access.c dir.c fd.c file.c linux.c process.c rand.c rw.c syscall.c thread.c
-	time.c v2/fork.c v2/rw.c v2/twix.c v2/execvp.c v2/poll.c)
+	time.c v2/fork.c v2/rw.c v2/twix.c v2/execvp.c v2/poll.c v2/mmap.c v2/conn.c v2/signal.c
+	v2/file.c v2/info.c v2/time.c v2/thread.c)
 set_target_properties(twix PROPERTIES VERSION ${PROJECT_VERSION})
 set_target_properties(twix PROPERTIES SOVERSION 0)
 target_compile_options(twix PRIVATE "-fPIC")
@@ -22,7 +23,8 @@ target_include_directories(twix
 endif()
 
 add_library(twix_static STATIC access.c dir.c fd.c file.c linux.c process.c rand.c rw.c syscall.c thread.c
-	time.c v2/fork.c v2/rw.c v2/twix.c v2/execvp.c v2/poll.c)
+	time.c v2/fork.c v2/rw.c v2/twix.c v2/execvp.c v2/poll.c v2/mmap.c v2/conn.c v2/signal.c
+	v2/file.c v2/info.c v2/time.c v2/thread.c)
 set_target_properties(twix_static PROPERTIES OUTPUT_NAME twix)
 
 set_target_properties(twix_static PROPERTIES VERSION ${PROJECT_VERSION})

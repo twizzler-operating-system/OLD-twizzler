@@ -24,3 +24,19 @@ uint32_t get_new_twix_conn_id(void);
 void release_twix_conn_id(uint32_t id);
 struct twix_conn *get_twix_conn(void);
 __attribute__((const)) uint32_t get_twix_thr_id(void);
+bool setup_queue(void);
+void __twix_signal_handler(int fault, void *data, void *userdata);
+void check_signals(struct twix_conn *conn);
+
+struct twix_conn {
+	twzobj cmdqueue, buffer;
+	objid_t qid, bid;
+	_Atomic size_t info;
+
+	_Atomic int block_count;
+	_Atomic size_t pending_count;
+	struct {
+		_Atomic long flags;
+		long args[3];
+	} pending_sigs[];
+};
