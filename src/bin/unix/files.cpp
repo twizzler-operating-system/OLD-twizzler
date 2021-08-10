@@ -50,7 +50,6 @@ int filedesc::init_path(std::shared_ptr<filedesc> at,
 	}
 	if(has_obj) {
 		objid = twz_object_guid(&obj);
-		debug_printf("OPENED %s => " IDFMT "\n", path, IDPR(objid));
 	}
 	fcntl_flags = _fcntl_flags;
 	inited = true;
@@ -136,7 +135,7 @@ ssize_t filedesc::read(void *buffer, size_t buflen, off_t offset, int flags, boo
 		offset = pos;
 	}
 	ssize_t r = twzio_read(&obj, buffer, buflen, offset, TWZIO_NONBLOCK);
-	debug_printf("::::::: %ld :: " IDFMT "\n", r, IDPR(twz_object_guid(&obj)));
+	// debug_printf("::::::: %ld :: " IDFMT "\n", r, IDPR(twz_object_guid(&obj)));
 	if(r == -ENOTSUP) {
 		struct metainfo *mi = twz_object_meta(&obj);
 		if(mi->flags & MIF_SZ) {

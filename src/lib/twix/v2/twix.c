@@ -316,7 +316,7 @@ void resetup_queue(long is_thread)
 		abort();
 	}
 
-	twix_log("reopen! " IDFMT "\n", IDPR(qid));
+	// twix_log("reopen! " IDFMT "\n", IDPR(qid));
 
 	// objid_t stateid;
 	// if(twz_object_create(TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_TIED_NONE, 0, 0, &stateid))

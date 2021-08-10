@@ -224,7 +224,7 @@ class handler
 				  queue_receive(&client->queue, (struct queue_entry *)&tqe, QUEUE_NONBLOCK) == 0) {
 					handle_client(client, &tqe, true);
 				}
-				fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
+				// fprintf(stderr, "removed client: %d : %p\n", client->proc->pid, client.get());
 				client->exit();
 			} break;
 		}
@@ -273,7 +273,7 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 	(void)flags;
 	std::shared_ptr<queue_client> client = std::make_shared<queue_client>();
 	twz_object_init_guid(&client->thrdobj, twz_thread_repr_base()->reprid, FE_READ);
-	debug_printf("SAPI ENTRY " IDFMT "\n", IDPR(twz_object_guid(&client->thrdobj)));
+	// debug_printf("SAPI ENTRY " IDFMT "\n", IDPR(twz_object_guid(&client->thrdobj)));
 	int r = twz_object_wire(NULL, &client->thrdobj);
 	(void)r;
 	r = client_init(client);
@@ -289,7 +289,7 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 	objid_t qid = twz_object_guid(&client->queue);
 	objid_t bid = twz_object_guid(&client->buffer);
 
-	debug_printf("RETURN QB: " IDFMT " " IDFMT "\n", IDPR(qid), IDPR(bid));
+	// debug_printf("RETURN QB: " IDFMT " " IDFMT "\n", IDPR(qid), IDPR(bid));
 
 	long r0 = ID_HI(qid);
 	long r1 = ID_LO(qid);
@@ -308,9 +308,9 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags)
 #include <twz/name.h>
 int main()
 {
-	uint64_t a;
-	asm volatile("rdgsbase %%rax" : "=a"(a));
-	debug_printf("\n\n\n\nUNIX STARTED %lx\n", a);
+	// uint64_t a;
+	// asm volatile("rdgsbase %%rax" : "=a"(a));
+	// debug_printf("\n\n\n\nUNIX STARTED %lx\n", a);
 	twzobj api_obj;
 	int r = twz_object_new(&api_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {
@@ -327,7 +327,7 @@ int main()
 	mkdir("/dev", 0644);
 	twz_name_dfl_assign(twz_object_guid(&api_obj), "/dev/unix");
 
-	debug_printf("Got through init... " IDFMT "\n", IDPR(twz_object_guid(&api_obj)));
+	// debug_printf("Got through init... " IDFMT "\n", IDPR(twz_object_guid(&api_obj)));
 	for(;;) {
 		sleep(100);
 	}

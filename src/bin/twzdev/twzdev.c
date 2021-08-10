@@ -60,11 +60,13 @@ int create_pty_pair(char *server, char *client)
 		return r;
 	}
 
+#if 0
 	debug_printf("Created PTY: %s (" IDFMT ") ; %s (" IDFMT ")\n",
 	  client,
 	  IDPR(twz_object_guid(&pty_c)),
 	  server,
 	  IDPR(twz_object_guid(&pty_s)));
+#endif
 
 	return 0;
 }

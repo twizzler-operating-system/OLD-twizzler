@@ -250,7 +250,6 @@ long syscall_become(struct arch_syscall_become_args *_ba,
 {
 	long extra_args[] = { 4, a1, a2, a3, a4 };
 	if(_ba == NULL) {
-		printk("%lx %lx %lx %lx\n", a1, a2, a3, a4);
 		return __syscall_become_return(a0, extra_args);
 	}
 	if(!verify_user_pointer(_ba, sizeof(*_ba))) {
