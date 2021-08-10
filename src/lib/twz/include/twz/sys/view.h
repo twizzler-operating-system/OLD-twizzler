@@ -61,7 +61,8 @@ struct twzview_repr {
 	uint64_t fault_mask;
 	uint64_t fault_flags;
 	struct viewentry ves[TWZSLOT_MAX_SLOT + 1];
-	objid_t exec_id;
+	void *async_entry;
+	uint64_t resv;
 	struct mutex lock;
 	uint8_t bitmap[(TWZSLOT_MAX_SLOT + 1) / 8];
 	struct __viewrepr_bucket buckets[NR_VIEW_BUCKETS];

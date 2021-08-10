@@ -356,9 +356,6 @@ static int __twz_exec_create_view(twzobj *view, objid_t id, objid_t *vid)
 		return r;
 	if((r = twz_object_delete(view, 0)))
 		return r;
-
-	struct twzview_repr *vr = twz_object_base(view);
-	vr->exec_id = id;
 	return 0;
 }
 

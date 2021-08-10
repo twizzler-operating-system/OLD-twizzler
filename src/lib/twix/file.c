@@ -24,13 +24,9 @@ long linux_sys_open(const char *path, int flags, int mode)
 		twzobj view;
 		twz_view_object_init(&view);
 		struct twzview_repr *vr = twz_object_base(&view);
-		if(vr->exec_id) {
-			id = vr->exec_id;
-		} else {
-			twzobj o0;
-			twz_object_init_ptr(&o0, NULL);
-			id = twz_object_guid(&o0);
-		}
+		twzobj o0;
+		twz_object_init_ptr(&o0, NULL);
+		id = twz_object_guid(&o0);
 	} else {
 		if((r = twz_name_dfl_resolve(path, 0, &id))) {
 			if(!(flags & O_CREAT)) {
