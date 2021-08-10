@@ -180,10 +180,6 @@ int main()
 		abort();
 	}
 
-	uint64_t gs;
-	asm volatile("rdgsbase %0" : "=r"(gs)::"memory");
-	debug_printf("GS: %lx\n", gs);
-
 	pthread_t logging_thread;
 	objid_t lid = twz_object_guid(&lobj);
 	pthread_create(&logging_thread, NULL, logmain, &lid);
@@ -219,27 +215,16 @@ int main()
 		abort();
 	}
 
-	debug_printf("[init] starting unix server\n");
+	EPRINTF("[init] starting unix server\n");
 	if(!fork()) {
 		execlp("/usr/bin/unix", "unix", NULL);
 	}
 
-	debug_printf("trying open connection to unix server\n");
 	while(1) {
 		usleep(10000);
-		//	debug_printf("trying...\n");
 		if(twix_force_v2_retry())
 			break;
-		//	debug_printf("failed...\n");
 	}
-	// debug_printf("opened!\n");
-
-	// pthread_t thread;
-	// pthread_create(&thread, NULL, tm_1, NULL);
-
-	// for(;;)
-	//	;
-
 	/* start the device manager */
 	if(!fork()) {
 		execlp("twzdev", "twzdev", NULL);

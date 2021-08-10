@@ -238,7 +238,6 @@ long hook_fork(struct syscall_args *args)
 
 	size_t slots_to_tie[] = { 0, TWZSLOT_INTERP };
 
-	/* TODO: move this all to just mmap */
 	for(size_t j = 0; j < sizeof(slots_to_tie) / sizeof(slots_to_tie[0]); j++) {
 		size_t i = slots_to_tie[j];
 		objid_t id;
@@ -259,7 +258,6 @@ long hook_fork(struct syscall_args *args)
 		if(!(flags & VE_VALID)) {
 			continue;
 		}
-		// twix_log("FORK COPY-DERIVE %lx\n", i);
 		/* Copy-derive */
 		objid_t nid;
 		if((r = twz_object_create(
@@ -270,14 +268,10 @@ long hook_fork(struct syscall_args *args)
 			/* TODO: cleanup */
 			return r;
 		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
-		// IDPR(nid));
 		twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
 		twz_object_delete_guid(nid, 0);
-		//	if(twz_object_delete_guid(nid, 0) < 0)
-		//		abort();
 	}
 
 	for(size_t j = TWZSLOT_MMAP_BASE; j < TWZSLOT_MMAP_BASE + TWZSLOT_MMAP_NUM; j++) {
@@ -302,8 +296,6 @@ long hook_fork(struct syscall_args *args)
 			/* TODO: cleanup */
 			return r;
 		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id),
-		// IDPR(nid));
 		twz_view_set(&new_view, i, nid, flags);
 		if(twz_object_wire_guid(&new_view, nid) < 0)
 			abort();
@@ -343,7 +335,6 @@ long hook_fork(struct syscall_args *args)
 	struct twix_queue_entry tqe2 = build_tqe(TWIX_CMD_WAIT_READY, 0, 0, 1, tqe.ret);
 	twix_sync_command(&tqe2);
 
-	// debug_printf(":: NEW VIEW IS " IDFMT "\n", IDPR(twz_object_guid(&new_view)));
 	twz_object_delete(&new_view, 0);
 	twz_object_release(&thread);
 	twz_object_release(&new_view);
@@ -359,173 +350,4 @@ cleanup_view:
 	twz_object_delete(&new_view, 0);
 
 	return r;
-#if 0
-	int r;
-	twzobj view, cur_view;
-	twz_view_object_init(&cur_view);
-
-	// debug_printf("== creating view\n");
-	if((r = twz_object_new(
-	      &view, &cur_view, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_USE))) {
-		return r;
-	}
-
-	objid_t vid = twz_object_guid(&view);
-
-	/*if((r = twz_object_wire(NULL, &view)))
-	    return r;
-	if((r = twz_object_delete(&view, 0)))
-	    return r;*/
-
-	// debug_printf("== creating thread\n");
-
-	if(twz_thread_create(&pds[pid].thrd) < 0)
-		abort();
-
-	if(twz_view_clone(NULL, &view, 0, __fork_view_clone) < 0)
-		abort();
-
-	objid_t sid;
-	twzobj stack;
-	twz_view_fixedset(
-	  &pds[pid].thrd.obj, TWZSLOT_THRD, pds[pid].thrd.tid, VE_READ | VE_WRITE | VE_FIXED);
-	/* TODO: handle these */
-	if(twz_object_wire_guid(&view, pds[pid].thrd.tid) < 0)
-		abort();
-
-	twz_view_set(&view, TWZSLOT_CVIEW, vid, VE_READ | VE_WRITE);
-
-	//	debug_printf("== creating stack\n");
-	if((r = twz_object_new(&stack, twz_stdstack, NULL, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE))) {
-		twix_log(":: fork create stack returned %d\n", r);
-		abort();
-	}
-	if(twz_object_tie(&pds[pid].thrd.obj, &stack, 0) < 0)
-		abort();
-	sid = twz_object_guid(&stack);
-	twz_view_set(&view, TWZSLOT_STACK, sid, VE_READ | VE_WRITE);
-	// twz_object_wire_guid(&view, sid);
-
-	// twix_log("FORK view = " IDFMT ", stack = " IDFMT "\n",
-	//  IDPR(twz_object_guid(&view)),
-	//  IDPR(twz_object_guid(&stack)));
-	size_t slots_to_copy[] = {
-		1, TWZSLOT_UNIX, 0x10004, 0x10006 /* mmap */
-	};
-
-	size_t slots_to_tie[] = { 0, 0x10003 };
-
-	/* TODO: move this all to just mmap */
-	for(size_t j = 0; j < sizeof(slots_to_tie) / sizeof(slots_to_tie[0]); j++) {
-		size_t i = slots_to_tie[j];
-		objid_t id;
-		uint32_t flags;
-		twz_view_get(NULL, i, &id, &flags);
-		if(!(flags & VE_VALID)) {
-			continue;
-		}
-		if(twz_object_wire_guid(&view, id) < 0)
-			abort();
-	}
-
-	for(size_t j = 0; j < sizeof(slots_to_copy) / sizeof(slots_to_copy[0]); j++) {
-		size_t i = slots_to_copy[j];
-		objid_t id;
-		uint32_t flags;
-		twz_view_get(NULL, i, &id, &flags);
-		if(!(flags & VE_VALID)) {
-			continue;
-		}
-		// twix_log("FORK COPY-DERIVE %lx\n", i);
-		/* Copy-derive */
-		objid_t nid;
-		if((r = twz_object_create(
-		      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC /* TODO */ | TWZ_OC_TIED_NONE,
-		      0,
-		      id,
-		      &nid))) {
-			/* TODO: cleanup */
-			return r;
-		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&view, i, nid, flags);
-		if(twz_object_wire_guid(&view, nid) < 0)
-			abort();
-		if(twz_object_delete_guid(nid, 0) < 0)
-			abort();
-	}
-
-	for(size_t j = TWZSLOT_MMAP_BASE; j < TWZSLOT_MMAP_BASE + TWZSLOT_MMAP_NUM; j++) {
-		size_t i = j;
-		objid_t id;
-		uint32_t flags;
-		twz_view_get(NULL, i, &id, &flags);
-		if(!(flags & VE_VALID) || !(flags & VE_WRITE)) {
-			if(flags & VE_VALID) {
-				if(twz_object_wire_guid(&view, id) < 0)
-					abort();
-			}
-			continue;
-		}
-		/* Copy-derive */
-		objid_t nid;
-		if((r = twz_object_create(
-		      TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE | TWZ_OC_DFL_EXEC /* TODO */ | TWZ_OC_TIED_NONE,
-		      0,
-		      id,
-		      &nid))) {
-			/* TODO: cleanup */
-			return r;
-		}
-		//	twix_log("FORK COPY-DERIVE %lx: " IDFMT " --> " IDFMT "\n", i, IDPR(id), IDPR(nid));
-		if(flags & VE_FIXED) {
-		}
-		//		twz_view_fixedset(&pds[pid].thrd.obj, i, nid, flags);
-		else
-			twz_view_set(&view, i, nid, flags);
-		if(twz_object_wire_guid(&view, nid) < 0)
-			abort();
-		if(twz_object_delete_guid(nid, 0) < 0)
-			abort();
-	}
-
-	// twz_object_wire(NULL, &stack);
-	// twz_object_delete(&stack, 0);
-
-	// size_t soff = (uint64_t)twz_ptr_local(frame) - 1024;
-	// void *childstack = twz_object_lea(&stack, (void *)soff);
-
-	// memcpy(childstack, frame, sizeof(struct twix_register_frame));
-
-	uint64_t fs;
-	asm volatile("rdfsbase %%rax" : "=a"(fs));
-
-	struct sys_thrd_spawn_args sa = {
-		.target_view = vid,
-		.start_func = (void *)__return_from_fork,
-		.arg = NULL,
-		.stack_base = (void *)frame, // twz_ptr_rebase(TWZSLOT_STACK, soff),
-		.stack_size = 8,
-		.tls_base = (void *)fs,
-		.thrd_ctrl = TWZSLOT_THRD,
-	};
-
-	//	debug_printf("== spawning\n");
-	if((r = sys_thrd_spawn(pds[pid].thrd.tid, &sa, 0, NULL))) {
-		return r;
-	}
-
-	if(twz_object_tie(NULL, &view, TIE_UNTIE) < 0)
-		abort();
-	if(twz_object_tie(NULL, &stack, TIE_UNTIE) < 0)
-		abort();
-	twz_object_release(&view);
-	twz_object_release(&stack);
-
-	return pid;
-#endif
 }
