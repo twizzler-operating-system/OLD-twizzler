@@ -160,17 +160,7 @@ void thread_exit(void)
 	  INT_MAX);
 	obj_put(current_thread->reprobj);
 
-#if 0
-	printk("put thrrepr: " IDFMT ": %ld\n",
-	  IDPR(current_thread->reprobj->id),
-	  current_thread->reprobj->refs.count);
-
-	printk("put thrctrl: " IDFMT ": %ld\n",
-	  IDPR(current_thread->thrctrl->id),
-	  current_thread->thrctrl->refs.count);
-#endif
 	current_thread->reprobj = NULL;
-	obj_put(current_thread->thrctrl);
 
 	struct thread *thr = current_thread;
 	arch_processor_reset_current_thread(current_processor);

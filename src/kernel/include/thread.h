@@ -67,7 +67,6 @@ struct thread {
 	struct sctx *active_sc;
 	struct thread_sctx_entry *sctx_entries;
 
-	struct object *thrctrl;
 	struct object *reprobj;
 	int kso_attachment_num;
 

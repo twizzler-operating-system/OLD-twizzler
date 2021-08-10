@@ -176,17 +176,6 @@ static bool read_view_entry(struct object *view, size_t slot, objid_t *id, uint3
 {
 	struct viewentry ve;
 
-	obj_read_data(current_thread->thrctrl,
-	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * slot,
-	  sizeof(ve),
-	  &ve);
-
-	if(ve.flags & VE_VALID) {
-		*id = ve.id;
-		*veflags = ve.flags;
-		return true;
-	}
-
 	obj_read_data(
 	  view, __VE_OFFSET + slot * sizeof(struct viewentry), sizeof(struct viewentry), &ve);
 	*id = ve.id;

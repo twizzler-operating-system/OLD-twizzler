@@ -96,50 +96,6 @@ long syscall_thread_spawn(uint64_t tidlo,
 
 	obj_put(view);
 
-	objid_t ctrlid;
-	r = syscall_ocreate(0, 0, 0, 0, MIP_DFL_READ | MIP_DFL_WRITE, &ctrlid);
-	assert(r == 0); // TODO
-
-	t->thrctrl = obj_lookup(ctrlid, 0);
-
-	obj_write_data(t->thrctrl, offsetof(struct twzthread_ctrl_repr, reprid), sizeof(objid_t), &tid);
-	obj_write_data(
-	  t->thrctrl, offsetof(struct twzthread_ctrl_repr, ctrl_reprid), sizeof(objid_t), &ctrlid);
-
-#if 0
-	struct viewentry ve = {
-		.id = ctrlid,
-		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
-	};
-	obj_write_data(t->thrctrl,
-	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_TCTRL,
-	  sizeof(struct viewentry),
-	  &ve);
-	struct viewentry ve2 = {
-		.id = tid,
-		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
-	};
-	obj_write_data(t->thrctrl,
-	  offsetof(struct twzthread_ctrl_repr, fixed_points) + sizeof(struct viewentry) * TWZSLOT_THRD,
-	  sizeof(struct viewentry),
-	  &ve2);
-#endif
-#if 0
-	struct twzthread_ctrl_repr *ctrl_repr = obj_get_kbase(t->thrctrl);
-	ctrl_repr->reprid = tid;
-	ctrl_repr->ctrl_reprid = ctrlid;
-	ctrl_repr->fixed_points[TWZSLOT_TCTRL] = (struct viewentry){
-		.id = ctrlid,
-		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
-	};
-	ctrl_repr->fixed_points[TWZSLOT_THRD] = (struct viewentry){
-		.id = tid,
-		.flags = VE_READ | VE_WRITE | VE_VALID | VE_FIXED,
-	};
-#endif
-
-	t->thrctrl->flags |= OF_DELETE;
-
 	t->kso_attachment_num = kso_root_attach(repr, 0, KSO_THREAD);
 
 	if(current_thread) {
