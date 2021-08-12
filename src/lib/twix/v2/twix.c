@@ -101,7 +101,7 @@ long hook_simple_passthrough(struct syscall_args *args)
 	return tqe.ret;
 }
 
-static long (*syscall_v2_table[1024])(struct syscall_args *) = {
+static long (*syscall_v2_table[])(struct syscall_args *) = {
 	[LINUX_SYS_getpid] = hook_proc_info_syscalls,
 	[LINUX_SYS_getppid] = hook_proc_info_syscalls,
 	[LINUX_SYS_getgid] = hook_proc_info_syscalls,
@@ -160,6 +160,8 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_mremap] = hook_mremap,
 };
 
+#define array_len(x) ({ sizeof((x)) / sizeof((x)[0]); })
+
 extern const char *syscall_names[];
 
 extern int env_state;
@@ -189,8 +191,7 @@ int try_twix_version2(struct twix_register_frame *frame,
 	if(env_state & ENV_SHOW_ALL) {
 		twix_log("[twix] invoked syscall %d (%s)\n", num, syscall_names[num]);
 	}
-	// twix_log("twix_v2 syscall: %3ld (%s) %p\n", num, syscall_names[num], userver.api.hdr);
-	if(num >= 1024 || num < 0 || !syscall_v2_table[num]) {
+	if(num >= array_len(syscall_v2_table) || num < 0 || !syscall_v2_table[num]) {
 		if(env_state & ENV_SHOW_UNIMP) {
 			twix_log(":: syscall not implemented %ld (%s)\n", num, syscall_names[num]);
 		}
@@ -198,7 +199,6 @@ int try_twix_version2(struct twix_register_frame *frame,
 		*ret = -ENOSYS;
 		return -2;
 	}
-	// twix_log("twix_v2 syscall:           %3ld (%s)\n", num, syscall_names[num]);
 
 	*ret = syscall_v2_table[num](&args);
 	if((*ret == -ENOSYS || *ret == -ENOTSUP) && (env_state & ENV_SHOW_UNIMP)) {

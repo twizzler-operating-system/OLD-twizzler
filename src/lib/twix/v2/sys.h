@@ -3,6 +3,7 @@
 #include <sys/uio.h>
 
 struct syscall_args;
+long hook_fork(struct syscall_args *args);
 long hook_sys_pwritev2(struct syscall_args *);
 long hook_sys_pwritev(struct syscall_args *);
 long hook_sys_writev(struct syscall_args *);

@@ -98,7 +98,6 @@ void __twix_signal_handler(int fault, void *data, void *userdata)
 {
 	(void)userdata;
 	struct fault_signal_info *info = data;
-	debug_printf("!!!!! SIGNAL HANDLER: %ld\n", info->args[1]);
 
 	struct twix_conn *conn = get_twix_conn();
 	append_signal(conn, info->args);
