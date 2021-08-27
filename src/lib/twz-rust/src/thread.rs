@@ -9,8 +9,7 @@ pub const SYNC_READY: usize = 1;
 pub const SYNC_EXIT: usize = 2;
 
 #[repr(C)]
-pub struct ThreadRepr {
-	hdr: KSOHdr,
+pub struct ThreadData {
 	reprid: ObjID,
 	/* TODO atomics */
 	syncs: [std::sync::atomic::AtomicU64; THRD_SYNCPOINTS],
@@ -18,22 +17,28 @@ pub struct ThreadRepr {
 	attached: [KSOAttachment; TWZ_THRD_MAX_SCS],
 }
 
-impl ThreadRepr {
+impl ThreadData {
 	pub fn syncs(&self, which: usize) -> &std::sync::atomic::AtomicU64 {
 		&self.syncs[which]
 	}
 }
 
 pub struct TwzThread {
-	pub(crate) header: *mut ThreadRepr,
+	pub(crate) header: *mut KSOHdr<ThreadData>,
 }
 
 impl TwzThread {
-	pub fn repr(&self) -> &ThreadRepr {
-		unsafe { self.header.as_ref().expect("failed to get thread repr header") }
+	pub fn repr(&self) -> &ThreadData {
+		unsafe {
+			&self
+				.header
+				.as_ref()
+				.expect("failed to get thread repr header")
+				.kso_specific
+		}
 	}
 
-	pub fn repr_obj(&self) -> Twzobj<ThreadRepr> {
+	pub fn repr_obj(&self) -> Twzobj<KSOHdr<ThreadData>> {
 		Twzobj::init_guid(
 			self.repr().reprid,
 			crate::obj::ProtFlags::READ | crate::obj::ProtFlags::WRITE,

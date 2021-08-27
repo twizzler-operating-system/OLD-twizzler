@@ -1,4 +1,4 @@
-use crate::kso::KSOHdr;
+use crate::kso::KSO;
 use crate::obj::{ObjID, ProtFlags, Twzobj, MAX_SIZE};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
@@ -48,8 +48,7 @@ struct ViewSlotAlloc {
 }
 
 #[repr(C)]
-struct ViewHdr {
-	hdr: KSOHdr,
+struct ViewData {
 	fault_entry: Option<extern "C" fn()>,
 	dbl_fault_entry: Option<extern "C" fn()>,
 	fault_mask: u64,
@@ -60,7 +59,7 @@ struct ViewHdr {
 }
 
 pub(crate) struct View {
-	obj: Twzobj<ViewHdr>,
+	kso: KSO<ViewData>,
 }
 
 const TWZSLOT_CVIEW: u64 = 0x1fff0;
@@ -166,21 +165,23 @@ fn dealloc_slot(allocator: &mut ViewSlotAlloc, slot: u32) {
 impl View {
 	pub(crate) fn current() -> View {
 		let mut view = View {
-			obj: Twzobj::init_slot(0, ProtFlags::READ | ProtFlags::WRITE, TWZSLOT_CVIEW, false),
+			kso: KSO::<ViewData> {
+				obj: Twzobj::init_slot(0, ProtFlags::READ | ProtFlags::WRITE, TWZSLOT_CVIEW, false),
+			},
 		};
-		let hdr = view.obj.base(None);
+		let hdr = view.kso.base_data();
 		let entry = &hdr.entries[TWZSLOT_CVIEW as usize];
 		let id = entry.id;
-		view.obj.set_id(id);
+		view.kso.obj.set_id(id);
 		view
 	}
 
 	pub(crate) fn id(&self) -> ObjID {
-		self.obj.id()
+		self.kso.obj.id()
 	}
 
 	pub(crate) fn set_entry(&mut self, slot: usize, id: ObjID, mut flags: ViewFlags) {
-		let hdr = unsafe { self.obj.base_unchecked_mut() };
+		let hdr = unsafe { self.kso.base_data_mut() };
 		let entry = &mut hdr.entries[slot];
 		let old = entry.flags.fetch_and(!ViewFlags::VALID.bits(), Ordering::SeqCst);
 		entry.id = id;
@@ -205,7 +206,7 @@ impl View {
 
 	pub(crate) fn reserve_slot(&mut self, id: ObjID, prot: ProtFlags) -> u64 {
 		let (new, slot) = {
-			let allocator = &mut *unsafe { self.obj.base_unchecked_mut() }.lock.lock();
+			let allocator = &mut *unsafe { self.kso.base_data_mut() }.lock.lock();
 			let bucket = lookup_bucket(allocator, id, prot.bits());
 			if let Some(bucket) = bucket {
 				bucket.refs += 1;
@@ -223,7 +224,7 @@ impl View {
 	}
 
 	pub(crate) fn release_slot(&self, id: ObjID, prot: ProtFlags, slot: u64) {
-		let allocator = &mut *unsafe { self.obj.base_unchecked_mut() }.lock.lock();
+		let allocator = &mut *unsafe { self.kso.base_data_mut() }.lock.lock();
 		let bucket = lookup_bucket(allocator, id, prot.bits()).expect("tried to release slot with no bucket");
 		assert!(bucket.slot == slot as u32);
 		let old = bucket.refs;
@@ -238,7 +239,7 @@ impl View {
 	}
 
 	pub(crate) fn set_upcall_entry(&self, entry: extern "C" fn(), dbl_entry: extern "C" fn()) {
-		let hdr = unsafe { self.obj.base_unchecked_mut() };
+		let hdr = unsafe { self.kso.base_data_mut() };
 		hdr.fault_entry = Some(entry);
 		hdr.dbl_fault_entry = Some(dbl_entry);
 	}

@@ -229,6 +229,10 @@ impl<T> Twzobj<T> {
 		panic!("")
 	}
 
+	pub(crate) unsafe fn offset_lea_mut<R>(&self, _off: u64) -> &mut R {
+		panic!("")
+	}
+
 	pub fn lea<R>(&self, _ptr: &Pptr<R>) -> &R {
 		panic!("")
 	}
