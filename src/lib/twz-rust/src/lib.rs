@@ -19,7 +19,7 @@ pub mod ptr;
 pub mod sys;
 
 //pub mod bstream;
-//pub mod device;
+pub mod device;
 pub mod kso;
 //pub mod log;
 pub mod mutex;

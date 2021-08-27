@@ -76,7 +76,7 @@ add_subdirectory(playground)
 
 add_rust_target(rust-test playground/rust-test)
 
-#add_rust_target(devmgr bin/devmgr)
+add_rust_target(devmgr bin/devmgr)
 
 add_custom_command(
 	OUTPUT

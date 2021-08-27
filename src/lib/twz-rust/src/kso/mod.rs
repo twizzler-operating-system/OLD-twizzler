@@ -31,11 +31,12 @@ pub struct KSOAttachment {
 
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
-pub struct KSOHdr {
+pub struct KSOHdr<T> {
 	name: [u8; KSO_NAME_MAXLEN],
 	version: u32,
 	dir_offset: u32,
 	resv2: u64,
+	pub(crate) kso_specific: T,
 }
 
 #[repr(C)]
@@ -51,6 +52,7 @@ impl KSODirAttachments {
 	}
 }
 
+/*
 #[repr(C)]
 pub struct KSORootHdr {
 	pub hdr: KSOHdr,
@@ -62,10 +64,11 @@ pub struct KSODirHdr {
 	pub hdr: KSOHdr,
 	pub attached: KSODirAttachments,
 }
+*/
 
 #[derive(Clone)]
-pub struct KSO {
-	pub(crate) obj: Twzobj<KSOHdr>,
+pub struct KSO<T> {
+	pub(crate) obj: Twzobj<KSOHdr<T>>,
 }
 
 pub struct KSOAttachIterator<'a> {
@@ -74,11 +77,11 @@ pub struct KSOAttachIterator<'a> {
 	attach: &'a [KSOAttachment],
 }
 
-impl TryFrom<&KSOAttachment> for KSO {
+impl<T> TryFrom<&KSOAttachment> for KSO<T> {
 	type Error = TwzErr;
 	fn try_from(at: &KSOAttachment) -> Result<Self, Self::Error> {
 		if at.id != 0 {
-			Ok(KSO {
+			Ok(KSO::<T> {
 				obj: Twzobj::init_guid(at.id, crate::obj::ProtFlags::READ),
 			})
 		} else {
@@ -88,7 +91,7 @@ impl TryFrom<&KSOAttachment> for KSO {
 }
 
 use std::convert::TryInto;
-impl KSO {
+impl<T> KSO<T> {
 	pub fn name(&self) -> &str {
 		let hdr = self.obj.base(None);
 		unsafe {
@@ -96,6 +99,20 @@ impl KSO {
 				.to_str()
 				.unwrap()
 		}
+	}
+
+	pub fn base(&self) -> &KSOHdr<T> {
+		self.obj.base(None)
+	}
+
+	pub fn base_data(&self) -> &T {
+		let hdr = self.obj.base(None);
+		&hdr.kso_specific
+	}
+
+	pub fn base_data_mut(&self) -> &mut T {
+		let hdr = unsafe { self.obj.base_unchecked_mut() };
+		&mut hdr.kso_specific
 	}
 
 	pub fn get_dir(&self) -> Option<&KSODirAttachments> {
@@ -112,11 +129,11 @@ impl KSO {
 		}
 	}
 
-	pub fn get_subtree(&self, ty: KSOType) -> Option<KSO> {
+	pub fn get_subtree(&self, ty: KSOType) -> Option<KSO<T>> {
 		if let Some(dir) = self.get_dir() {
 			for at in dir {
 				if at.info == ty as u64 {
-					let kso: KSO = at.try_into().unwrap();
+					let kso: KSO<T> = at.try_into().unwrap();
 					return Some(kso);
 				}
 			}
@@ -125,8 +142,8 @@ impl KSO {
 	}
 }
 
-pub fn get_root() -> KSO {
-	KSO {
+pub fn get_root() -> KSO<KSODirAttachments> {
+	KSO::<KSODirAttachments> {
 		obj: Twzobj::init_guid(KSO_ROOT_ID, crate::obj::ProtFlags::READ),
 	}
 }
