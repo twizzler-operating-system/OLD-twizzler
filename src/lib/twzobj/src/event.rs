@@ -24,19 +24,19 @@ pub struct Event<'a> {
 }
 
 impl<'a> Event<'a> {
-	fn new(hdr: &'a EventHdr, events: u64) -> Event<'a> {
+	pub fn new(hdr: &'a EventHdr, events: u64) -> Event<'a> {
 		Event {
 			point: &hdr.point,
 			events: events,
 		}
 	}
 
-	fn ready(&self) -> u64 {
+	pub fn ready(&self) -> u64 {
 		let e = self.point.load(std::sync::atomic::Ordering::SeqCst);
 		e & self.events
 	}
 
-	fn clear(&self) -> u64 {
+	pub fn clear(&self) -> u64 {
 		self.point.fetch_and(!self.events, std::sync::atomic::Ordering::SeqCst) & self.events
 	}
 }

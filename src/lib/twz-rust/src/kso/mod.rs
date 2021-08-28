@@ -5,7 +5,8 @@ use crate::obj::{ObjID, Twzobj};
 use crate::TwzErr;
 use std::convert::TryFrom;
 
-#[derive(Copy, Clone)]
+#[repr(u32)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum KSOType {
 	None = 0,
 	View = 1,
@@ -77,6 +78,7 @@ pub struct KSOAttachIterator<'a> {
 	attach: &'a [KSOAttachment],
 }
 
+/*
 impl<T> TryFrom<&KSOAttachment> for KSO<T> {
 	type Error = TwzErr;
 	fn try_from(at: &KSOAttachment) -> Result<Self, Self::Error> {
@@ -86,6 +88,25 @@ impl<T> TryFrom<&KSOAttachment> for KSO<T> {
 			})
 		} else {
 			Err(TwzErr::Invalid)
+		}
+	}
+}
+*/
+
+impl KSOAttachment {
+	pub fn into_generic_kso(&self) -> KSO<()> {
+		KSO::<()> {
+			obj: Twzobj::init_guid(self.id, crate::obj::ProtFlags::READ),
+		}
+	}
+
+	pub fn into_kso<T, const TYPE: KSOType>(&self) -> Option<KSO<T>> {
+		if self.attype == TYPE as u32 {
+			Some(KSO::<T> {
+				obj: Twzobj::init_guid(self.id, crate::obj::ProtFlags::READ),
+			})
+		} else {
+			None
 		}
 	}
 }
@@ -129,12 +150,11 @@ impl<T> KSO<T> {
 		}
 	}
 
-	pub fn get_subtree(&self, ty: KSOType) -> Option<KSO<T>> {
+	pub fn get_subtree(&self, ty: KSOType) -> Option<KSO<KSODirAttachments>> {
 		if let Some(dir) = self.get_dir() {
 			for at in dir {
 				if at.info == ty as u64 {
-					let kso: KSO<T> = at.try_into().unwrap();
-					return Some(kso);
+					return at.into_kso::<KSODirAttachments, { KSOType::Directory }>();
 				}
 			}
 		};

@@ -181,7 +181,7 @@ impl View {
 	}
 
 	pub(crate) fn set_entry(&mut self, slot: usize, id: ObjID, mut flags: ViewFlags) {
-		let hdr = unsafe { self.kso.base_data_mut() };
+		let hdr = self.kso.base_data_mut();
 		let entry = &mut hdr.entries[slot];
 		let old = entry.flags.fetch_and(!ViewFlags::VALID.bits(), Ordering::SeqCst);
 		entry.id = id;
@@ -206,7 +206,7 @@ impl View {
 
 	pub(crate) fn reserve_slot(&mut self, id: ObjID, prot: ProtFlags) -> u64 {
 		let (new, slot) = {
-			let allocator = &mut *unsafe { self.kso.base_data_mut() }.lock.lock();
+			let allocator = &mut *self.kso.base_data_mut().lock.lock();
 			let bucket = lookup_bucket(allocator, id, prot.bits());
 			if let Some(bucket) = bucket {
 				bucket.refs += 1;
@@ -224,7 +224,7 @@ impl View {
 	}
 
 	pub(crate) fn release_slot(&self, id: ObjID, prot: ProtFlags, slot: u64) {
-		let allocator = &mut *unsafe { self.kso.base_data_mut() }.lock.lock();
+		let allocator = &mut *self.kso.base_data_mut().lock.lock();
 		let bucket = lookup_bucket(allocator, id, prot.bits()).expect("tried to release slot with no bucket");
 		assert!(bucket.slot == slot as u32);
 		let old = bucket.refs;
@@ -239,7 +239,7 @@ impl View {
 	}
 
 	pub(crate) fn set_upcall_entry(&self, entry: extern "C" fn(), dbl_entry: extern "C" fn()) {
-		let hdr = unsafe { self.kso.base_data_mut() };
+		let hdr = self.kso.base_data_mut();
 		hdr.fault_entry = Some(entry);
 		hdr.dbl_fault_entry = Some(dbl_entry);
 	}

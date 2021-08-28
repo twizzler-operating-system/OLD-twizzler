@@ -14,7 +14,6 @@ pub struct PcieBus {
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 struct PcieInfo {
-	hdr: KSOHdr,
 	magic: u32,
 	start_bus: u32,
 	end_bus: u32,
@@ -25,7 +24,6 @@ struct PcieInfo {
 #[derive(Debug, Copy, Clone)]
 #[repr(C)]
 struct PcieFunctionInfo {
-	hdr: KSOHdr,
 	deviceid: u16,
 	vendorid: u16,
 	classid: u16,
@@ -127,9 +125,10 @@ impl PcieBus {
 
 	fn init_bridge(&mut self, info: &PcieInfo, bus: u32, device: u32, function: u32) -> Option<u32> {
 		let addr = ((bus - info.start_bus) as u64) << 20 | (device as u64) << 15 | (function as u64) << 12;
-		let mmio = self.root.get_child_mmio::<PcieConfigSpaceBridge>(0, addr);
+		let mmio = self.root.get_child_mmio(0);
 
-		if let Ok((_, mmio)) = mmio {
+		if let Some(mmio) = mmio {
+			let mmio = mmio.access_offset::<PcieConfigSpaceBridge>(addr);
 			Some(mmio.secondary_bus_nr as u32)
 		} else {
 			None
@@ -141,9 +140,10 @@ impl PcieBus {
 		'outer: for device in 0..32 {
 			'inner: for function in 0..8 {
 				let addr = ((bus - info.start_bus) as u64) << 20 | (device as u64) << 15 | (function as u64) << 12;
-				let mmio = self.root.get_child_mmio::<PcieConfigSpaceHdr>(0, addr);
+				let mmio = self.root.get_child_mmio(0);
 
-				if let Ok((_, mmio)) = mmio {
+				if let Some(mmio) = mmio {
+					let mmio = mmio.access_offset::<PcieConfigSpaceHdr>(addr);
 					let vendor = mmio.vendor_id;
 					if vendor != 0xffff {
 						/* Okay, this is a real device */
@@ -164,7 +164,7 @@ impl PcieBus {
 use crate::devtree::DeviceIdent;
 impl Bus for PcieBus {
 	fn identify(&self, dev: &mut Device) -> Option<DeviceIdent> {
-		let devinfo = *dev.get_child_info::<PcieFunctionInfo>(0).unwrap();
+		let devinfo = *dev.get_child_info::<PcieFunctionInfo>(0).unwrap().base_data();
 
 		Some(DeviceIdent::new(
 			Self::get_bus_type(),
@@ -188,7 +188,7 @@ impl Bus for PcieBus {
 	}
 
 	fn init(&mut self) -> Result<(), TwzErr> {
-		let info = *self.root.get_child_info::<PcieInfo>(0)?;
+		let info = *self.root.get_child_info::<PcieInfo>(0).unwrap().base_data();
 
 		if info.magic != PCIE_BUS_HEADER_MAGIC {
 			return Err(TwzErr::Invalid);

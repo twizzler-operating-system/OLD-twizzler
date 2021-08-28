@@ -128,16 +128,14 @@ impl Device {
 			vec.push(ts);
 		}
 
-		unsafe {
-			thread_sync(&mut vec, None);
-		}
+		thread_sync(&mut vec, None);
 	}
 
 	pub fn get_kso_name(&self) -> &str {
 		self.kso.name()
 	}
 
-	pub fn kaction(&self, cmd: u64, arg: u64) -> i32 {
+	pub fn kaction(&self, _cmd: u64, _arg: u64) -> i32 {
 		panic!("")
 		//	crate::libtwz::twz_object_kaction(&self.kso.obj, cmd, arg)
 	}
@@ -146,7 +144,7 @@ impl Device {
 		self.kso.get_dir().unwrap().into_iter()
 	}
 
-	fn get_child_mmio<T>(&mut self, idx: usize) -> Result<KSO<DeviceMMIOData>, TwzErr> {
+	pub fn get_child_mmio(&mut self, idx: usize) -> Option<KSO<DeviceMMIOData>> {
 		let mut count = 0;
 		for child in self.get_children() {
 			if child.id != 0
@@ -154,13 +152,13 @@ impl Device {
 				&& child.attype == KSOType::Data as u32
 			{
 				if count == idx {
-					let kso = KSO::try_from(child)?;
-					return Ok(kso);
+					let kso = child.into_kso::<DeviceMMIOData, { KSOType::Data }>().unwrap();
+					return Some(kso);
 				}
 				count += 1;
 			}
 		}
-		Err(TwzErr::Invalid)
+		None
 	}
 
 	/*
@@ -181,7 +179,7 @@ impl Device {
 	}
 	*/
 
-	fn get_child_info<T>(&mut self, idx: usize, offset: u64) -> Result<KSO<T>, TwzErr> {
+	pub fn get_child_info<T>(&mut self, idx: usize) -> Option<KSO<T>> {
 		let mut count = 0;
 		for child in self.get_children() {
 			if child.id != 0
@@ -189,16 +187,16 @@ impl Device {
 				&& child.attype == KSOType::Data as u32
 			{
 				if count == idx {
-					let kso = KSO::try_from(child)?;
-					return Ok(kso);
+					let kso = child.into_kso::<T, { KSOType::Data }>().unwrap();
+					return Some(kso);
 				}
 				count += 1;
 			}
 		}
-		Err(TwzErr::Invalid)
+		None
 	}
 
-	pub fn get_child_device(&self, idx: usize) -> Result<KSO<DeviceData>, TwzErr> {
+	pub fn get_child_device(&self, idx: usize) -> Option<KSO<DeviceData>> {
 		let mut count = 0;
 
 		for child in self.get_children() {
@@ -207,18 +205,22 @@ impl Device {
 				&& child.attype == KSOType::Device as u32
 			{
 				if count == idx {
-					let obj = KSO::try_from(child)?;
-
-					return Ok(obj);
+					let kso = child.into_kso::<DeviceData, { KSOType::Device }>().unwrap();
+					return Some(kso);
 				}
 				count += 1;
 			}
 		}
-
-		Err(TwzErr::Invalid)
+		None
 	}
 
 	pub fn get_device_hdr(&self) -> &DeviceData {
 		self.kso.base_data()
+	}
+}
+
+impl KSO<DeviceMMIOData> {
+	pub fn access_offset<T>(&self, off: u64) -> &mut T {
+		unsafe { self.obj.offset_lea_mut::<T>(crate::obj::NULLPAGE_SIZE * 2 + off) }
 	}
 }

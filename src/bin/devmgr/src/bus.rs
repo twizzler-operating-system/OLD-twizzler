@@ -8,7 +8,7 @@ pub trait Bus {
 		let mut idx = 0;
 		let root = self.get_bus_root();
 		loop {
-			if let Ok(k) = root.get_child_device(idx) {
+			if let Some(k) = root.get_child_device(idx) {
 				let _res = f(k.into_device());
 				idx += 1;
 			} else {

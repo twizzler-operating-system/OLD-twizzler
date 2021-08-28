@@ -36,20 +36,23 @@ use crate::bus::Bus;
 use crate::busses::create_bus;
 use crate::drivers::RegisteredDrivers;
 use std::convert::TryInto;
-use twz::kso::KSO;
+use twz::device::DeviceData;
+use twz::kso::{KSODirAttachments, KSOType, KSO};
 
 impl DevTree {
-	pub fn enumerate_busses(root: &KSO) -> Result<DevTree, twz::TwzErr> {
+	pub fn enumerate_busses(root: &KSO<KSODirAttachments>) -> Result<DevTree, twz::TwzErr> {
 		let mut vec = vec![];
 		let dir = root.get_dir().unwrap();
 
 		for chattach in dir {
-			let chkso: KSO = chattach.try_into()?;
-			let dev = chkso.into_device();
+			let chkso = chattach.into_kso::<DeviceData, { KSOType::Device }>();
+			if let Some(chkso) = chkso {
+				let dev = chkso.into_device();
 
-			let bus = create_bus(dev);
-			if let Some(bus) = bus {
-				vec.push(bus);
+				let bus = create_bus(dev);
+				if let Some(bus) = bus {
+					vec.push(bus);
+				}
 			}
 		}
 

@@ -3,7 +3,7 @@ use crate::io::TwzIOHdr;
 use std::sync::atomic::AtomicU32;
 use twz::mutex::TwzMutex;
 
-const BSTREAM_METAEXT_TAG: u64 = 0x00000000bbbbbbbb;
+pub const BSTREAM_METAEXT_TAG: u64 = 0x00000000bbbbbbbb;
 
 #[repr(C)]
 pub struct BstreamHdr {

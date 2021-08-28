@@ -19,20 +19,24 @@ mod driver;
 mod drivers;
 
 use std::convert::TryInto;
+
+use twz::device::{Device, DeviceData};
+use twz::kso::{KSOType, KSO};
+
 fn main() {
 	println!("Hello!");
 
-	let root = twz::kso::get_root().unwrap();
+	let root = twz::kso::get_root();
 
-	let subtree = root.get_subtree(twz::kso::KSOType::Device).unwrap();
+	let subtree = root.get_subtree(KSOType::Device).unwrap();
 	let dir = subtree.get_dir().unwrap();
 	println!("{}", dir.len());
 	for c in dir {
-		let kso: twz::kso::KSO = c.try_into().unwrap();
+		let kso = c.into_kso::<DeviceData, { KSOType::Device }>().unwrap();
 		println!("{:?} :: {}", c, kso.name());
 		let dev = kso.into_device();
 		for dc in dev.get_children() {
-			let kso: twz::kso::KSO = dc.try_into().unwrap();
+			let kso = dc.into_generic_kso();
 			println!("   {:?} :: {}", dc, kso.name());
 		}
 
