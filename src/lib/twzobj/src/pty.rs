@@ -94,8 +94,8 @@ pub struct PtyClientHdr {
 }
 
 pub fn create_pty_pair(
-	client_spec: &CreateSpec,
-	server_spec: &CreateSpec,
+	_client_spec: &CreateSpec,
+	_server_spec: &CreateSpec,
 ) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
 	/*
 		fn _init(obj: &Twzobj, base: &mut PtyServerHdr) {

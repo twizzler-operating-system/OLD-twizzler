@@ -226,7 +226,7 @@ int main()
 
 	/* start the device manager */
 	if(!fork()) {
-		execlp("rust-test", "rust-test", NULL);
+		execlp("devmgr", "devmgr", NULL);
 		debug_printf("FAILED TO EXECUTE RUST TEST\n");
 		exit(0);
 	}

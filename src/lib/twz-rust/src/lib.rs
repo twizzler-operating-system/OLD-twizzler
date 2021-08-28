@@ -1,6 +1,7 @@
 #![feature(asm)]
 #![feature(naked_functions)]
 #![allow(dead_code)]
+#![feature(const_generics)]
 
 mod bitflags;
 
