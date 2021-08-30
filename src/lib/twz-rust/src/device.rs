@@ -1,5 +1,4 @@
 use crate::kso::{KSOAttachIterator, KSODirAttachments, KSOHdr, KSOType, KSO};
-use crate::TwzErr;
 
 #[repr(C)]
 pub struct DeviceInterrupt {
@@ -63,8 +62,6 @@ impl KSO<DeviceData> {
 		Device { kso: self }
 	}
 }
-
-use std::convert::TryFrom;
 
 pub struct DeviceEventsIter<'a> {
 	idx: usize,

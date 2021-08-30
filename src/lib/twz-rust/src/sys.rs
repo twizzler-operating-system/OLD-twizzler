@@ -71,7 +71,7 @@ pub(crate) struct InvalidateOp {
 }
 
 pub(crate) enum InvalidateCurrent {
-	View = 1,
+	View = 0,
 }
 
 const KSOI_VALID: u16 = 1;

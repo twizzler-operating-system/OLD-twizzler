@@ -8,7 +8,7 @@ const ALLOCATED: i32 = 1;
 #[derive(Clone)]
 pub struct Twzobj<T> {
 	id: ObjID,
-	slot: u64,
+	pub(crate) slot: u64,
 	flags: i32,
 	prot: ProtFlags,
 	_pd: std::marker::PhantomData<T>,
@@ -225,8 +225,11 @@ impl<T> Twzobj<T> {
 		panic!("")
 	}
 
-	pub(crate) unsafe fn offset_lea<R>(&self, _off: u64) -> &R {
-		panic!("")
+	pub(crate) unsafe fn offset_lea<R>(&self, offset: u64) -> &R {
+		if offset < MAX_SIZE {
+			return std::mem::transmute::<u64, &R>(self.slot * MAX_SIZE + offset);
+		}
+		panic!("tried to offset an object beyond its maximum size")
 	}
 
 	pub(crate) unsafe fn offset_lea_mut<R>(&self, _off: u64) -> &mut R {
