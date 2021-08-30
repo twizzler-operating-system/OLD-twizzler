@@ -3,6 +3,10 @@ use crate::obj::{ObjID, ProtFlags, Twzobj, MAX_SIZE};
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
+/* TODO (opt): when releasing, we could speed things up by lazily releasing slots, tracking
+ * "previously released slots" in a list and occasionally releasing all of them to amortize the
+ * bookkeeping cost. */
+
 const NR_VIEW_ENTRIES: usize = 0x20000;
 const NR_VIEW_BUCKETS: usize = 1024;
 
@@ -70,6 +74,9 @@ fn lookup_bucket(allocator: &mut ViewSlotAlloc, id: ObjID, flags: u32) -> Option
 	let mut idx = (id % NR_VIEW_BUCKETS as u128) as i32;
 	let mut first = true;
 	loop {
+		/* On first pass, we'll look through the actual hash table buckets. If we're doing more
+		 * than one pass through the loop, then we are following a chain, and we take from the
+		 * chain buckets. */
 		let bucket = if first {
 			&allocator.buckets[idx as usize]
 		} else {
@@ -97,11 +104,15 @@ fn insert_obj(allocator: &mut ViewSlotAlloc, id: ObjID, flags: u32, slot: u32) -
 	let mut prev;
 	let mut first = true;
 	loop {
+		/* On first pass, we'll look through the actual hash table buckets. If we're doing more
+		 * than one pass through the loop, then we are following a chain, and we take from the
+		 * chain buckets. */
 		let bucket = if first {
 			&allocator.buckets[idx as usize]
 		} else {
 			&allocator.chain[idx as usize]
 		};
+		/* If we find a deleted (or empty) entry in the chain somewhere, just use that. */
 		if bucket.id == 0 {
 			let bucket = if first {
 				&mut allocator.buckets[idx as usize]
@@ -121,6 +132,8 @@ fn insert_obj(allocator: &mut ViewSlotAlloc, id: ObjID, flags: u32, slot: u32) -
 		}
 		first = false;
 	}
+	/* Reserve a new chain entry for ourselves. This could probably be sped up with a "search from
+	 * last" type deal. */
 	for i in 0..NR_VIEW_ENTRIES {
 		let bucket = &allocator.chain[i];
 		if bucket.id == 0 && bucket.chain == 0 {
@@ -194,6 +207,9 @@ impl View {
 			.flags
 			.store(flags.bits() | ViewFlags::VALID.bits(), Ordering::SeqCst);
 
+		/* If the entry previously had a valid mapping, we need to invalidate that mapping.
+		 * TODO (opt):  we should probably track a list of "to-invalidate" mappings and
+		 * invalidate them all in one batch instead of one at a time. */
 		if old & ViewFlags::VALID.bits() != 0 {
 			let invl = crate::sys::InvalidateOp::new_current(
 				crate::sys::InvalidateCurrent::View,

@@ -2,8 +2,6 @@ pub mod view;
 
 use crate::flexarray::{FlexArray, FlexArrayField};
 use crate::obj::{ObjID, Twzobj};
-use crate::TwzErr;
-use std::convert::TryFrom;
 
 #[repr(u32)]
 #[derive(Copy, Clone, PartialEq, Eq)]
@@ -111,8 +109,11 @@ impl KSOAttachment {
 	}
 }
 
-use std::convert::TryInto;
 impl<T> KSO<T> {
+	pub fn id(&self) -> ObjID {
+		self.obj.id()
+	}
+
 	pub fn name(&self) -> &str {
 		let hdr = self.obj.base(None);
 		unsafe {
