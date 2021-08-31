@@ -8,6 +8,7 @@ const SYS_KCONF: i64 = 14;
 const SYS_THRD_CTL: i64 = 10;
 const SYS_INVL_KSO: i64 = 3;
 const SYS_OCREATE: i64 = 8;
+const SYS_KACTION: i64 = 11;
 
 pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
 pub fn thrd_ctl(op: i32, arg: u64) -> i64 {
@@ -61,7 +62,7 @@ impl ThreadSyncArgs {
 	}
 }
 
-#[repr(C)]
+#[repr(C, align(16))]
 pub(crate) struct InvalidateOp {
 	id: ObjID,
 	offset: u64,
@@ -91,6 +92,37 @@ impl InvalidateOp {
 
 pub(crate) fn invalidate(specs: &mut [InvalidateOp]) -> i64 {
 	unsafe { raw_syscall(SYS_INVL_KSO, specs.as_ptr() as u64, specs.len() as u64, 0, 0, 0, 0) }
+}
+
+#[repr(C, align(16))]
+pub(crate) struct KactionOp {
+	id: ObjID,
+	result: i64,
+	cmd: i64,
+	arg: i64,
+	flags: i64,
+}
+
+const KACTION_VALID: i64 = 1;
+
+impl KactionOp {
+	pub(crate) fn new(id: ObjID, cmd: i64, arg: i64) -> KactionOp {
+		KactionOp {
+			id,
+			result: 0,
+			cmd,
+			arg,
+			flags: KACTION_VALID,
+		}
+	}
+
+	pub(crate) fn result(&self) -> i64 {
+		self.result
+	}
+}
+
+pub(crate) fn kaction(ops: &mut [KactionOp]) -> i64 {
+	unsafe { raw_syscall(SYS_KACTION, ops.len() as u64, ops.as_ptr() as u64, 0, 0, 0, 0) }
 }
 
 #[repr(C)]

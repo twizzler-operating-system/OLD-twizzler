@@ -22,7 +22,7 @@ pub struct FaultFrame {
 
 #[no_mangle]
 #[link_section = ".text.keep"]
-pub fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _frame: FaultFrame) {
+pub extern "C" fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _frame: FaultFrame) {
 	crate::fault::__twz_fault_handler(fid, info);
 }
 
@@ -30,8 +30,9 @@ pub fn __twz_fault_upcall_entry_rust(fid: i32, info: *mut std::ffi::c_void, _fra
 pub static UPCALL_KEEP: extern "C" fn() = __twz_fault_upcall_entry;
 
 #[used]
-pub static UPCALL_KEEP2: fn(i32, *mut std::ffi::c_void, FaultFrame) = __twz_fault_upcall_entry_rust;
+pub static UPCALL_KEEP2: extern "C" fn(i32, *mut std::ffi::c_void, FaultFrame) = __twz_fault_upcall_entry_rust;
 
+// 144 (exception?) 160 (obj)
 #[link_section = ".text.keep"]
 #[no_mangle]
 #[naked]
@@ -45,9 +46,11 @@ pub extern "C" fn __twz_fault_upcall_entry() {
 		 * unwinding, allowing the unwinder to find frame info. */
 		#[inline(never)]
 		asm!(
-			".cfi_endproc",
-			".cfi_startproc",
+			".cfi_signal_frame",
 			".cfi_def_cfa rbp, 144",
+			".cfi_offset rbp, -144",
+			".cfi_offset rip, -136",
+			".cfi_return_column rip",
 			"push rax",
 			"push rbx",
 			"push rcx",
@@ -64,7 +67,10 @@ pub extern "C" fn __twz_fault_upcall_entry() {
 			"push r15",
 			"pushf",
 			"mov rdx, rsp",
+			"mov rbx, rsp",
+			"and rsp, 0xfffffffffffffff0",
 			"call __twz_fault_upcall_entry_rust",
+			"mov rsp, rbx",
 			"popf",
 			"pop r15",
 			"pop r15",
@@ -83,9 +89,13 @@ pub extern "C" fn __twz_fault_upcall_entry() {
 			"pop rdi",
 			"pop rsi",
 			"pop rsp",
+			".cfi_def_cfa rsp, 0",
 			"sub rsp, 144",
+			".cfi_def_cfa rsp, 144",
 			"pop rbp",
+			".cfi_def_cfa rsp, 136",
 			"add rsp, 136",
+			".cfi_def_cfa rsp, 0",
 			"jmp -136[rsp]",
 			options(noreturn)
 		);

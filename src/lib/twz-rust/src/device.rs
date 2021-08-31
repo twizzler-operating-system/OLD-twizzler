@@ -132,9 +132,11 @@ impl Device {
 		self.kso.name()
 	}
 
-	pub fn kaction(&self, _cmd: u64, _arg: u64) -> i32 {
-		panic!("")
-		//	crate::libtwz::twz_object_kaction(&self.kso.obj, cmd, arg)
+	pub fn kaction(&self, cmd: i64, arg: i64) -> i32 {
+		let op = crate::sys::KactionOp::new(self.kso.obj.id(), cmd, arg);
+		let mut ops = [op];
+		let result = crate::sys::kaction(&mut ops);
+		return if result == 0 { ops[0].result() } else { result } as i32;
 	}
 
 	pub fn get_children<'a>(&'a self) -> KSOAttachIterator<'a> {

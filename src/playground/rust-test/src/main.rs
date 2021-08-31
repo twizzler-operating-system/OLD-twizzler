@@ -4,5 +4,7 @@ extern crate twz;
 
 fn main() {
 	twz::use_runtime();
-	panic!("Hello");
+	let x = 12313123312341234123 as *const i32;
+	println!("{}", unsafe { *x });
+	//panic!("Hello");
 }
