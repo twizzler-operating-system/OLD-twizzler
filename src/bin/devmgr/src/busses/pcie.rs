@@ -5,7 +5,7 @@ use twz::TwzErr;
 
 const PCIE_BUS_HEADER_MAGIC: u32 = 0x88582323;
 const PCIE_HEADER_MULTIFUNCTION: u8 = 1 << 7;
-const KACTION_CMD_PCIE_INIT_DEVICE: u64 = 1;
+const KACTION_CMD_PCIE_INIT_DEVICE: i64 = 1;
 
 pub struct PcieBus {
 	root: Device,
@@ -116,10 +116,10 @@ struct PcieConfigSpaceBridge {
 
 impl PcieBus {
 	fn init_device(&mut self, info: &PcieInfo, bus: u32, device: u32, function: u32) {
-		let wc: u64 = 0;
+		let wc: i64 = 0;
 		self.root.kaction(
 			KACTION_CMD_PCIE_INIT_DEVICE,
-			(info.segnr as u64) << 16 | (bus as u64) << 8 | (device as u64) << 3 | (function as u64) | (wc << 32),
+			(info.segnr as i64) << 16 | (bus as i64) << 8 | (device as i64) << 3 | (function as i64) | (wc << 32),
 		);
 	}
 

@@ -249,25 +249,24 @@ void arch_thread_raise_call(struct thread *t, void *addr, long a0, void *info, s
 		return;
 	}
 
-	/* TODO: validate that stack is in a reasonable object */
-	if(((unsigned long)stack & 0xFFFFFFFFFFFFFFF0) != (unsigned long)stack) {
-		//	panic("NI");
-		/* set up stack alignment correctly
-		 * (mis-aligned going into a function call) */
-		stack--;
-	}
+	bool adjust_stack = ((unsigned long)stack & 0xFFFFFFFFFFFFFFF0) != (unsigned long)stack;
 
+	// printk("upcall: %d\n", adjust_stack);
 	stack -= red_zone / 8;
 
 	*--stack = *jmp;
 	*--stack = *rbp;
-	// printk("raise: from %lx, orig frame = %lx\n", *jmp, *rbp);
+	printk("raise: from %lx, orig frame = %lx, rsp=%lx\n", *jmp, *rbp, *rsp);
 	// printk("raise: Setting stack = %p = %lx\n", stack, *rbp);
 	*rbp = (long)stack;
 	// printk("raise: Setting rbp = %lx\n", *rbp);
 
 	if(infolen & 0xf) {
 		panic("infolen must be 16-byte aligned (was %ld)", infolen);
+	}
+
+	if(adjust_stack) {
+		stack--;
 	}
 
 	stack -= infolen / 8;

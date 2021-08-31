@@ -24,8 +24,7 @@ use twz::device::{Device, DeviceData};
 use twz::kso::{KSOType, KSO};
 
 fn main() {
-	println!("Hello!");
-
+	twz::use_runtime();
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();

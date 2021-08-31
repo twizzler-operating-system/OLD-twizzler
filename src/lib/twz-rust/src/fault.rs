@@ -270,6 +270,7 @@ fn catching_fault_handler(fid: i32, info: *mut std::ffi::c_void) {
 	panic!("unhandled upcall fault\n     {:?}\n     ", fault);
 }
 
+/* TODO: make this thread-local or atomic */
 static mut __FAULT_UNWINDING: bool = false;
 
 #[no_mangle]
@@ -289,7 +290,6 @@ pub extern "C" fn __twz_fault_handler(fid: i32, info: *mut std::ffi::c_void) {
 			__FAULT_UNWINDING = true;
 			/* make sure that the libtwz runtime also doesn't pass us any exception handling in
 			 * case of abort causing that. */
-			//libtwz::twz_c::twz_fault_set(FaultTypeID::Exception as i32, None, std::ptr::null_mut());
 			std::panic::resume_unwind(err);
 		}
 	}

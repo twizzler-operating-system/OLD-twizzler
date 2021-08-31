@@ -163,6 +163,7 @@ impl<T> Twzobj<T> {
 	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
 	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
 		let (id, res) = crate::sys::create(spec);
+		println!("CREATED {:x} {}", id, res);
 		if res != 0 {
 			Err(TwzErr::OSError(res as i32))
 		} else {
@@ -232,8 +233,11 @@ impl<T> Twzobj<T> {
 		panic!("tried to offset an object beyond its maximum size")
 	}
 
-	pub(crate) unsafe fn offset_lea_mut<R>(&self, _off: u64) -> &mut R {
-		panic!("")
+	pub(crate) unsafe fn offset_lea_mut<R>(&self, offset: u64) -> &mut R {
+		if offset < MAX_SIZE {
+			return std::mem::transmute::<u64, &mut R>(self.slot * MAX_SIZE + offset);
+		}
+		panic!("tried to offset an object beyond its maximum size")
 	}
 
 	pub fn lea<R>(&self, _ptr: &Pptr<R>) -> &R {
