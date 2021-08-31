@@ -1,4 +1,5 @@
 use crate::kso::{KSOAttachIterator, KSODirAttachments, KSOHdr, KSOType, KSO};
+use crate::obj::ProtFlags;
 
 #[repr(C)]
 pub struct DeviceInterrupt {
@@ -151,7 +152,9 @@ impl Device {
 				&& child.attype == KSOType::Data as u32
 			{
 				if count == idx {
-					let kso = child.into_kso::<DeviceMMIOData, { KSOType::Data }>().unwrap();
+					let kso = child
+						.into_kso::<DeviceMMIOData, { KSOType::Data }>(ProtFlags::READ | ProtFlags::WRITE)
+						.unwrap();
 					return Some(kso);
 				}
 				count += 1;
@@ -186,7 +189,7 @@ impl Device {
 				&& child.attype == KSOType::Data as u32
 			{
 				if count == idx {
-					let kso = child.into_kso::<T, { KSOType::Data }>().unwrap();
+					let kso = child.into_kso::<T, { KSOType::Data }>(ProtFlags::READ).unwrap();
 					return Some(kso);
 				}
 				count += 1;
@@ -204,7 +207,9 @@ impl Device {
 				&& child.attype == KSOType::Device as u32
 			{
 				if count == idx {
-					let kso = child.into_kso::<DeviceData, { KSOType::Device }>().unwrap();
+					let kso = child
+						.into_kso::<DeviceData, { KSOType::Device }>(ProtFlags::READ | ProtFlags::WRITE)
+						.unwrap();
 					return Some(kso);
 				}
 				count += 1;

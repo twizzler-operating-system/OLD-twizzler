@@ -98,10 +98,10 @@ impl KSOAttachment {
 		}
 	}
 
-	pub fn into_kso<T, const TYPE: KSOType>(&self) -> Option<KSO<T>> {
+	pub fn into_kso<T, const TYPE: KSOType>(&self, flags: crate::obj::ProtFlags) -> Option<KSO<T>> {
 		if self.attype == TYPE as u32 {
 			Some(KSO::<T> {
-				obj: Twzobj::init_guid(self.id, crate::obj::ProtFlags::READ),
+				obj: Twzobj::init_guid(self.id, flags),
 			})
 		} else {
 			None
@@ -155,7 +155,7 @@ impl<T> KSO<T> {
 		if let Some(dir) = self.get_dir() {
 			for at in dir {
 				if at.info == ty as u64 {
-					return at.into_kso::<KSODirAttachments, { KSOType::Directory }>();
+					return at.into_kso::<KSODirAttachments, { KSOType::Directory }>(crate::obj::ProtFlags::READ);
 				}
 			}
 		};
