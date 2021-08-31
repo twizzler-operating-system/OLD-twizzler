@@ -22,6 +22,7 @@ use std::convert::TryInto;
 
 use twz::device::{Device, DeviceData};
 use twz::kso::{KSOType, KSO};
+use twz::obj::ProtFlags;
 
 fn main() {
 	twz::use_runtime();
@@ -31,7 +32,7 @@ fn main() {
 	let dir = subtree.get_dir().unwrap();
 	println!("{}", dir.len());
 	for c in dir {
-		let kso = c.into_kso::<DeviceData, { KSOType::Device }>().unwrap();
+		let kso = c.into_kso::<DeviceData, { KSOType::Device }>(ProtFlags::READ).unwrap();
 		println!("{:?} :: {}", c, kso.name());
 		let dev = kso.into_device();
 		for dc in dev.get_children() {

@@ -38,6 +38,7 @@ use crate::drivers::RegisteredDrivers;
 use std::convert::TryInto;
 use twz::device::DeviceData;
 use twz::kso::{KSODirAttachments, KSOType, KSO};
+use twz::obj::ProtFlags;
 
 impl DevTree {
 	pub fn enumerate_busses(root: &KSO<KSODirAttachments>) -> Result<DevTree, twz::TwzErr> {
@@ -45,7 +46,7 @@ impl DevTree {
 		let dir = root.get_dir().unwrap();
 
 		for chattach in dir {
-			let chkso = chattach.into_kso::<DeviceData, { KSOType::Device }>();
+			let chkso = chattach.into_kso::<DeviceData, { KSOType::Device }>(ProtFlags::READ);
 			if let Some(chkso) = chkso {
 				let dev = chkso.into_device();
 
