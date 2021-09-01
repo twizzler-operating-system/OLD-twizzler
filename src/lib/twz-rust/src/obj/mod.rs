@@ -1,134 +1,21 @@
 use crate::kso::view::{View, ViewFlags};
-
-pub const MAX_SIZE: u64 = 1 << 30;
-pub const NULLPAGE_SIZE: u64 = 0x1000;
-
-pub type ObjID = u128;
-
-const ALLOCATED: i32 = 1;
-#[derive(Clone)]
-pub struct Twzobj<T> {
-	id: ObjID,
-	pub(crate) slot: u64,
-	flags: i32,
-	prot: ProtFlags,
-	_pd: std::marker::PhantomData<T>,
-}
-
-impl<T> Drop for Twzobj<T> {
-	fn drop(&mut self) {
-		if self.flags & ALLOCATED != 0 {
-			View::current().release_slot(self.id, self.prot, self.slot);
-		}
-	}
-}
-
-pub fn objid_split(id: ObjID) -> (u64, u64) {
-	((id >> 64) as u64, (id & 0xffffffffffffffff) as u64)
-}
-
-pub fn objid_join(hi: i64, lo: i64) -> ObjID {
-	u128::from(lo as u64) | (u128::from(hi as u64)) << 64
-}
-
-crate::bitflags! {
-	pub struct CreateFlags: u64 {
-		const HASH_DATA = 0x1;
-		const DFL_READ = 0x4;
-		const DFL_WRITE = 0x8;
-		const DFL_EXEC = 0x10;
-		const DFL_USE = 0x20;
-		const DFL_DEL = 0x40;
-		const ZERO_NONCE = 0x1000;
-	}
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum BackingType {
-	Normal = 0,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum LifetimeType {
-	Volatile = 0,
-	Persistent = 1,
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum KuSpec {
-	None,
-	Obj(ObjID),
-}
-
-#[derive(Debug, Copy, Clone)]
-pub enum TieSpec {
-	View,
-	Obj(ObjID),
-}
-
-#[derive(Debug, Copy, Clone)]
-pub struct SrcSpec {
-	pub(crate) srcid: ObjID,
-	pub(crate) start: u64,
-	pub(crate) length: u64,
-}
-
-pub struct CreateSpec {
-	pub(crate) srcs: Vec<SrcSpec>,
-	pub(crate) ku: KuSpec,
-	pub(crate) lt: LifetimeType,
-	pub(crate) bt: BackingType,
-	pub(crate) ties: Vec<TieSpec>,
-	pub(crate) flags: CreateFlags,
-}
-
-impl CreateSpec {
-	pub fn new(lt: LifetimeType, bt: BackingType, flags: CreateFlags) -> CreateSpec {
-		CreateSpec {
-			srcs: vec![],
-			ku: KuSpec::None,
-			lt,
-			bt,
-			ties: vec![],
-			flags,
-		}
-	}
-	pub fn src(mut self, src: SrcSpec) -> CreateSpec {
-		self.srcs.push(src);
-		self
-	}
-	pub fn tie(mut self, tie: TieSpec) -> CreateSpec {
-		self.ties.push(tie);
-		self
-	}
-	pub fn ku(mut self, kuspec: KuSpec) -> CreateSpec {
-		self.ku = kuspec;
-		self
-	}
-}
-
-crate::bitflags! {
-	pub struct ProtFlags: u32 {
-		const READ = ViewFlags::READ.bits();
-		const WRITE = ViewFlags::WRITE.bits();
-		const EXEC = ViewFlags::EXEC.bits();
-	}
-}
-
-pub struct Transaction {}
-pub enum TransactionErr<E> {
-	LogFull,
-	Abort(E),
-}
-
 use crate::name::NameError;
 use crate::ptr::Pptr;
 use crate::TwzErr;
-impl<T> Twzobj<T> {
-	pub fn id(&self) -> ObjID {
-		self.id
-	}
 
+pub mod r#const;
+pub mod create;
+pub mod id;
+pub mod obj;
+pub mod tx;
+
+pub use self::create::*;
+pub use self::id::*;
+pub use self::obj::*;
+pub use self::r#const::*;
+pub use self::tx::*;
+
+impl<T> Twzobj<T> {
 	pub(crate) fn set_id(&mut self, id: ObjID) {
 		self.id = id;
 	}
