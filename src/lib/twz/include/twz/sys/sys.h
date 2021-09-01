@@ -45,6 +45,11 @@ static inline long sys_ocreate(int flags, objid_t kuid, objid_t src, objid_t *id
 	  SYS_OCREATE, ID_LO(kuid), ID_HI(kuid), ID_LO(src), ID_HI(src), flags, (long)id);
 }
 
+static inline long sys_ocreate2(struct kernel_create_spec *spec)
+{
+	return __syscall6(SYS_OCREATE2, (long)spec, 0, 0, 0, 0, 0);
+}
+
 static inline long sys_ocopy(objid_t dest,
   objid_t src,
   size_t doff,

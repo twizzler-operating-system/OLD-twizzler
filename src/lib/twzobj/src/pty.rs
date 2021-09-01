@@ -93,33 +93,20 @@ pub struct PtyClientHdr {
 	io: TwzIOHdr,
 }
 
+use twz::obj::ProtFlags;
 pub fn create_pty_pair(
 	_client_spec: &CreateSpec,
 	_server_spec: &CreateSpec,
 ) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
-	/*
-		fn _init(obj: &Twzobj, base: &mut PtyServerHdr) {
-			base.stoc = Pptr::new_null();
-			base.ctos = Pptr::new_null();
-			base.io = TwzIOHdr::default();
-			base.termios = Termios::default();
-			base.wsz = WinSize::default();
-			base.buflock = TwzMutex::<PtyBuffer>::default();
-		}
+	let server = Twzobj::<PtyServerHdr>::create_ctor(_server_spec, &|obj, base, tx| {
+		obj.new_item(&mut base.stoc, tx);
+		obj.new_item(&mut base.ctos, tx);
+	})
+	.unwrap();
 
-		fn _init_client(obj: &Twzobj, base: &mut PtyClientHdr) {
-			base.server = Pptr::new_null();
-			base.io = TwzIOHdr::default();
-		}
-		let server_spec = server_spec.clone_with_ctor(_init);
-		let server = Twzobj::create_spec_ctor(&server_spec)?;
-
-		let client_spec = client_spec.clone_with_ctor(_init_client);
-		let client = Twzobj::create_spec_ctor(&client_spec)?;
-
-		let client_base = client.base_mut::<PtyClientHdr>(None);
-		let server_base = server.base_mut::<PtyServerHdr>(None);
-	*/
-	//server.move_item((),
-	panic!("")
+	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, &|obj, base, tx| {
+		base.server = obj.make_ptr(server.base(None), ProtFlags::READ | ProtFlags::WRITE, tx);
+	})
+	.unwrap();
+	Ok((client, server))
 }

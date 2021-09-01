@@ -7,7 +7,7 @@ const SYS_THREAD_SYNC: i64 = 7;
 const SYS_KCONF: i64 = 14;
 const SYS_THRD_CTL: i64 = 10;
 const SYS_INVL_KSO: i64 = 3;
-const SYS_OCREATE: i64 = 8;
+const SYS_OCREATE: i64 = 21;
 const SYS_KACTION: i64 = 11;
 
 pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
@@ -218,8 +218,9 @@ pub unsafe fn r#become(args: *const BecomeArgs, arg0: i64, arg1: i64) -> Result<
 	})
 }
 
-#[repr(C)]
+#[repr(C, align(16))]
 pub(crate) struct KernelCreateSpec {
+	result: ObjID,
 	ku: ObjID,
 	srcs: *const KernelCreateSrc,
 	srcs_len: u64,
@@ -230,7 +231,7 @@ pub(crate) struct KernelCreateSpec {
 	lifetime: u16,
 }
 
-#[repr(C)]
+#[repr(C, align(16))]
 struct KernelCreateSrc {
 	id: ObjID,
 	start: u64,
@@ -260,7 +261,8 @@ pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
 			}
 		})
 		.collect();
-	let ks = KernelCreateSpec {
+	let mut ks = KernelCreateSpec {
+		result: 0,
 		ku: kuid,
 		srcs: (&srcs).as_ptr(),
 		srcs_len: srcs.len() as u64,
@@ -271,16 +273,6 @@ pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
 		lifetime: spec.lt as u16,
 	};
 	let mut id: ObjID = 0;
-	let res = unsafe {
-		raw_syscall(
-			SYS_OCREATE,
-			(&ks as *const KernelCreateSpec) as u64,
-			(&mut id as *mut ObjID) as u64,
-			0,
-			0,
-			0,
-			0,
-		)
-	};
-	(id, res)
+	let res = unsafe { raw_syscall(SYS_OCREATE, (&mut ks as *mut KernelCreateSpec) as u64, 0, 0, 0, 0, 0) };
+	(ks.result, res)
 }

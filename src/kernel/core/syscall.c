@@ -48,13 +48,13 @@ static long syscall_debug_print(const char *data, size_t len)
 long (*syscall_table[NUM_SYSCALLS])() = {
 	[SYS_NULL] = syscall_null,
 	[SYS_THRD_SPAWN] = syscall_thread_spawn,
-	[SYS_DEBUG_PRINT] = syscall_debug_print,
+	[SYS_DEBUG_PRINT] = syscall_debug_print, // TODO: deprecate
 	[SYS_INVL_KSO] = syscall_invalidate_kso,
 	[SYS_ATTACH] = syscall_attach,
 	[SYS_DETACH] = syscall_detach,
 	[SYS_BECOME] = syscall_become,
 	[SYS_THRD_SYNC] = syscall_thread_sync,
-	[SYS_OCREATE] = syscall_ocreate,
+	[SYS_OCREATE] = syscall_ocreate, // TODO: replace with ocreate2
 	[SYS_ODELETE] = syscall_odelete,
 	[SYS_THRD_CTL] = syscall_thrd_ctl,
 	[SYS_KACTION] = syscall_kaction,
@@ -66,6 +66,7 @@ long (*syscall_table[NUM_SYSCALLS])() = {
 	[SYS_KQUEUE] = syscall_kqueue,
 	[SYS_OSTAT] = syscall_ostat,
 	[SYS_SIGNAL] = syscall_signal,
+	[SYS_OCREATE2] = syscall_ocreate2,
 };
 
 long syscall_prelude(int num)

@@ -1,3 +1,4 @@
+#[derive(Default)]
 pub struct FlexArrayField<T>([T; 0]);
 
 pub trait FlexArray<T> {

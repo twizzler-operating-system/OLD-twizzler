@@ -21,6 +21,12 @@ impl<T> Default for Pptr<T> {
 impl<T> Copy for Pptr<T> {}
 
 impl<T> Pptr<T> {
+	pub(crate) fn new(p: u64) -> Pptr<T> {
+		Pptr {
+			p,
+			_pd: std::marker::PhantomData,
+		}
+	}
 	pub const fn new_null() -> Pptr<T> {
 		Pptr {
 			p: 0,

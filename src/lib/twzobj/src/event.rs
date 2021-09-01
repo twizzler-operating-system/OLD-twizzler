@@ -1,5 +1,6 @@
 use std::sync::atomic::AtomicU64;
 
+#[derive(Default)]
 pub struct EventHdr {
 	point: AtomicU64,
 }

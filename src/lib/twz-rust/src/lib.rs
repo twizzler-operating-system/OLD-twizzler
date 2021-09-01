@@ -6,6 +6,7 @@
 
 mod bitflags;
 
+mod alloc;
 mod arch;
 mod fault;
 pub mod flexarray;

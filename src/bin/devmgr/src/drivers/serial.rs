@@ -23,6 +23,7 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 	}
 }
 
+use twzobj::pty;
 impl Instance {
 	fn new(device: Device, ident: &DeviceIdent) -> std::sync::Arc<std::sync::Mutex<Instance>> {
 		let inst = std::sync::Arc::new(std::sync::Mutex::new(Instance {
@@ -32,6 +33,13 @@ impl Instance {
 			_nodes: devnode::allocate(&vec![("ttyS", 0)]),
 		}));
 
+		let spec = twz::obj::CreateSpec::new(
+			twz::obj::LifetimeType::Volatile,
+			twz::obj::BackingType::Normal,
+			twz::obj::CreateFlags::DFL_READ | twz::obj::CreateFlags::DFL_WRITE,
+		);
+		println!("Creating PTY Pair");
+		let foo = pty::create_pty_pair(&spec, &spec);
 		let inst2 = inst.clone();
 		{
 			let mut inst = inst.lock().unwrap();
