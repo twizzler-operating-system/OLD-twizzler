@@ -40,6 +40,7 @@ long syscall_ocreate(uint64_t kulo,
   uint64_t thi,
   uint64_t flags,
   objid_t *);
+long syscall_ocreate2(struct kernel_create_spec *spec);
 long syscall_odelete(uint64_t olo, uint64_t ohi, uint64_t flags);
 
 #define THRD_CTL_ARCH_MAX 0xff

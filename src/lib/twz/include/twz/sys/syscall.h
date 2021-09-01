@@ -26,7 +26,8 @@
 #define SYS_KQUEUE 18
 #define SYS_OSTAT 19
 #define SYS_SIGNAL 20
-#define NUM_SYSCALLS 21
+#define SYS_OCREATE2 21
+#define NUM_SYSCALLS 22
 
 #define KCONF_RDRESET 1
 #define KCONF_ARCH_TSC_PSPERIOD 1001
@@ -179,4 +180,22 @@ struct kernel_ostat_page {
 	uint64_t flags;
 	uint32_t cowcount;
 	uint32_t level;
+};
+
+struct kernel_create_src {
+	objid_t id;
+	uint64_t start;
+	uint64_t length;
+};
+
+struct kernel_create_spec {
+	objid_t result;
+	objid_t ku;
+	struct kernel_create_src *srcs;
+	uint64_t srcs_len;
+	objid_t *ties;
+	uint64_t ties_len;
+	uint32_t flags;
+	uint16_t backing_type;
+	uint16_t lifetime;
 };

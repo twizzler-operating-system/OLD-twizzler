@@ -6,6 +6,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::atomic::Ordering;
 
 #[repr(C)]
+#[derive(Default)]
 pub struct TwzMutex<T> {
 	sleep: AtomicU64,
 	resetcode: AtomicU64,
@@ -15,6 +16,16 @@ pub struct TwzMutex<T> {
 pub struct TwzMutexGuard<'a, T> {
 	mutex: &'a TwzMutex<T>,
 }
+
+/*impl<T: Default> TwzMutex<T> {
+	fn new2() -> TwzMutex<T> {
+		TwzMutex {
+			sleep: AtomicU64::new(0),
+			resetcode: AtomicU64::new(0),
+			..Default::default() //data: UnsafeCell::new(t),
+		}
+	}
+}*/
 
 impl<T: Copy> TwzMutex<T> {
 	pub fn new(t: T) -> TwzMutex<T> {
@@ -26,11 +37,11 @@ impl<T: Copy> TwzMutex<T> {
 	}
 }
 
-impl<T: Default + Copy> Default for TwzMutex<T> {
+/*impl<T: Default> Default for TwzMutex<T> {
 	fn default() -> Self {
-		TwzMutex::<T>::new(T::default())
+		TwzMutex::<T>::new2()
 	}
-}
+}*/
 
 static RESET_CODE: AtomicU64 = AtomicU64::new(0);
 

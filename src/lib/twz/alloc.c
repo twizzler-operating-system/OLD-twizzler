@@ -1310,6 +1310,39 @@ int twz_object_init_alloc(twzobj *obj, size_t offset)
 	return twz_object_addext(obj, ALLOC_METAINFO_TAG, (void *)offset);
 }
 
+int __runtime_twz_object_init_alloc(void *base, size_t offset)
+{
+	twzobj obj;
+	twz_object_init_ptr(&obj, base);
+	return twz_object_init_alloc(&obj, offset);
+}
+
+int __runtime_twz_object_realloc(void *base, void *p, void **owner, size_t newlen, uint64_t flags)
+{
+	twzobj obj;
+	twz_object_init_ptr(&obj, base);
+	return twz_realloc(&obj, p, owner, newlen, flags);
+}
+
+void __runtime_twz_object_free(void *base, void *p, void **owner, uint64_t flags)
+{
+	twzobj obj;
+	twz_object_init_ptr(&obj, base);
+	twz_free(&obj, p, owner, flags);
+}
+
+int __runtime_twz_object_alloc(void *base,
+  size_t len,
+  void **owner,
+  uint64_t flags,
+  void (*ctor)(void *, void *),
+  void *data)
+{
+	twzobj obj;
+	twz_object_init_ptr(&obj, base);
+	return twz_alloc(&obj, len, owner, flags, ctor, data);
+}
+
 /*
 void *twz_object_alloc(twzobj *obj, size_t sz)
 {

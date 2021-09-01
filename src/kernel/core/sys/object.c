@@ -469,6 +469,17 @@ long syscall_ocreate(uint64_t kulo,
 	return 0;
 }
 
+long syscall_ocreate2(struct kernel_create_spec *spec)
+{
+	/* TODO */
+	objid_t srcid = 0;
+	if(spec->srcs && spec->srcs_len > 0) {
+		srcid = spec->srcs[0].id;
+	}
+	return syscall_ocreate(
+	  ID_LO(spec->ku), ID_HI(spec->ku), ID_LO(srcid), ID_HI(srcid), spec->flags, &spec->result);
+}
+
 long syscall_odelete(uint64_t olo, uint64_t ohi, uint64_t flags)
 {
 	objid_t id = MKID(ohi, olo);
