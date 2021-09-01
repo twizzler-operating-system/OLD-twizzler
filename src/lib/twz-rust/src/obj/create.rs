@@ -1,5 +1,8 @@
 use super::id::ObjID;
+use super::obj::Twzobj;
 use super::r#const::ProtFlags;
+use super::tx::Transaction;
+use crate::TwzErr;
 
 crate::bitflags! {
 	pub struct CreateFlags: u64 {
@@ -74,5 +77,54 @@ impl CreateSpec {
 	pub fn ku(mut self, kuspec: KuSpec) -> CreateSpec {
 		self.ku = kuspec;
 		self
+	}
+}
+
+impl<T> Twzobj<T> {
+	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
+	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
+		let (id, res) = crate::sys::create(spec);
+		println!("CREATED {:x} {}", id, res);
+		if res != 0 {
+			Err(TwzErr::OSError(res as i32))
+		} else {
+			Ok(Twzobj::init_guid(id, ProtFlags::READ | ProtFlags::WRITE))
+		}
+	}
+
+	pub fn create_base(spec: &CreateSpec, base: T) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut();
+			(ob as *mut T).write(base);
+			Ok(obj)
+		}
+	}
+
+	pub fn create_ctor(
+		spec: &CreateSpec,
+		ctor: &(dyn Fn(&Twzobj<T>, &mut T, &Transaction)),
+	) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut();
+			let tx = Transaction {};
+			ctor(&obj, ob, &tx);
+			Ok(obj)
+		}
+	}
+
+	pub fn create_base_ctor(
+		spec: &CreateSpec,
+		base: T,
+		ctor: &(dyn Fn(&Twzobj<T>, &mut T) + 'static),
+	) -> Result<Twzobj<T>, TwzErr> {
+		unsafe {
+			let obj: Twzobj<T> = Twzobj::internal_create(spec)?;
+			let ob = obj.base_unchecked_mut();
+			(ob as *mut T).write(base);
+			ctor(&obj, ob);
+			Ok(obj)
+		}
 	}
 }
