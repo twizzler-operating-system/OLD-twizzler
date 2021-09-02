@@ -27,6 +27,7 @@ impl<T> Pptr<T> {
 			_pd: std::marker::PhantomData,
 		}
 	}
+
 	pub const fn new_null() -> Pptr<T> {
 		Pptr {
 			p: 0,
@@ -36,6 +37,14 @@ impl<T> Pptr<T> {
 
 	pub fn is_internal(&self) -> bool {
 		self.p < crate::obj::MAX_SIZE
+	}
+
+	pub fn fot_entry(&self) -> u64 {
+		self.p / crate::obj::MAX_SIZE
+	}
+
+	pub fn offset(&self) -> u64 {
+		self.p % crate::obj::MAX_SIZE
 	}
 }
 
