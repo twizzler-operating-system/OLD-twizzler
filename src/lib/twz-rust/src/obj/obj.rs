@@ -14,6 +14,8 @@ pub struct Twzobj<T> {
 	pub(super) _pd: std::marker::PhantomData<T>,
 }
 
+pub(super) type GTwzobj = Twzobj<()>;
+
 impl<T> Drop for Twzobj<T> {
 	fn drop(&mut self) {
 		if self.flags & ALLOCATED != 0 {
@@ -25,6 +27,16 @@ impl<T> Drop for Twzobj<T> {
 impl<T> Twzobj<T> {
 	pub(crate) fn set_id(&mut self, id: ObjID) {
 		self.id = id;
+	}
+
+	pub(crate) fn as_generic(&self) -> GTwzobj {
+		GTwzobj {
+			id: self.id,
+			slot: self.slot,
+			flags: self.flags,
+			prot: self.prot,
+			_pd: std::marker::PhantomData,
+		}
 	}
 
 	pub(crate) fn init_slot(id: ObjID, prot: ProtFlags, slot: u64, allocated: bool) -> Twzobj<T> {

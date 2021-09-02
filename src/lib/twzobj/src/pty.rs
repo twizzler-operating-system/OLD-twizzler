@@ -87,6 +87,7 @@ pub struct PtyServerHdr {
 	buflock: TwzMutex<PtyBuffer>,
 }
 
+#[derive(Default, Clone)]
 #[repr(C)]
 pub struct PtyClientHdr {
 	server: Pptr<PtyServerHdr>,
@@ -98,14 +99,17 @@ pub fn create_pty_pair(
 	_client_spec: &CreateSpec,
 	_server_spec: &CreateSpec,
 ) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
-	let server = Twzobj::<PtyServerHdr>::create_ctor(_server_spec, &|obj, base, tx| {
-		obj.new_item(&mut base.stoc, tx);
-		obj.new_item(&mut base.ctos, tx);
+	let server = Twzobj::<PtyServerHdr>::create_ctor(_server_spec, |obj, tx| {
+		let base = obj.base_mut(tx);
+		base.stoc.set(obj.new_item(tx), tx);
+		base.ctos.set(obj.new_item(tx), tx);
 	})
 	.unwrap();
 
-	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, &|obj, base, tx| {
-		base.server = obj.make_ptr(server.base(None), ProtFlags::READ | ProtFlags::WRITE, tx);
+	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, |obj, tx| {
+		let base = obj.base_mut(tx);
+		base.server.set(server.base_ptr(), tx);
+		//base.server = obj.make_ptr(server.base(None), tx);
 	})
 	.unwrap();
 	Ok((client, server))
