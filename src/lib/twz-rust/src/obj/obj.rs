@@ -1,5 +1,5 @@
 use super::id::ObjID;
-use super::r#const::ProtFlags;
+use super::r#const::{ProtFlags, MAX_SIZE};
 use super::tx::{Transaction, TransactionErr};
 use crate::kso::view::View;
 
@@ -29,12 +29,27 @@ impl<T> Twzobj<T> {
 		self.id = id;
 	}
 
+	pub(crate) fn is_same_obj<X>(&self, other: &Twzobj<X>) -> bool {
+		return self.slot == other.slot || self.id() == other.id();
+	}
+
 	pub(crate) fn as_generic(&self) -> GTwzobj {
+		/* TODO: ******* DUPLICATE REFERENCE */
 		GTwzobj {
 			id: self.id,
 			slot: self.slot,
-			flags: self.flags,
+			flags: 0,
 			prot: self.prot,
+			_pd: std::marker::PhantomData,
+		}
+	}
+
+	pub(crate) fn from_ptr<R>(ptr: &R) -> Twzobj<T> {
+		Twzobj {
+			id: 0,
+			slot: unsafe { std::mem::transmute::<&R, u64>(ptr) / MAX_SIZE },
+			flags: 0,
+			prot: ProtFlags::none(),
 			_pd: std::marker::PhantomData,
 		}
 	}
@@ -55,10 +70,11 @@ impl<T> Twzobj<T> {
 		Twzobj::init_slot(id, prot, slot, true)
 	}
 
-	pub fn transaction<O, E>(
-		&self,
-		_f: &(dyn Fn(Transaction) -> Result<O, E> + 'static),
-	) -> Result<O, TransactionErr<E>> {
-		panic!("")
+	pub fn transaction<O, E, F>(&self, f: F) -> Result<O, TransactionErr<E>>
+	where
+		F: Fn(Transaction) -> Result<O, E>,
+	{
+		let tx = Transaction::new(self.as_generic());
+		f(tx).map_err(|e| TransactionErr::Abort(e))
 	}
 }
