@@ -23,6 +23,25 @@ impl<'a, T, R> Pref<'a, T, R> {
 	}
 }
 
+pub struct PrefMut<'a, T, R> {
+	obj: Option<&'a Twzobj<T>>,
+	p: &'a R,
+}
+
+impl<'a, T, R> std::ops::Deref for PrefMut<'a, T, R> {
+	type Target = R;
+
+	fn deref(&self) -> &Self::Target {
+		self.p
+	}
+}
+
+impl<'a, T, R> PrefMut<'a, T, R> {
+	pub(super) fn new(obj: Option<&'a Twzobj<T>>, p: &'a R) -> PrefMut<'a, T, R> {
+		PrefMut { obj, p }
+	}
+}
+
 impl<R> Pptr<R> {
 	pub fn set<'a, T>(&mut self, p: Pref<'a, T, R>, tx: &Transaction) {
 		let obj = Twzobj::<T>::from_ptr(self);
@@ -67,7 +86,7 @@ impl<T> Twzobj<T> {
 	pub fn new_item<'a, R: Default>(&self, tx: &'a Transaction) -> Pref<'a, T, R> {
 		let p = tx.prep_alloc_free_on_fail(self);
 		self.allocate_copy_item(p, R::default());
-		p.lea()
+		Pref::new(None, unsafe { self.offset_lea(*p) })
 	}
 
 	fn fot_get_ptr<R>(&self, tgt: &R, flags: ProtFlags, tx: &Transaction) -> u64 {

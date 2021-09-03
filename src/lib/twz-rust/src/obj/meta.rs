@@ -1,6 +1,6 @@
 use super::id::ObjID;
 use super::obj::Twzobj;
-use super::ptr::Pref;
+use super::ptr::{Pref, PrefMut};
 use super::r#const::{MAX_SIZE, NULLPAGE_SIZE};
 use crate::flexarray::FlexArrayField;
 use std::sync::atomic::{AtomicU32, AtomicU64};
@@ -80,7 +80,11 @@ impl<T> Twzobj<T> {
 		unsafe { self.offset_lea(MAX_SIZE - NULLPAGE_SIZE / 2) }
 	}
 
-	pub(super) fn find_metaext<'a, R>(&'a self, tag: u64) -> Option<Pref<'a, T, R>> {
+	pub(super) fn metainfo_mut<'a>(&'a self) -> &'a mut MetaInfo {
+		unsafe { self.offset_lea_mut(MAX_SIZE - NULLPAGE_SIZE / 2) }
+	}
+
+	pub(super) fn find_metaext_mut<'a, R>(&'a self, tag: u64) -> Option<&mut R> {
 		let mi = self.metainfo();
 		let exts = mi.exts.as_ptr();
 		let mut i = 0;
@@ -89,15 +93,48 @@ impl<T> Twzobj<T> {
 				let ext = exts.offset(i).as_ref().unwrap();
 				let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
 				if t == tag {
-					return Some(Pref::new(Some(self), self.offset_lea(ext.off)));
+					return Some(self.offset_lea_mut(ext.off));
 				} else if t == 0 {
 					return None;
 				}
 			}
+			i += 1;
 		}
 	}
 
-	pub(super) unsafe fn alloc_metaext_unchecked<R>(&self, tag: u64) {
-		todo!()
+	pub(super) fn find_metaext<'a, R>(&'a self, tag: u64) -> Option<&R> {
+		let mi = self.metainfo();
+		let exts = mi.exts.as_ptr();
+		let mut i = 0;
+		loop {
+			unsafe {
+				let ext = exts.offset(i).as_ref().unwrap();
+				let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
+				if t == tag {
+					return Some(self.offset_lea(ext.off));
+				} else if t == 0 {
+					return None;
+				}
+			}
+			i += 1;
+		}
+	}
+
+	pub(super) unsafe fn alloc_metaext_unchecked<R: Default>(&self, tag: u64) {
+		let mi = self.metainfo_mut();
+		let exts = mi.exts.as_mut_ptr();
+		let mut i = 0;
+		loop {
+			unsafe {
+				let ext = exts.offset(i).as_mut().unwrap();
+				let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
+				if t == 0 {
+					self.allocate_copy_item(&mut ext.off, R::default());
+					ext.tag.store(tag, std::sync::atomic::Ordering::SeqCst);
+					break;
+				}
+			}
+			i += 1;
+		}
 	}
 }
