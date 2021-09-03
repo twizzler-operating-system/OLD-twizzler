@@ -88,6 +88,7 @@ impl<T: Default> Twzobj<T> {
 		} else {
 			let obj = Twzobj::init_guid(id, ProtFlags::READ | ProtFlags::WRITE);
 			obj.raw_init_alloc(NULLPAGE_SIZE as usize + std::mem::size_of::<T>());
+			obj.init_tx();
 			Ok(obj)
 		}
 	}

@@ -35,7 +35,7 @@ impl<T> Twzobj<T> {
 		}
 	}
 
-	pub(crate) fn allocate_copy_item<R>(&self, owner: &mut Pptr<R>, item: R) {
+	pub(crate) fn allocate_copy_item<R>(&self, owner: &mut u64, item: R) {
 		extern "C" fn do_the_move<R>(tgt: &mut R, src: &R) {
 			unsafe {
 				std::ptr::copy_nonoverlapping(src as *const R, tgt as *mut R, 1);
@@ -45,7 +45,7 @@ impl<T> Twzobj<T> {
 			__runtime_twz_object_alloc(
 				self.raw_base_void(),
 				std::mem::size_of::<R>(),
-				std::mem::transmute::<&mut u64, *mut *const c_void>(&mut owner.p),
+				std::mem::transmute::<&mut u64, *mut *const c_void>(owner),
 				(std::mem::align_of::<R>() as u64) << 32,
 				std::mem::transmute::<extern "C" fn(&mut R, &R), extern "C" fn(*mut c_void, *const c_void)>(
 					do_the_move,
