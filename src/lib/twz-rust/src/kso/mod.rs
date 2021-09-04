@@ -65,7 +65,6 @@ pub struct KSODirHdr {
 }
 */
 
-#[derive(Clone)]
 pub struct KSO<T> {
 	pub(crate) obj: Twzobj<KSOHdr<T>>,
 }

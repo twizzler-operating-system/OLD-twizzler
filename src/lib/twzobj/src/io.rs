@@ -1,7 +1,7 @@
 use twz::ptr::Pptr;
 
 #[repr(C)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default)]
 pub struct TwzIOHdr {
 	read: Pptr<extern "C" fn() -> ()>,
 	write: Pptr<extern "C" fn() -> ()>,

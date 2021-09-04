@@ -10,6 +10,7 @@ mod alloc;
 mod arch;
 mod fault;
 pub mod flexarray;
+mod refs;
 //pub mod gate;
 //mod libtwz;
 pub mod name;
