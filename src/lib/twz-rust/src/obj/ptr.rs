@@ -3,47 +3,11 @@ use super::r#const::{MAX_SIZE, NULLPAGE_SIZE};
 use super::tx::Transaction;
 use super::{GTwzobj, Twzobj};
 use crate::ptr::Pptr;
-
-pub struct Pref<'a, T, R> {
-	obj: Option<&'a Twzobj<T>>,
-	p: &'a R,
-}
-
-impl<'a, T, R> std::ops::Deref for Pref<'a, T, R> {
-	type Target = R;
-
-	fn deref(&self) -> &Self::Target {
-		self.p
-	}
-}
-
-impl<'a, T, R> Pref<'a, T, R> {
-	pub(super) fn new(obj: Option<&'a Twzobj<T>>, p: &'a R) -> Pref<'a, T, R> {
-		Pref { obj, p }
-	}
-}
-
-pub struct PrefMut<'a, T, R> {
-	obj: Option<&'a Twzobj<T>>,
-	p: &'a R,
-}
-
-impl<'a, T, R> std::ops::Deref for PrefMut<'a, T, R> {
-	type Target = R;
-
-	fn deref(&self) -> &Self::Target {
-		self.p
-	}
-}
-
-impl<'a, T, R> PrefMut<'a, T, R> {
-	pub(super) fn new(obj: Option<&'a Twzobj<T>>, p: &'a R) -> PrefMut<'a, T, R> {
-		PrefMut { obj, p }
-	}
-}
+use crate::refs::{Pref, PrefMut};
 
 impl<R> Pptr<R> {
-	pub fn set<'a, T>(&mut self, p: Pref<'a, T, R>, tx: &Transaction) {
+	pub fn set<'a>(&mut self, p: Pref<'a, R>, tx: &Transaction) {
+		/*
 		let obj = Twzobj::<T>::from_ptr(self);
 		let ref_obj = GTwzobj::from_ptr(p.p);
 		if obj.is_same_obj(&ref_obj) {
@@ -51,9 +15,13 @@ impl<R> Pptr<R> {
 		} else {
 			todo!()
 		}
+		*/
+		todo!()
 	}
 
-	pub fn lea<'a, T>(&'a self) -> Pref<'a, T, R> {
+	pub fn lea<'a, T>(&'a self) -> Pref<'a, R> {
+		todo!()
+		/*
 		if self.is_internal() {
 			return Pref {
 				obj: None,
@@ -61,12 +29,13 @@ impl<R> Pptr<R> {
 					std::mem::transmute::<u64, &R>((std::mem::transmute::<&Self, u64>(self) & !(MAX_SIZE - 1)) + self.p)
 				},
 			};
-		}
-		let obj = Twzobj::<T>::from_ptr(self);
-		self.lea_obj(&obj)
+		}*/
+		//let obj = Twzobj::<T>::from_ptr(self);
+		//self.lea_obj(&obj)
 	}
 
-	pub fn lea_obj<'a, T>(&self, obj: &Twzobj<T>) -> Pref<'a, T, R> {
+	pub fn lea_obj<'a, T>(&self, obj: &Twzobj<T>) -> Pref<'a, R> {
+		/*
 		if self.is_internal() {
 			Pref {
 				obj: None,
@@ -75,18 +44,20 @@ impl<R> Pptr<R> {
 		} else {
 			todo!()
 		}
+		*/
+		todo!()
 	}
 }
 
 impl<T> Twzobj<T> {
 	pub(crate) unsafe fn base_unchecked_mut(&self) -> &mut T {
-		std::mem::transmute::<u64, &mut T>(self.slot * MAX_SIZE + NULLPAGE_SIZE)
+		std::mem::transmute::<u64, &mut T>(self.internal.slot * MAX_SIZE + NULLPAGE_SIZE)
 	}
 
-	pub fn new_item<'a, R: Default>(&self, tx: &'a Transaction) -> Pref<'a, T, R> {
+	pub fn new_item<'a, R: Default>(&self, tx: &'a Transaction) -> Pref<'a, R> {
 		let p = tx.prep_alloc_free_on_fail(self);
 		self.allocate_copy_item(p, R::default());
-		Pref::new(None, unsafe { self.offset_lea(*p) })
+		Pref::new(self, unsafe { self.offset_lea(*p) })
 	}
 
 	fn fot_get_ptr<R>(&self, tgt: &R, flags: ProtFlags, tx: &Transaction) -> u64 {
@@ -107,11 +78,8 @@ impl<T> Twzobj<T> {
 		self.make_ptr_flags(tgt, ProtFlags::READ | ProtFlags::WRITE, tx)
 	}
 
-	pub fn base_ptr<'a>(&'a self) -> Pref<'a, T, T> {
-		Pref {
-			obj: Some(self),
-			p: self.base(None),
-		}
+	pub fn base_ptr<'a>(&'a self) -> Pref<'a, T> {
+		Pref::new(self, self.base(None))
 	}
 
 	pub fn base<'a>(&'a self, tx: Option<&Transaction>) -> &'a T {
@@ -129,16 +97,22 @@ impl<T> Twzobj<T> {
 		base
 	}
 
+	pub fn base_mut_pin<'a>(&'a self, tx: &Transaction) -> PrefMut<'a, T> {
+		let base = unsafe { self.base_unchecked_mut() };
+		tx.record_base(self);
+		PrefMut::new(self, unsafe { self.base_unchecked_mut() })
+	}
+
 	pub(crate) unsafe fn offset_lea<'a, 'b, R>(&'a self, offset: u64) -> &'b R {
 		if offset < MAX_SIZE {
-			return std::mem::transmute::<u64, &R>(self.slot * MAX_SIZE + offset);
+			return std::mem::transmute::<u64, &R>(self.internal.slot * MAX_SIZE + offset);
 		}
 		panic!("tried to offset an object beyond its maximum size")
 	}
 
 	pub(crate) unsafe fn offset_lea_mut<R>(&self, offset: u64) -> &mut R {
 		if offset < MAX_SIZE {
-			return std::mem::transmute::<u64, &mut R>(self.slot * MAX_SIZE + offset);
+			return std::mem::transmute::<u64, &mut R>(self.internal.slot * MAX_SIZE + offset);
 		}
 		panic!("tried to offset an object beyond its maximum size")
 	}

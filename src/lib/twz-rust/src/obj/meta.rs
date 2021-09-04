@@ -1,8 +1,8 @@
 use super::id::ObjID;
 use super::obj::Twzobj;
-use super::ptr::{Pref, PrefMut};
 use super::r#const::{MAX_SIZE, NULLPAGE_SIZE};
 use crate::flexarray::FlexArrayField;
+use crate::refs::{Pref, PrefMut};
 use std::sync::atomic::{AtomicU32, AtomicU64};
 
 pub type Nonce = u128;

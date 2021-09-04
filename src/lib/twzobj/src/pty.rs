@@ -76,7 +76,7 @@ impl Default for PtyBuffer {
 	}
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 #[repr(C)]
 pub struct PtyServerHdr {
 	stoc: Pptr<BstreamHdr>,
@@ -87,7 +87,7 @@ pub struct PtyServerHdr {
 	buflock: TwzMutex<PtyBuffer>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default)]
 #[repr(C)]
 pub struct PtyClientHdr {
 	server: Pptr<PtyServerHdr>,
@@ -100,9 +100,10 @@ pub fn create_pty_pair(
 	_server_spec: &CreateSpec,
 ) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
 	let server = Twzobj::<PtyServerHdr>::create_ctor(_server_spec, |obj, tx| {
-		let base = obj.base_mut(tx);
+		let mut base = obj.base_mut_pin(tx);
 		base.stoc.set(obj.new_item(tx), tx);
 		base.ctos.set(obj.new_item(tx), tx);
+		base.ctos = base.stoc;
 	})
 	.unwrap();
 
