@@ -2,8 +2,10 @@ use super::id::ObjID;
 use super::meta::FOTEntry;
 use crate::kso::view::ViewFlags;
 
+/* TODO: arch-dep */
 pub const MAX_SIZE: u64 = 1 << 30;
 pub const NULLPAGE_SIZE: u64 = 0x1000;
+pub const METAPAGE_SIZE: u64 = 0x800;
 
 pub(super) const MAX_FOTE: u64 = ((1u64 << 20) - NULLPAGE_SIZE) / std::mem::size_of::<FOTEntry>() as u64;
 pub(super) const TOP_DATA: u64 = MAX_SIZE - (NULLPAGE_SIZE + MAX_FOTE * std::mem::size_of::<FOTEntry>() as u64);

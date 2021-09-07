@@ -1,9 +1,10 @@
 use super::id::ObjID;
 use super::obj::Twzobj;
-use super::r#const::{MAX_SIZE, NULLPAGE_SIZE};
+use super::r#const::{MAX_FOTE, MAX_SIZE, METAPAGE_SIZE, NULLPAGE_SIZE};
+use super::tx::Transaction;
 use crate::flexarray::FlexArrayField;
 use crate::refs::{Pref, PrefMut};
-use std::sync::atomic::{AtomicU32, AtomicU64};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 pub type Nonce = u128;
 
@@ -53,6 +54,8 @@ crate::bitflags! {
 		const EXEC = 0x10;
 		const USE = 0x20;
 		const NAME = 0x1000;
+
+		const VALID = 0x20000;
 	}
 }
 
@@ -69,6 +72,7 @@ union FOTEntryInternal {
 	name: NameEntry,
 }
 
+#[repr(C)]
 pub struct FOTEntry {
 	obj: FOTEntryInternal,
 	flags: AtomicU64,
@@ -82,6 +86,25 @@ impl<T> Twzobj<T> {
 
 	pub(super) fn metainfo_mut<'a>(&'a self) -> &'a mut MetaInfo {
 		unsafe { self.offset_lea_mut(MAX_SIZE - NULLPAGE_SIZE / 2) }
+	}
+
+	fn get_fote_ref(&self, i: u64) -> &mut FOTEntry {
+		unsafe { self.offset_lea_mut(MAX_SIZE - (METAPAGE_SIZE + i * std::mem::size_of::<FOTEntry>() as u64)) }
+	}
+
+	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, R>, tx: &Transaction) -> u64 {
+		/* TODO: use the transaction */
+		for i in 0..MAX_FOTE {
+			let f = self.get_fote_ref(i);
+			if f.flags.load(Ordering::SeqCst) & FOTEntryFlags::VALID.bits() == 0 {
+				f.obj = FOTEntryInternal { id: p.obj.id() };
+				f.flags
+					.store((FOTEntryFlags::READ | FOTEntryFlags::WRITE).bits(), Ordering::SeqCst);
+				f.info = 0;
+				return i;
+			}
+		}
+		panic!("out of FOT entries");
 	}
 
 	pub(super) fn find_metaext_mut<'a, R>(&'a self, tag: u64) -> Option<&mut R> {
