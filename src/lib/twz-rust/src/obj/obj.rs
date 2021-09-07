@@ -28,6 +28,11 @@ impl Drop for ObjInternal {
 	}
 }
 
+fn slot_from_ptr<R>(p: &R) -> u64 {
+	let p = unsafe { std::mem::transmute::<&R, u64>(p) };
+	p / MAX_SIZE
+}
+
 impl<T> Twzobj<T> {
 	pub(crate) fn is_same_obj<X>(&self, other: &Twzobj<X>) -> bool {
 		return self.internal.slot == other.internal.slot || self.id() == other.id();
@@ -38,6 +43,11 @@ impl<T> Twzobj<T> {
 			internal: Arc::clone(&self.internal),
 			_pd: std::marker::PhantomData,
 		}
+	}
+
+	pub(crate) fn from_ptr<R>(ptr: &R) -> Twzobj<T> {
+		let slot = slot_from_ptr(ptr);
+		Self::init_slot(0, ProtFlags::none(), slot, false)
 	}
 
 	pub(crate) fn init_slot(id: ObjID, prot: ProtFlags, slot: u64, allocated: bool) -> Twzobj<T> {

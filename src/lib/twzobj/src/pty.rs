@@ -100,17 +100,16 @@ pub fn create_pty_pair(
 	_server_spec: &CreateSpec,
 ) -> Result<(Twzobj<PtyClientHdr>, Twzobj<PtyServerHdr>), TwzErr> {
 	let server = Twzobj::<PtyServerHdr>::create_ctor(_server_spec, |obj, tx| {
-		let mut base = obj.base_mut_pin(tx);
+		let mut base = obj.base_mut(tx);
 		base.stoc.set(obj.new_item(tx), tx);
 		base.ctos.set(obj.new_item(tx), tx);
-		base.ctos = base.stoc;
+		//base.ctos = base.stoc;
 	})
 	.unwrap();
 
 	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, |obj, tx| {
 		let base = obj.base_mut(tx);
 		base.server.set(server.base_ptr(), tx);
-		//base.server = obj.make_ptr(server.base(None), tx);
 	})
 	.unwrap();
 	Ok((client, server))

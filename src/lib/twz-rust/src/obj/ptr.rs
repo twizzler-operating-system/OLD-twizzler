@@ -5,8 +5,24 @@ use super::{GTwzobj, Twzobj};
 use crate::ptr::Pptr;
 use crate::refs::{Pref, PrefMut};
 
+fn same_slot<A, B>(a: &A, b: &B) -> bool {
+	let a = unsafe { std::mem::transmute::<&A, u64>(a) };
+	let b = unsafe { std::mem::transmute::<&B, u64>(b) };
+	let a = a & !(MAX_SIZE - 1);
+	let b = b & !(MAX_SIZE - 1);
+	a == b
+}
+
 impl<R> Pptr<R> {
 	pub fn set<'a>(&mut self, p: Pref<'a, R>, tx: &Transaction) {
+		if same_slot(self, p.p) {
+			self.p = unsafe { std::mem::transmute::<&R, u64>(p.p) & (MAX_SIZE - 1) };
+		} else {
+			let obj = GTwzobj::from_ptr(self);
+			let fote = obj.add_fote(&p, tx);
+			self.p = p.local() | fote * MAX_SIZE;
+		}
+
 		/*
 		let obj = Twzobj::<T>::from_ptr(self);
 		let ref_obj = GTwzobj::from_ptr(p.p);
@@ -16,7 +32,6 @@ impl<R> Pptr<R> {
 			todo!()
 		}
 		*/
-		todo!()
 	}
 
 	pub fn lea<'a, T>(&'a self) -> Pref<'a, R> {

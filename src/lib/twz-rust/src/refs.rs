@@ -1,8 +1,9 @@
+use crate::obj::r#const::MAX_SIZE;
 use crate::obj::{GTwzobj, Twzobj};
 
 pub struct Pref<'a, R> {
-	obj: GTwzobj,
-	p: &'a R,
+	pub(crate) obj: GTwzobj,
+	pub(crate) p: &'a R,
 }
 
 impl<'a, R> std::ops::Deref for Pref<'a, R> {
@@ -19,6 +20,10 @@ impl<'a, R> Pref<'a, R> {
 			obj: obj.as_generic(),
 			p,
 		}
+	}
+
+	pub(super) fn local(&self) -> u64 {
+		unsafe { std::mem::transmute::<&'a R, u64>(self.p) & !(MAX_SIZE - 1) }
 	}
 }
 
