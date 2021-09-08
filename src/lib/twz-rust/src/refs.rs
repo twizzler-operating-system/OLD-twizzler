@@ -23,7 +23,7 @@ impl<'a, R> Pref<'a, R> {
 	}
 
 	pub(super) fn local(&self) -> u64 {
-		unsafe { std::mem::transmute::<&'a R, u64>(self.p) & !(MAX_SIZE - 1) }
+		unsafe { std::mem::transmute::<&'a R, u64>(self.p) & (MAX_SIZE - 1) }
 	}
 }
 

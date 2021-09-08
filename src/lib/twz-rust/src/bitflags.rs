@@ -23,6 +23,12 @@ macro_rules! bitflags {
                 pub const $flag: $name = $name { val: $value };
             )*
 
+            /// Create a bitfield from a raw value
+            #[inline]
+            pub const fn from_bits(t: $T) -> $name {
+                $name { val: t & $($name::$flag.val)|+ }
+            }
+
             /// Return set of all flags
             #[inline]
             pub const fn all() -> $name {
