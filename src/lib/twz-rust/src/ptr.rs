@@ -10,6 +10,16 @@ impl<T> Default for Pptr<T> {
 	}
 }
 
+impl<T: std::fmt::Debug> std::fmt::Debug for Pptr<T> {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		f.debug_struct("Pptr")
+			.field("fot_entry", &self.fot_entry())
+			.field("offset", &self.offset())
+			.field("reference", &self.lea())
+			.finish()
+	}
+}
+
 impl<T> Pptr<T> {
 	pub(crate) fn new(p: u64) -> Pptr<T> {
 		Pptr {

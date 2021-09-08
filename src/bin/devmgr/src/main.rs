@@ -25,7 +25,7 @@ use twz::kso::{KSOType, KSO};
 use twz::obj::ProtFlags;
 
 #[repr(C)]
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Node {
 	ptr: twz::ptr::Pptr<i32>,
 }
@@ -54,6 +54,8 @@ fn test() {
 	let base = obj2.base();
 	println!("::: {:p}", base.ptr);
 	println!("::: {}", *base.ptr.lea());
+
+	println!("{:#?}", obj2.base());
 
 	loop {}
 }
