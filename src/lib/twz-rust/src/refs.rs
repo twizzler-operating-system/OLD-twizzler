@@ -7,10 +7,10 @@ pub struct Pref<'a, R> {
 }
 
 impl<'a, R> std::ops::Deref for Pref<'a, R> {
-	type Target = R;
+	type Target = &'a R;
 
 	fn deref(&self) -> &Self::Target {
-		self.p
+		&self.p
 	}
 }
 

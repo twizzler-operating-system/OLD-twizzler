@@ -30,6 +30,7 @@ struct Node {
 	ptr: twz::ptr::Pptr<i32>,
 }
 
+/*
 fn test() {
 	let spec = twz::obj::CreateSpec::new(
 		twz::obj::LifetimeType::Volatile,
@@ -56,12 +57,10 @@ fn test() {
 	println!("::: {}", *base.ptr.lea());
 
 	loop {}
-}
+}*/
 
 fn main() {
 	twz::use_runtime();
-
-	test();
 
 	let root = twz::kso::get_root();
 

@@ -26,7 +26,7 @@ extern "C" {
 
 impl<T> Twzobj<T> {
 	unsafe fn raw_base_void(&self) -> *const c_void {
-		std::mem::transmute::<&T, *const c_void>(self.base(None))
+		std::mem::transmute::<&T, *const c_void>(&*self.base())
 	}
 
 	pub(crate) fn raw_init_alloc(&self, offset: usize) {

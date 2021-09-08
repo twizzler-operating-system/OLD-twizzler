@@ -114,7 +114,7 @@ impl<T> KSO<T> {
 	}
 
 	pub fn name(&self) -> &str {
-		let hdr = self.obj.base(None);
+		let hdr = self.obj.base();
 		unsafe {
 			std::ffi::CStr::from_ptr(((&hdr.name) as *const u8) as *const i8)
 				.to_str()
@@ -123,11 +123,11 @@ impl<T> KSO<T> {
 	}
 
 	pub fn base(&self) -> &KSOHdr<T> {
-		self.obj.base(None)
+		&*self.obj.base()
 	}
 
 	pub fn base_data(&self) -> &T {
-		let hdr = self.obj.base(None);
+		let hdr = self.obj.base();
 		&hdr.kso_specific
 	}
 
@@ -137,7 +137,7 @@ impl<T> KSO<T> {
 	}
 
 	pub fn get_dir(&self) -> Option<&KSODirAttachments> {
-		let hdr = self.obj.base(None);
+		let hdr = self.obj.base();
 		if hdr.dir_offset == 0 {
 			None
 		} else {
