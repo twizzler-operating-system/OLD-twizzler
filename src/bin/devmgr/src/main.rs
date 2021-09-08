@@ -30,7 +30,6 @@ struct Node {
 	ptr: twz::ptr::Pptr<i32>,
 }
 
-/*
 fn test() {
 	let spec = twz::obj::CreateSpec::new(
 		twz::obj::LifetimeType::Volatile,
@@ -48,20 +47,20 @@ fn test() {
 	let obj2 = twz::obj::Twzobj::<Node>::create_ctor(&spec, |obj, tx| {
 		println!("created object {}", obj.id());
 		let mut base = obj.base_mut(tx);
-		base.ptr.set(obj1.base_ptr(), tx);
+		base.ptr.set(obj1.base(), tx);
 	})
 	.unwrap();
 
-	let base = obj2.base(None);
+	let base = obj2.base();
 	println!("::: {:p}", base.ptr);
 	println!("::: {}", *base.ptr.lea());
 
 	loop {}
-}*/
+}
 
 fn main() {
 	twz::use_runtime();
-
+	test();
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();

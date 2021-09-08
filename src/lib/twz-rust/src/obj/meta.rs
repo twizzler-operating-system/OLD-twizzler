@@ -4,7 +4,7 @@ use super::r#const::{ProtFlags, MAX_FOTE, MAX_SIZE, METAPAGE_SIZE, NULLPAGE_SIZE
 use super::tx::Transaction;
 use crate::flexarray::FlexArrayField;
 use crate::ptr::Pptr;
-use crate::refs::{Pref, PrefMut};
+use crate::refs::Pref;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 pub type Nonce = u128;
@@ -93,7 +93,7 @@ impl<T> Twzobj<T> {
 		unsafe { self.offset_lea_mut(MAX_SIZE - (METAPAGE_SIZE + i * std::mem::size_of::<FOTEntry>() as u64)) }
 	}
 
-	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, R>, tx: &Transaction) -> u64 {
+	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, &'a R>, tx: &Transaction) -> u64 {
 		/* TODO: use the transaction */
 		for i in 1..MAX_FOTE {
 			let f = self.get_fote_ref(i);
@@ -110,7 +110,7 @@ impl<T> Twzobj<T> {
 		panic!("out of FOT entries");
 	}
 
-	pub(super) fn resolve_external_ref<'a, R>(&self, ptr: &Pptr<R>) -> Pref<'a, R> {
+	pub(super) fn resolve_external_ref<'a, R>(&self, ptr: &Pptr<R>) -> Pref<'a, &'a R> {
 		let f = self.get_fote_ref(ptr.fot_entry());
 		let flags = f.flags.load(Ordering::SeqCst);
 		if flags & FOTEntryFlags::VALID.bits() == 0 {
@@ -124,7 +124,7 @@ impl<T> Twzobj<T> {
 
 		let obj = GTwzobj::init_guid(id, ProtFlags::from_bits(flags as u32));
 		let off = unsafe { obj.offset_lea(ptr.offset()) };
-		Pref { obj, p: off }
+		Pref::new(&obj, off)
 	}
 
 	pub(super) fn find_metaext_mut<'a, R>(&'a self, tag: u64) -> Option<&mut R> {
