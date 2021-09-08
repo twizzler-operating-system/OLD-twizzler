@@ -20,19 +20,8 @@ impl<R> Pptr<R> {
 		} else {
 			let obj = GTwzobj::from_ptr(self);
 			let fote = obj.add_fote(&p, tx);
-			println!("cross-obj pointer set {:p} {} {:x}", p.p, fote, p.local());
 			self.p = p.local() | fote * MAX_SIZE;
 		}
-
-		/*
-		let obj = Twzobj::<T>::from_ptr(self);
-		let ref_obj = GTwzobj::from_ptr(p.p);
-		if obj.is_same_obj(&ref_obj) {
-			self.p = unsafe { std::mem::transmute::<&R, u64>(p.p) & (MAX_SIZE - 1) };
-		} else {
-			todo!()
-		}
-		*/
 	}
 
 	pub fn lea<'a>(&'a self) -> Pref<'a, R> {
@@ -67,47 +56,19 @@ impl<T> Twzobj<T> {
 		Pref::new(self, unsafe { self.offset_lea(*p) })
 	}
 
-	fn fot_get_ptr<R>(&self, tgt: &R, flags: ProtFlags, tx: &Transaction) -> u64 {
-		panic!("")
-	}
-
 	unsafe fn construct_pptr<R>(entry: u64, tgt: &R) -> u64 {
 		entry * MAX_SIZE | (std::mem::transmute::<&R, u64>(tgt) & (MAX_SIZE - 1))
 	}
 
-	pub fn make_ptr_flags<R>(&self, tgt: &R, flags: ProtFlags, tx: &Transaction) -> Pptr<R> {
-		let entry = self.fot_get_ptr(tgt, flags, tx);
-		//TODO tx record ptr.p
-		unsafe { Pptr::new(Self::construct_pptr(entry, tgt)) }
+	pub fn base<'a>(&'a self) -> Pref<'a, T> {
+		/* TODO: check log */
+		Pref::new(self, unsafe { self.base_unchecked_mut() })
 	}
 
-	pub fn make_ptr<R>(&self, tgt: &R, tx: &Transaction) -> Pptr<R> {
-		self.make_ptr_flags(tgt, ProtFlags::READ | ProtFlags::WRITE, tx)
-	}
-
-	pub fn base_ptr<'a>(&'a self) -> Pref<'a, T> {
-		Pref::new(self, self.base(None))
-	}
-
-	pub fn base<'a>(&'a self, tx: Option<&Transaction>) -> &'a T {
-		if let Some(_tx) = tx {
-			panic!("")
-		} else {
-			/* TODO: check log */
-			unsafe { self.base_unchecked_mut() }
-		}
-	}
-
-	pub fn base_mut<'a>(&'a self, tx: &Transaction) -> &'a mut T {
+	pub fn base_mut<'a>(&'a self, tx: &Transaction) -> PrefMut<'a, T> {
 		let base = unsafe { self.base_unchecked_mut() };
 		tx.record_base(self);
-		base
-	}
-
-	pub fn base_mut_pin<'a>(&'a self, tx: &Transaction) -> PrefMut<'a, T> {
-		let base = unsafe { self.base_unchecked_mut() };
-		tx.record_base(self);
-		PrefMut::new(self, unsafe { self.base_unchecked_mut() })
+		PrefMut::new(self, base)
 	}
 
 	pub(crate) unsafe fn offset_lea<'a, 'b, R>(&'a self, offset: u64) -> &'b R {

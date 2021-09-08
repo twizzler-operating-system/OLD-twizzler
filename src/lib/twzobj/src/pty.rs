@@ -108,8 +108,8 @@ pub fn create_pty_pair(
 	.unwrap();
 
 	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, |obj, tx| {
-		let base = obj.base_mut(tx);
-		base.server.set(server.base_ptr(), tx);
+		let mut base = obj.base_mut(tx);
+		base.server.set(server.base(), tx);
 	})
 	.unwrap();
 	Ok((client, server))
