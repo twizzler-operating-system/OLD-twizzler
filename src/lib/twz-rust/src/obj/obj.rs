@@ -13,6 +13,7 @@ pub(crate) struct ObjInternal {
 	prot: ProtFlags,
 }
 
+#[derive(Clone)]
 pub struct Twzobj<T> {
 	pub(super) internal: Arc<ObjInternal>,
 	_pd: std::marker::PhantomData<T>,

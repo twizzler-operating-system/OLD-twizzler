@@ -1,56 +1,95 @@
 use crate::obj::r#const::MAX_SIZE;
 use crate::obj::{GTwzobj, Twzobj};
 
-pub struct Pref<'a, R> {
-	pub(crate) obj: GTwzobj,
-	pub(crate) p: &'a R,
+use std::fmt::{Debug, Error, Formatter};
+use std::marker::PhantomData;
+use std::mem::ManuallyDrop;
+use std::ops::{Deref, DerefMut};
+
+#[repr(C)]
+union PrefReference<R>
+where
+	R: Deref,
+{
+	reference: ManuallyDrop<R>,
+	address: u64,
 }
 
-impl<'a, R> std::ops::Deref for Pref<'a, R> {
-	type Target = &'a R;
+pub struct Pref<'a, R>
+where
+	R: Deref + 'a,
+{
+	pub(crate) obj: GTwzobj,
+	managed_ref: PrefReference<R>,
+	_pd: PhantomData<&'a ()>,
+}
+
+impl<'a, R> Deref for Pref<'a, R>
+where
+	R: Deref + 'a,
+{
+	type Target = R::Target;
 
 	fn deref(&self) -> &Self::Target {
-		&self.p
+		unsafe { (*self.managed_ref.reference).deref() }
 	}
 }
 
-impl<'a, R> Pref<'a, R> {
-	pub(super) fn new<T>(obj: &Twzobj<T>, p: &'a R) -> Pref<'a, R> {
+impl<'a, R> DerefMut for Pref<'a, R>
+where
+	R: Deref + DerefMut + 'a,
+{
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		unsafe { (*self.managed_ref.reference).deref_mut() }
+	}
+}
+
+impl<'a, R> Pref<'a, R>
+where
+	R: Deref + Copy + 'a,
+{
+	pub(super) fn as_ref(p: &Pref<'a, R>) -> R {
+		unsafe { *p.managed_ref.reference }
+	}
+}
+
+impl<'a, R> Pref<'a, R>
+where
+	R: Deref + 'a,
+{
+	pub(crate) fn into_ref(p: Pref<'a, R>) -> R {
+		unsafe { ManuallyDrop::<R>::into_inner(p.managed_ref.reference) }
+	}
+
+	pub(super) fn new<T>(obj: &Twzobj<T>, p: R) -> Pref<'a, R> {
 		Pref {
 			obj: obj.as_generic(),
-			p,
+			managed_ref: PrefReference {
+				reference: ManuallyDrop::new(p),
+			},
+			_pd: PhantomData,
 		}
 	}
 
-	pub(super) fn local(&self) -> u64 {
-		unsafe { std::mem::transmute::<&'a R, u64>(self.p) & (MAX_SIZE - 1) }
+	pub(super) fn local(p: &Pref<'a, R>) -> u64 {
+		unsafe { p.managed_ref.address & (MAX_SIZE - 1) }
 	}
 }
 
-pub struct PrefMut<'a, R> {
-	obj: GTwzobj,
-	p: &'a mut R,
-}
-
-impl<'a, R> std::ops::Deref for PrefMut<'a, R> {
-	type Target = R;
-
-	fn deref(&self) -> &Self::Target {
-		self.p
+impl<'a, R> Debug for Pref<'a, R>
+where
+	R: Deref + Debug + 'a,
+{
+	fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), Error> {
+		todo!()
 	}
 }
 
-impl<'a, R> std::ops::DerefMut for PrefMut<'a, R> {
-	fn deref_mut(&mut self) -> &mut Self::Target {
-		self.p
-	}
-}
-
-impl<'a, R> PrefMut<'a, R> {
-	pub(super) fn new<T>(obj: &Twzobj<T>, p: &'a mut R) -> PrefMut<'a, R> {
-		PrefMut {
-			obj: obj.as_generic(),
-			p,
-		}
+impl<'a, R> Clone for Pref<'a, R>
+where
+	R: Deref + Copy + 'a,
+{
+	fn clone(&self) -> Self {
+		Pref::new(&self.obj, Pref::as_ref(self))
 	}
 }
