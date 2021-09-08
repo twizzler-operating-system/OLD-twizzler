@@ -20,6 +20,7 @@ impl<R> Pptr<R> {
 		} else {
 			let obj = GTwzobj::from_ptr(self);
 			let fote = obj.add_fote(&p, tx);
+			println!("cross-obj pointer set {:p} {} {:x}", p.p, fote, p.local());
 			self.p = p.local() | fote * MAX_SIZE;
 		}
 
@@ -34,33 +35,24 @@ impl<R> Pptr<R> {
 		*/
 	}
 
-	pub fn lea<'a, T>(&'a self) -> Pref<'a, R> {
-		todo!()
-		/*
+	pub fn lea<'a>(&'a self) -> Pref<'a, R> {
+		let obj = GTwzobj::from_ptr(self);
 		if self.is_internal() {
-			return Pref {
-				obj: None,
-				p: unsafe {
-					std::mem::transmute::<u64, &R>((std::mem::transmute::<&Self, u64>(self) & !(MAX_SIZE - 1)) + self.p)
-				},
-			};
-		}*/
-		//let obj = Twzobj::<T>::from_ptr(self);
-		//self.lea_obj(&obj)
+			let off = unsafe { obj.offset_lea(self.p) };
+			return Pref { obj, p: off };
+		}
+		self.lea_obj(obj)
 	}
 
-	pub fn lea_obj<'a, T>(&self, obj: &Twzobj<T>) -> Pref<'a, R> {
-		/*
+	pub fn lea_obj<'a>(&self, obj: GTwzobj) -> Pref<'a, R> {
 		if self.is_internal() {
 			Pref {
-				obj: None,
+				obj: obj.as_generic(),
 				p: unsafe { obj.offset_lea(self.offset()) },
 			}
 		} else {
-			todo!()
+			obj.resolve_external_ref(self)
 		}
-		*/
-		todo!()
 	}
 }
 

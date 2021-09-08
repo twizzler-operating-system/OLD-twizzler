@@ -1,8 +1,9 @@
 use super::id::ObjID;
-use super::obj::Twzobj;
-use super::r#const::{MAX_FOTE, MAX_SIZE, METAPAGE_SIZE, NULLPAGE_SIZE};
+use super::obj::{GTwzobj, Twzobj};
+use super::r#const::{ProtFlags, MAX_FOTE, MAX_SIZE, METAPAGE_SIZE, NULLPAGE_SIZE};
 use super::tx::Transaction;
 use crate::flexarray::FlexArrayField;
+use crate::ptr::Pptr;
 use crate::refs::{Pref, PrefMut};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
@@ -94,17 +95,36 @@ impl<T> Twzobj<T> {
 
 	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, R>, tx: &Transaction) -> u64 {
 		/* TODO: use the transaction */
-		for i in 0..MAX_FOTE {
+		for i in 1..MAX_FOTE {
 			let f = self.get_fote_ref(i);
 			if f.flags.load(Ordering::SeqCst) & FOTEntryFlags::VALID.bits() == 0 {
 				f.obj = FOTEntryInternal { id: p.obj.id() };
-				f.flags
-					.store((FOTEntryFlags::READ | FOTEntryFlags::WRITE).bits(), Ordering::SeqCst);
+				f.flags.store(
+					(FOTEntryFlags::READ | FOTEntryFlags::WRITE | FOTEntryFlags::VALID).bits(),
+					Ordering::SeqCst,
+				);
 				f.info = 0;
 				return i;
 			}
 		}
 		panic!("out of FOT entries");
+	}
+
+	pub(super) fn resolve_external_ref<'a, R>(&self, ptr: &Pptr<R>) -> Pref<'a, R> {
+		let f = self.get_fote_ref(ptr.fot_entry());
+		let flags = f.flags.load(Ordering::SeqCst);
+		if flags & FOTEntryFlags::VALID.bits() == 0 {
+			panic!("tried to resolve an external pointer referencing an invalid FOT entry");
+		}
+		let id = if flags & FOTEntryFlags::NAME.bits() != 0 {
+			todo!()
+		} else {
+			unsafe { f.obj.id }
+		};
+
+		let obj = GTwzobj::init_guid(id, ProtFlags::from_bits(flags as u32));
+		let off = unsafe { obj.offset_lea(ptr.offset()) };
+		Pref { obj, p: off }
 	}
 
 	pub(super) fn find_metaext_mut<'a, R>(&'a self, tag: u64) -> Option<&mut R> {
