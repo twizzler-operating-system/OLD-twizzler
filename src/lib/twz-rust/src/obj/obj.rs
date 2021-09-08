@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 pub(super) const ALLOCATED: i32 = 1;
 
+#[derive(Debug)]
 pub(crate) struct ObjInternal {
 	pub(super) id: ObjID,
 	pub(super) slot: u64,
@@ -13,7 +14,7 @@ pub(crate) struct ObjInternal {
 	prot: ProtFlags,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Twzobj<T> {
 	pub(super) internal: Arc<ObjInternal>,
 	_pd: std::marker::PhantomData<T>,

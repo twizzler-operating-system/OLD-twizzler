@@ -86,6 +86,22 @@ macro_rules! bitflags {
                 $name { val: ( !(0 as $T) & $name::all().bits() ) }
             }
         }
+
+        impl core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+                    let mut first = true;
+                $(
+                    if self.contains_any($name::$flag) {
+                        if !first {
+                            f.write_str(" | ")?;
+                        }
+                        first = false;
+                        f.write_str(core::stringify!($name::$flag))?;
+                    }
+                )*
+                Ok(())
+            }
+        }
     };
     () => {};
 }

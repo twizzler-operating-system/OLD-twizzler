@@ -79,9 +79,14 @@ where
 impl<'a, R> Debug for Pref<'a, R>
 where
 	R: Deref + Debug + 'a,
+	<R as Deref>::Target: Debug + Sized,
 {
 	fn fmt(&self, fmt: &mut Formatter<'_>) -> Result<(), Error> {
-		todo!()
+		fmt.debug_struct("Pref")
+			.field("object", &self.obj)
+			.field("offset", &Pref::local(self))
+			.field("reference", &**self)
+			.finish()
 	}
 }
 
