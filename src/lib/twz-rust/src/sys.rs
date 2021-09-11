@@ -272,7 +272,6 @@ pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
 		backing_type: spec.bt as u16,
 		lifetime: spec.lt as u16,
 	};
-	let mut id: ObjID = 0;
 	let res = unsafe { raw_syscall(SYS_OCREATE, (&mut ks as *mut KernelCreateSpec) as u64, 0, 0, 0, 0, 0) };
 	(ks.result, res)
 }

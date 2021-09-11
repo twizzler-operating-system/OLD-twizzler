@@ -1,5 +1,4 @@
 use super::obj::{GTwzobj, Twzobj};
-use crate::ptr::Pptr;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 pub struct Transaction {
@@ -17,6 +16,7 @@ struct RecordEntry<T> {
 	ty: u8,
 	fl: u8,
 	len: u16,
+	pad: u32,
 	data: T,
 }
 
@@ -95,11 +95,11 @@ impl Transaction {
 		}
 	}
 
-	pub(super) fn prep_alloc_free_on_fail<'b, T>(&'b self, obj: &Twzobj<T>) -> &'b mut u64 {
+	pub(super) fn prep_alloc_free_on_fail<'b, T>(&'b self, _obj: &Twzobj<T>) -> &'b mut u64 {
 		let log = self.get_log().unwrap(); //TODO
 		let entry = log.reserve::<RecordEntry<RecordAlloc>>();
-		&mut entry.data.owned
+		unsafe { &mut entry.data.owned }
 	}
 
-	pub(super) fn record_base<T>(&self, obj: &Twzobj<T>) {}
+	pub(super) fn record_base<T>(&self, _obj: &Twzobj<T>) {}
 }

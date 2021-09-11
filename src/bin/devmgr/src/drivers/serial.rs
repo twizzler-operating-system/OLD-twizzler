@@ -9,37 +9,49 @@ struct Instance {
 	device: Device,
 	_ident: DeviceIdent,
 	thread: Option<JoinHandle<()>>,
-	_nodes: Vec<devnode::DeviceNode>,
+	nodes: Vec<devnode::DeviceNode>,
 }
 
+use twz::obj::{ProtFlags, Twzobj};
+use twzobj::pty::{PtyClientHdr, PtyServerHdr};
 fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>) {
+	let instance = instance.lock().unwrap();
+	let client = Twzobj::<PtyClientHdr>::init_guid(instance.nodes[0].id, ProtFlags::READ | ProtFlags::WRITE);
+	let server = Twzobj::<PtyServerHdr>::init_guid(instance.nodes[1].id, ProtFlags::READ | ProtFlags::WRITE);
 	loop {
-		let instance = instance.lock().unwrap();
+		let poll_result = twzobj::io::Poll(client);
+		if poll_result.is_ready() {
+			let read_result = twzobj::io::Read(client);
+			todo!();
+		}
 
 		for event in instance.device.check_for_events() {
 			println!("Got Event! {:?}", event);
 		}
-		instance.device.wait_for_event();
+
+		if !poll_result.is_ready() {
+			instance.device.wait_for_event(poll_result.events());
+		}
 	}
 }
 
 use twzobj::pty;
 impl Instance {
 	fn new(device: Device, ident: &DeviceIdent) -> std::sync::Arc<std::sync::Mutex<Instance>> {
-		let inst = std::sync::Arc::new(std::sync::Mutex::new(Instance {
-			device: device,
-			_ident: *ident,
-			thread: None,
-			_nodes: devnode::allocate(&vec![("ttyS", 0)]),
-		}));
-
 		let spec = twz::obj::CreateSpec::new(
 			twz::obj::LifetimeType::Volatile,
 			twz::obj::BackingType::Normal,
 			twz::obj::CreateFlags::DFL_READ | twz::obj::CreateFlags::DFL_WRITE,
 		);
-		println!("Creating PTY Pair");
-		let foo = pty::create_pty_pair(&spec, &spec);
+		let (client, server) = pty::create_pty_pair(&spec, &spec).unwrap();
+		let nodes = devnode::allocate(&[("ptyc", client.id()), ("ptys", server.id())]);
+		let inst = std::sync::Arc::new(std::sync::Mutex::new(Instance {
+			device: device,
+			_ident: *ident,
+			thread: None,
+			nodes: nodes,
+		}));
+
 		let inst2 = inst.clone();
 		{
 			let mut inst = inst.lock().unwrap();

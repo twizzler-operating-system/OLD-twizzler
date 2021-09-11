@@ -3,7 +3,6 @@
 #![feature(once_cell)]
 
 use twz;
-use twzobj;
 //use std::{lazy::SyncLazy, sync::Mutex};
 
 /*twz::twz_gate!(1, __logboi_open, logboi_open (flags: i32) {
@@ -18,10 +17,8 @@ mod driver;
 #[macro_use]
 mod drivers;
 
-use std::convert::TryInto;
-
-use twz::device::{Device, DeviceData};
-use twz::kso::{KSOType, KSO};
+use twz::device::DeviceData;
+use twz::kso::KSOType;
 use twz::obj::ProtFlags;
 
 #[repr(C)]

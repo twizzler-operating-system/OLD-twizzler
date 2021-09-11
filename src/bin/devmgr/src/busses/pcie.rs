@@ -1,6 +1,5 @@
 use crate::bus::Bus;
 use twz::device::{BusType, Device};
-use twz::kso::KSOHdr;
 use twz::TwzErr;
 
 const PCIE_BUS_HEADER_MAGIC: u32 = 0x88582323;

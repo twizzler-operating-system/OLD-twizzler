@@ -35,7 +35,6 @@ impl DeviceIdent {
 use crate::bus::Bus;
 use crate::busses::create_bus;
 use crate::drivers::RegisteredDrivers;
-use std::convert::TryInto;
 use twz::device::DeviceData;
 use twz::kso::{KSODirAttachments, KSOType, KSO};
 use twz::obj::ProtFlags;
