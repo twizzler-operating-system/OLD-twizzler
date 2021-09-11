@@ -94,7 +94,6 @@ pub struct PtyClientHdr {
 	io: TwzIOHdr,
 }
 
-use twz::obj::ProtFlags;
 pub fn create_pty_pair(
 	_client_spec: &CreateSpec,
 	_server_spec: &CreateSpec,

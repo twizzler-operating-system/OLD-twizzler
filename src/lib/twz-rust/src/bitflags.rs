@@ -88,15 +88,16 @@ macro_rules! bitflags {
         }
 
         impl core::fmt::Debug for $name {
+            #[allow(unused_assignments)]
             fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-                    let mut first = true;
+                let mut first = true;
                 $(
                     if self.contains_any($name::$flag) {
                         if !first {
                             f.write_str(" | ")?;
                         }
                         first = false;
-                        f.write_str(core::stringify!($name::$flag))?;
+                        f.write_str(&std::format!("{}::{}", core::stringify!($name), core::stringify!($flag)))?;
                     }
                 )*
                 Ok(())

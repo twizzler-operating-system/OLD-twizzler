@@ -2,7 +2,6 @@ use super::id::ObjID;
 use super::obj::{GTwzobj, Twzobj};
 use super::r#const::{ProtFlags, MAX_FOTE, MAX_SIZE, METAPAGE_SIZE, NULLPAGE_SIZE};
 use super::tx::Transaction;
-use crate::flexarray::FlexArrayField;
 use crate::ptr::Pptr;
 use crate::refs::Pref;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -93,7 +92,7 @@ impl<T> Twzobj<T> {
 		unsafe { self.offset_lea_mut(MAX_SIZE - (METAPAGE_SIZE + i * std::mem::size_of::<FOTEntry>() as u64)) }
 	}
 
-	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, &'a R>, tx: &Transaction) -> u64 {
+	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, &'a R>, _tx: &Transaction) -> u64 {
 		/* TODO: use the transaction */
 		for i in 1..MAX_FOTE {
 			let f = self.get_fote_ref(i);
@@ -168,14 +167,12 @@ impl<T> Twzobj<T> {
 		let exts = mi.exts.as_mut_ptr();
 		let mut i = 0;
 		loop {
-			unsafe {
-				let ext = exts.offset(i).as_mut().unwrap();
-				let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
-				if t == 0 {
-					self.allocate_copy_item(&mut ext.off, R::default());
-					ext.tag.store(tag, std::sync::atomic::Ordering::SeqCst);
-					break;
-				}
+			let ext = exts.offset(i).as_mut().unwrap();
+			let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
+			if t == 0 {
+				self.allocate_copy_item(&mut ext.off, R::default());
+				ext.tag.store(tag, std::sync::atomic::Ordering::SeqCst);
+				break;
 			}
 			i += 1;
 		}

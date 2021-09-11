@@ -4,7 +4,7 @@
 INSTANCES=$@
 
 QEMU="-cpu host,migratable=false,host-cache-info=true,host-phys-bits -machine
-q35,nvdimm,kernel-irqchip=on -device intel-iommu,intremap=off,aw-bits=48,x-scalable-mode=true -m
+q35,nvdimm=on,kernel-irqchip=on -device intel-iommu,intremap=off,aw-bits=48,x-scalable-mode=true -m
 1024,slots=2,maxmem=8G -object memory-backend-file,id=mem1,share=on,mem-path=pmem.img,size=4G
 -device nvdimm,id=nvdimm1,memdev=mem1"
 

@@ -39,9 +39,3 @@ pub fn allocate(pairs: &[(&str, ObjID)]) -> Vec<DeviceNode> {
 		})
 		.collect()
 }
-
-/*
-pub fn allocate_pty() -> (ObjID, ObjID) {
-	(0, 0)
-}
-*/

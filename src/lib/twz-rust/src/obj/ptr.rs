@@ -1,4 +1,3 @@
-use super::r#const::ProtFlags;
 use super::r#const::{MAX_SIZE, NULLPAGE_SIZE};
 use super::tx::Transaction;
 use super::{GTwzobj, Twzobj};
