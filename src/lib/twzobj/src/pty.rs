@@ -94,7 +94,23 @@ pub struct PtyClientHdr {
 	io: TwzIOHdr,
 }
 
-impl crate::io::TwzIO for PtyClientHdr {}
+use crate::io::PollStates;
+use twz::event::Event;
+use twz::refs::Pref;
+impl crate::io::TwzIO for PtyClientHdr {
+	fn poll(&self, events: crate::io::PollStates) -> Option<Event> {
+		let server = self.server.lea();
+		if events.contains_any(PollStates::READ) {
+			let bs = server.stoc.lea();
+			bs.poll(events)
+		} else if events.contains_any(PollStates::WRITE) {
+			let bs = server.ctos.lea();
+			bs.poll(events)
+		} else {
+			None
+		}
+	}
+}
 
 pub fn create_pty_pair(
 	_client_spec: &CreateSpec,

@@ -19,12 +19,12 @@ extern "C" {
 
 struct bstream_hdr {
 	// struct mutex rlock, wlock;
+	struct evhdr ev;
 	struct mutex lock;
 	uint32_t flags;
 	atomic_uint_least32_t head;
 	atomic_uint_least32_t tail;
 	uint32_t nbits;
-	struct evhdr ev;
 	struct twzio_hdr io;
 	unsigned char data[];
 };

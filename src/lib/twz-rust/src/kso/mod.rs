@@ -123,11 +123,11 @@ impl<T> KSO<T> {
 	}
 
 	pub fn base(&self) -> &KSOHdr<T> {
-		crate::refs::Pref::into_ref(self.obj.base())
+		unsafe { crate::refs::Pref::into_ref(self.obj.base()) }
 	}
 
 	pub fn base_data(&self) -> &T {
-		let hdr = crate::refs::Pref::into_ref(self.obj.base());
+		let hdr = unsafe { crate::refs::Pref::into_ref(self.obj.base()) };
 		&hdr.kso_specific
 	}
 

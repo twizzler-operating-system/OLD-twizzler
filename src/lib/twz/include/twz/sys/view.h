@@ -37,7 +37,7 @@ struct viewentry {
 #else
 	atomic_uint_least32_t flags;
 #endif
-	uint32_t res1;
+	uint32_t lock;
 };
 
 #ifndef __cplusplus

@@ -8,6 +8,7 @@ pub const BSTREAM_METAEXT_TAG: u64 = 0x00000000bbbbbbbb;
 #[repr(C)]
 #[derive(Default)]
 pub struct BstreamHdr {
+	ev: EventHdr,
 	lock: TwzMutex<BstreamInternal>,
 }
 
@@ -17,9 +18,14 @@ struct BstreamInternal {
 	head: AtomicU32,
 	tail: AtomicU32,
 	nbits: u32,
-	ev: EventHdr,
 	io: TwzIOHdr,
 	buffer: [u8; 8192],
+}
+
+impl crate::io::TwzIO for BstreamHdr {
+	fn poll(&self, events: crate::io::PollStates) -> Option<twz::event::Event> {
+		Some(twz::event::Event::new(&self.ev, events.bits()))
+	}
 }
 
 impl Default for BstreamInternal {
@@ -29,7 +35,6 @@ impl Default for BstreamInternal {
 			head: AtomicU32::new(0),
 			tail: AtomicU32::new(0),
 			nbits: 12,
-			ev: EventHdr::default(),
 			io: TwzIOHdr::default(),
 			buffer: [0; 8192],
 		}

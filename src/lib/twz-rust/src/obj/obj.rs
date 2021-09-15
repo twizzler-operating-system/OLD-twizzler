@@ -5,6 +5,7 @@ use crate::kso::view::View;
 use std::sync::Arc;
 
 pub(super) const ALLOCATED: i32 = 1;
+pub(super) const LOCKED: i32 = 2;
 
 #[derive(Debug)]
 pub(crate) struct ObjInternal {
@@ -26,6 +27,8 @@ impl Drop for ObjInternal {
 	fn drop(&mut self) {
 		if self.flags & ALLOCATED != 0 {
 			View::current().release_slot(self.id, self.prot, self.slot);
+		} else if self.flags & LOCKED != 0 {
+			View::current().put_slot(self.slot);
 		}
 	}
 }
@@ -47,13 +50,29 @@ impl<T> Twzobj<T> {
 		}
 	}
 
+	/* TODO: audit this and make it unsafe? */
 	pub(crate) fn from_ptr<R>(ptr: &R) -> Twzobj<T> {
 		let slot = slot_from_ptr(ptr);
-		Self::init_slot(0, ProtFlags::none(), slot, false)
+		Self::init_slot(0, ProtFlags::none(), slot, false, false)
 	}
 
-	pub(crate) fn init_slot(id: ObjID, prot: ProtFlags, slot: u64, allocated: bool) -> Twzobj<T> {
-		let flags = if allocated { ALLOCATED } else { 0 };
+	pub(crate) fn from_ptr_locked<R>(ptr: &R) -> Twzobj<T> {
+		let slot = slot_from_ptr(ptr);
+		crate::kso::view::View::current().get_slot(slot);
+		Self::init_slot(0, ProtFlags::none(), slot, false, true)
+	}
+
+	pub(crate) fn init_slot(id: ObjID, prot: ProtFlags, slot: u64, allocated: bool, locked: bool) -> Twzobj<T> {
+		if allocated && locked {
+			panic!("slot cannot be both locked and allocated at the same time");
+		}
+		let flags = if allocated {
+			ALLOCATED
+		} else if locked {
+			LOCKED
+		} else {
+			0
+		};
 		Twzobj {
 			internal: Arc::new(ObjInternal { id, slot, flags, prot }),
 			_pd: std::marker::PhantomData,
@@ -62,7 +81,7 @@ impl<T> Twzobj<T> {
 
 	pub fn init_guid(id: ObjID, prot: ProtFlags) -> Twzobj<T> {
 		let slot = crate::kso::view::View::current().reserve_slot(id, prot);
-		Twzobj::init_slot(id, prot, slot, true)
+		Twzobj::init_slot(id, prot, slot, true, false)
 	}
 
 	pub fn transaction<O, E, F>(&self, f: F) -> Result<O, TransactionErr<E>>
