@@ -13,6 +13,7 @@ pub mod flexarray;
 mod refs;
 //pub mod gate;
 //mod libtwz;
+pub mod event;
 pub mod name;
 pub mod obj;
 mod persist;

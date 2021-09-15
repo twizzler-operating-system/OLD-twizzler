@@ -1,6 +1,6 @@
-use crate::event::EventHdr;
 use crate::io::TwzIOHdr;
 use std::sync::atomic::AtomicU32;
+use twz::event::EventHdr;
 use twz::mutex::TwzMutex;
 
 pub const BSTREAM_METAEXT_TAG: u64 = 0x00000000bbbbbbbb;

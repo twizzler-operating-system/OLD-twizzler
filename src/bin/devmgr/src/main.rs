@@ -59,7 +59,7 @@ fn test() {
 
 fn main() {
 	twz::use_runtime();
-	test();
+	//test();
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();

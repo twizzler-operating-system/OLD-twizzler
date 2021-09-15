@@ -1,3 +1,4 @@
+use crate::sys::{thread_sync, ThreadSyncArgs};
 use std::sync::atomic::AtomicU64;
 
 #[derive(Default)]
@@ -14,8 +15,8 @@ impl EventHdr {
 
 	pub fn signal(&self, events: u64, num: usize) {
 		self.point.fetch_or(events, std::sync::atomic::Ordering::SeqCst);
-		let ts = twz::sys::ThreadSyncArgs::new_wake(&self.point, num as u64);
-		twz::sys::thread_sync(&mut [ts], None);
+		let ts = ThreadSyncArgs::new_wake(&self.point, num as u64);
+		thread_sync(&mut [ts], None);
 	}
 }
 
@@ -42,7 +43,7 @@ impl<'a> Event<'a> {
 	}
 }
 
-pub fn wait<'a>(events: &[Event<'a>], timeout: Option<std::time::Duration>) -> Result<Vec<u64>, twz::TwzErr> {
+pub fn wait<'a>(events: &[Event<'a>], timeout: Option<std::time::Duration>) -> Result<Vec<u64>, crate::TwzErr> {
 	let readies: Vec<u64> = events
 		.iter()
 		.filter_map(|e| if e.ready() != 0 { Some(e.ready()) } else { None })
@@ -50,13 +51,13 @@ pub fn wait<'a>(events: &[Event<'a>], timeout: Option<std::time::Duration>) -> R
 	if readies.len() > 0 {
 		return Ok(readies);
 	}
-	let mut syncs: Vec<twz::sys::ThreadSyncArgs> = events
+	let mut syncs: Vec<ThreadSyncArgs> = events
 		.iter()
-		.map(|e| twz::sys::ThreadSyncArgs::new_sleep(e.point, e.events))
+		.map(|e| ThreadSyncArgs::new_sleep(e.point, e.events))
 		.collect();
-	let res = twz::sys::thread_sync(&mut syncs, timeout);
+	let res = thread_sync(&mut syncs, timeout);
 	if res != 0 {
-		return Err(twz::TwzErr::OSError(res as i32));
+		return Err(crate::TwzErr::OSError(res as i32));
 	}
 	wait(events, timeout)
 }

@@ -94,6 +94,8 @@ pub struct PtyClientHdr {
 	io: TwzIOHdr,
 }
 
+impl crate::io::TwzIO for PtyClientHdr {}
+
 pub fn create_pty_pair(
 	_client_spec: &CreateSpec,
 	_server_spec: &CreateSpec,
