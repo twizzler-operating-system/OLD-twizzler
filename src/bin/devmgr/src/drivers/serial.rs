@@ -19,9 +19,9 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 	let client = Twzobj::<PtyClientHdr>::init_guid(instance.nodes[0].id, ProtFlags::READ | ProtFlags::WRITE);
 	let server = Twzobj::<PtyServerHdr>::init_guid(instance.nodes[1].id, ProtFlags::READ | ProtFlags::WRITE);
 	loop {
-		let poll_result = twzobj::io::Poll(client);
-		if poll_result.is_ready() {
-			let read_result = twzobj::io::Read(client);
+		let poll_result = twzobj::io::poll(&client).unwrap();
+		if poll_result.is_ready(twzobj::io::PollStates::READ) {
+			let read_result = twzobj::io::read(&client).unwrap();
 			todo!();
 		}
 
@@ -29,8 +29,8 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 			println!("Got Event! {:?}", event);
 		}
 
-		if !poll_result.is_ready() {
-			instance.device.wait_for_event(poll_result.events());
+		if !poll_result.is_ready(twzobj::io::PollStates::READ) {
+			instance.device.wait_for_event(&poll_result.events());
 		}
 	}
 }

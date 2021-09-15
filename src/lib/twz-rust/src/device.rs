@@ -111,7 +111,7 @@ impl Device {
 		DeviceEventsIter { device: self, idx: 0 }
 	}
 
-	pub fn wait_for_event(&self) {
+	pub fn wait_for_event(&self, other_events: &[crate::event::Event]) {
 		use crate::sys::thread_sync;
 		use crate::sys::ThreadSyncArgs;
 		let mut vec = vec![];
