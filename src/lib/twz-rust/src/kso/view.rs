@@ -32,7 +32,7 @@ struct ViewEntry {
 	id: ObjID,
 	res0: u64,
 	flags: AtomicU32,
-	res1: u32,
+	lock: AtomicU32,
 }
 
 #[repr(C)]
@@ -41,7 +41,7 @@ struct ViewBucket {
 	slot: u32,
 	flags: u32,
 	chain: i32,
-	refs: u32,
+	resv: u32,
 }
 
 #[repr(C)]
@@ -122,7 +122,6 @@ fn insert_obj(allocator: &mut ViewSlotAlloc, id: ObjID, flags: u32, slot: u32) -
 			bucket.id = id;
 			bucket.slot = slot;
 			bucket.flags = flags;
-			bucket.refs = 1;
 			return bucket;
 		}
 		prev = Some((first, idx));
@@ -149,7 +148,6 @@ fn insert_obj(allocator: &mut ViewSlotAlloc, id: ObjID, flags: u32, slot: u32) -
 			bucket.id = id;
 			bucket.flags = flags;
 			bucket.slot = slot;
-			bucket.refs = 1;
 			return bucket;
 		}
 	}
@@ -179,7 +177,7 @@ impl View {
 	pub(crate) fn current() -> View {
 		let mut view = View {
 			kso: KSO::<ViewData> {
-				obj: Twzobj::init_slot(0, ProtFlags::READ | ProtFlags::WRITE, TWZSLOT_CVIEW, false),
+				obj: Twzobj::init_slot(0, ProtFlags::READ | ProtFlags::WRITE, TWZSLOT_CVIEW, false, false),
 			},
 		};
 		let hdr = view.kso.base_data();
@@ -193,13 +191,39 @@ impl View {
 		self.kso.obj.id()
 	}
 
+	pub(crate) fn lock_entry(&mut self, slot: usize) {
+		let hdr = self.kso.base_data_mut();
+		let entry = &mut hdr.entries[slot];
+		let old = entry.lock.fetch_add(1, Ordering::SeqCst);
+		if old == u32::MAX {
+			panic!("failed to lock slot entry");
+		}
+	}
+
+	pub(crate) fn unlock_entry(&mut self, slot: usize) -> bool {
+		let hdr = self.kso.base_data_mut();
+		let entry = &mut hdr.entries[slot];
+		let old = entry.lock.fetch_sub(1, Ordering::SeqCst);
+		if old == 0 {
+			panic!("failed to unlock slot entry");
+		}
+		old == 1
+	}
+
+	pub(crate) fn get_slot(&mut self, slot: u64) {
+		self.lock_entry(slot as usize);
+	}
+
+	pub(crate) fn put_slot(&mut self, slot: u64) {
+		self.unlock_entry(slot as usize);
+	}
+
 	pub(crate) fn set_entry(&mut self, slot: usize, id: ObjID, mut flags: ViewFlags) {
 		let hdr = self.kso.base_data_mut();
 		let entry = &mut hdr.entries[slot];
 		let old = entry.flags.fetch_and(!ViewFlags::VALID.bits(), Ordering::SeqCst);
 		entry.id = id;
 		entry.res0 = 0;
-		entry.res1 = 0;
 		if flags.contains_any(ViewFlags::WRITE) {
 			flags = flags & !ViewFlags::EXEC;
 		}
@@ -225,7 +249,6 @@ impl View {
 			let allocator = &mut *self.kso.base_data_mut().lock.lock();
 			let bucket = lookup_bucket(allocator, id, prot.bits());
 			if let Some(bucket) = bucket {
-				bucket.refs += 1;
 				(false, bucket.slot as u64)
 			} else {
 				let slot = alloc_slot(allocator);
@@ -233,20 +256,18 @@ impl View {
 				(true, slot as u64)
 			}
 		};
+		self.lock_entry(slot as usize);
 		if new {
 			self.set_entry(slot as usize, id, prot.into());
 		}
 		return slot;
 	}
 
-	pub(crate) fn release_slot(&self, id: ObjID, prot: ProtFlags, slot: u64) {
-		let allocator = &mut *self.kso.base_data_mut().lock.lock();
-		let bucket = lookup_bucket(allocator, id, prot.bits()).expect("tried to release slot with no bucket");
-		assert!(bucket.slot == slot as u32);
-		let old = bucket.refs;
-		assert!(old > 0);
-		bucket.refs -= 1;
-		if old == 1 {
+	pub(crate) fn release_slot(&mut self, id: ObjID, prot: ProtFlags, slot: u64) {
+		if self.unlock_entry(slot as usize) {
+			let allocator = &mut *self.kso.base_data_mut().lock.lock();
+			let bucket = lookup_bucket(allocator, id, prot.bits()).expect("tried to release slot with no bucket");
+			assert!(bucket.slot == slot as u32);
 			bucket.slot = 0;
 			bucket.id = 0;
 			bucket.flags = 0;

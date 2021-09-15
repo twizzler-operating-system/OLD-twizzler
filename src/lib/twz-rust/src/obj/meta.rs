@@ -92,7 +92,7 @@ impl<T> Twzobj<T> {
 		unsafe { self.offset_lea_mut(MAX_SIZE - (METAPAGE_SIZE + i * std::mem::size_of::<FOTEntry>() as u64)) }
 	}
 
-	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, &'a R>, _tx: &Transaction) -> u64 {
+	pub(super) fn add_fote<'a, R>(&self, p: &Pref<'a, R>, _tx: &Transaction) -> u64 {
 		/* TODO: use the transaction */
 		for i in 1..MAX_FOTE {
 			let f = self.get_fote_ref(i);
@@ -109,7 +109,7 @@ impl<T> Twzobj<T> {
 		panic!("out of FOT entries");
 	}
 
-	pub(super) fn resolve_external_ref<'a, R>(&self, ptr: &Pptr<R>) -> Pref<'a, &'a R> {
+	pub(super) fn resolve_external_ref<'a, R>(&self, ptr: &Pptr<R>) -> Pref<'a, R> {
 		let f = self.get_fote_ref(ptr.fot_entry());
 		let flags = f.flags.load(Ordering::SeqCst);
 		if flags & FOTEntryFlags::VALID.bits() == 0 {

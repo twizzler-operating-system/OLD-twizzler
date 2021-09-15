@@ -4,7 +4,7 @@ use twz::ptr::Pptr;
 use twz::TwzErr;
 
 twz::bitflags! {
-	pub struct PollStates: u32 {
+	pub struct PollStates: u64 {
 		const READ = 0x1;
 		const WRITE = 0x2;
 	}
@@ -19,7 +19,14 @@ pub struct TwzIOHdr {
 	poll: Pptr<extern "C" fn() -> ()>,
 }
 
-pub trait TwzIO {}
+pub trait TwzIO {
+	fn poll(&self, events: PollStates) -> Option<Event>
+	where
+		Self: Sized,
+	{
+		None
+	}
+}
 
 pub enum ReadOutput {
 	Ready(Box<[u8]>),
@@ -33,16 +40,16 @@ impl ReadOutput {
 }
 
 pub struct PollOutput {
-	states: PollStates,
+	event: Event,
 }
 
 impl PollOutput {
 	pub fn is_ready(&self, states: PollStates) -> bool {
-		self.states.contains_any(states)
+		self.event.ready() & states.bits() != 0
 	}
 
-	pub fn events(&self) -> Vec<Event> {
-		vec![]
+	pub fn event(&self) -> &Event {
+		&self.event
 	}
 }
 
@@ -50,12 +57,16 @@ pub type ReadResult = Result<ReadOutput, TwzErr>;
 
 pub type PollResult = Result<PollOutput, TwzErr>;
 
-pub fn read<T: TwzIO>(obj: &Twzobj<T>) -> ReadResult {
-	todo!()
+pub fn read<T: TwzIO>(obj: &Twzobj<T>, non_block: bool) -> ReadResult {
+	Ok(ReadOutput::WouldBlock)
 }
 
-pub fn poll<T: TwzIO>(obj: &Twzobj<T>) -> PollResult {
-	Ok(PollOutput {
-		states: PollStates::none(),
-	})
+pub fn poll<T: TwzIO>(obj: &Twzobj<T>, events: PollStates) -> PollResult {
+	let base = obj.base();
+	let event = base.poll(events);
+	if let Some(event) = event {
+		Ok(PollOutput { event })
+	} else {
+		Err(TwzErr::Invalid)
+	}
 }
