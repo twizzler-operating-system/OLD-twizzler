@@ -70,6 +70,19 @@ void debug_elf_register_sections(Elf64_Shdr *_sections, size_t num, size_t entsi
 	}
 }
 
+static void __ubt_callback(struct thread *thread, __unused void *data)
+{
+	printk("THREAD %ld\n", thread->id);
+	debug_print_backtrace_userspace();
+}
+
+static void __find_callback(struct thread *thread, void *data)
+{
+	struct thread **res = (struct thread **)data;
+	if(thread->id == 7)
+		*res = thread;
+}
+
 #include <object.h>
 #include <slab.h>
 static bool debug_process_line(char *line)
@@ -82,8 +95,19 @@ static bool debug_process_line(char *line)
 		processor_print_all_stats();
 	} else if(!strcmp(line, "info threads")) {
 		thread_print_all_threads();
+		printk("Current Thread: %ld\n", current_thread ? current_thread->id : -1);
 	} else if(!strcmp(line, "info objs")) {
 		obj_print_stats();
+	} else if(!strcmp(line, "bt")) {
+		debug_print_backtrace();
+	} else if(!strcmp(line, "ubt")) {
+		thread_do_all_threads(__ubt_callback, NULL);
+	} else if(!strcmp(line, "set current")) {
+		struct thread *t = NULL;
+		thread_do_all_threads(__find_callback, &t);
+		assert(t);
+		thread_wake(t);
+		return true;
 	} else if(!strcmp(line, "c") || !strcmp(line, "cont") || !strcmp(line, "continue")) {
 		return true;
 	}

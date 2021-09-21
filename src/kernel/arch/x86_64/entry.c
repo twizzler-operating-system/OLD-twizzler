@@ -166,8 +166,9 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 {
 	long num = frame->rax;
 	// long xx = krdtsc();
-#if CONFIG_PRINT_SYSCALLS || 1
+#if CONFIG_PRINT_SYSCALLS || 0
 	// long long a = krdtsc();
+	printk("%ld: SYSCALL %ld\n", current_thread->id, num);
 #endif
 	current_thread->arch.was_syscall = true;
 	arch_interrupt_set(true);
@@ -190,7 +191,11 @@ __noinstrument void x86_64_syscall_entry(struct x86_64_syscall_frame *frame)
 		frame->rax = -EINVAL;
 	}
 
-#if CONFIG_PRINT_SYSCALLS
+	if(current_thread->id == 7 && frame->rcx == 0x4000c008c7ab) {
+		// printk(":::: SYSCALL!\n");
+		// debug_print_backtrace_userspace();
+	}
+#if CONFIG_PRINT_SYSCALLS || 0
 	// long long b = krdtsc();
 	long long b = 0, a = 0;
 	// if(num != SYS_DEBUG_PRINT)
