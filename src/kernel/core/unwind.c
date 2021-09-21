@@ -54,8 +54,10 @@ void debug_print_backtrace_userspace(void)
 	frame.pc = arch_thread_instruction_pointer();
 	frame.fp = arch_thread_base_pointer();
 	printk("STACK TRACE (from %lx, %lx):\n", frame.fp, frame.pc);
+	int c = 0;
 	while(arch_debug_unwind_frame(&frame, true)) {
 		printk("  %lx < ?? >\n", frame.pc);
+		c++;
 	}
 #else
 	printk("Arch '%s' does not support unwinding.\n", stringify_define(CONFIG_ARCH));

@@ -18,28 +18,20 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 	let instance = instance.lock().unwrap();
 	let client = Twzobj::<PtyClientHdr>::init_guid(instance.nodes[0].id, ProtFlags::READ | ProtFlags::WRITE);
 	let server = Twzobj::<PtyServerHdr>::init_guid(instance.nodes[1].id, ProtFlags::READ | ProtFlags::WRITE);
+	let poll_result = twzobj::io::poll(&client, twzobj::io::PollStates::READ).unwrap();
+	let mut buffer = [0; 1024];
 	loop {
-		println!("poll?");
-		let poll_result = twzobj::io::poll(&client, twzobj::io::PollStates::READ).unwrap();
-		println!(
-			"poll_result ready? {}",
-			poll_result.is_ready(twzobj::io::PollStates::READ)
-		);
 		if poll_result.is_ready(twzobj::io::PollStates::READ) {
-			let read_result = twzobj::io::read(&client, true).unwrap();
+			let read_result = twzobj::io::read(&client, &mut buffer, twzobj::io::ReadFlags::NONBLOCK).unwrap();
 			todo!();
 		}
 
-		println!("check");
 		for event in instance.device.check_for_events() {
 			println!("Got Event! {:?}", event);
 		}
 
-		println!("w?");
 		if !poll_result.is_ready(twzobj::io::PollStates::READ) {
-			println!("y");
 			instance.device.wait_for_event(&[poll_result.event()]);
-			println!("ey");
 		}
 	}
 }

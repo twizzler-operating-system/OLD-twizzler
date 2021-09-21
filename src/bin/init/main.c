@@ -236,7 +236,7 @@ int main()
 	r = wait(&status);
 
 	for(;;)
-		usleep(1000);
+		usleep(1000000000);
 #if 0
 	if(access("/dev/nvme", F_OK) == 0) {
 		if(!fork()) {

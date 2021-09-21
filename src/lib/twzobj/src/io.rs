@@ -10,6 +10,18 @@ twz::bitflags! {
 	}
 }
 
+twz::bitflags! {
+	pub struct ReadFlags: u32 {
+		const NONBLOCK = 0x1;
+	}
+}
+
+twz::bitflags! {
+	pub struct WriteFlags: u32 {
+		const NONBLOCK = 0x1;
+	}
+}
+
 #[repr(C)]
 #[derive(Default)]
 pub struct TwzIOHdr {
@@ -20,22 +32,52 @@ pub struct TwzIOHdr {
 }
 
 pub trait TwzIO {
-	fn poll(&self, events: PollStates) -> Option<Event>
-	where
-		Self: Sized,
-	{
+	fn poll(&self, events: PollStates) -> Option<Event> {
 		None
+	}
+
+	fn read(&self, buf: &mut [u8], read_flags: ReadFlags) -> ReadResult {
+		todo!()
+	}
+
+	fn write(&self, buf: &[u8], flags: WriteFlags) -> WriteResult {
+		todo!()
 	}
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum ReadOutput {
-	Ready(Box<[u8]>),
+	Done(usize),
+	EOF,
+	WouldBlock,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum WriteOutput {
+	Done(usize),
 	WouldBlock,
 }
 
 impl ReadOutput {
 	pub fn is_ready(&self) -> bool {
-		todo!()
+		match self {
+			ReadOutput::Done(_) => true,
+			_ => false,
+		}
+	}
+
+	pub fn is_eof(&self) -> bool {
+		match self {
+			EOF => true,
+			_ => false,
+		}
+	}
+
+	pub fn is_blocked(&self) -> bool {
+		match self {
+			WouldBlock => true,
+			_ => false,
+		}
 	}
 }
 
@@ -57,8 +99,16 @@ pub type ReadResult = Result<ReadOutput, TwzErr>;
 
 pub type PollResult = Result<PollOutput, TwzErr>;
 
-pub fn read<T: TwzIO>(obj: &Twzobj<T>, non_block: bool) -> ReadResult {
-	Ok(ReadOutput::WouldBlock)
+pub type WriteResult = Result<WriteOutput, TwzErr>;
+
+pub fn read<T: TwzIO>(obj: &Twzobj<T>, buf: &mut [u8], read_flags: ReadFlags) -> ReadResult {
+	let base = obj.base();
+	base.read(buf, read_flags)
+}
+
+pub fn write<T: TwzIO>(obj: &Twzobj<T>, buf: &[u8], flags: WriteFlags) -> WriteResult {
+	let base = obj.base();
+	base.write(buf, flags)
 }
 
 pub fn poll<T: TwzIO>(obj: &Twzobj<T>, events: PollStates) -> PollResult {

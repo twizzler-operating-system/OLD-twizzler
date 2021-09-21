@@ -178,6 +178,17 @@ void thread_exit(void)
 	slabcache_free(&_sc_thread, thr, NULL);
 }
 
+void thread_do_all_threads(void (*fn)(struct thread *, void *data), void *data)
+{
+	if(!fn)
+		return;
+	spinlock_acquire_save(&allthreads_lock);
+	foreach(e, list, &allthreads) {
+		fn(list_entry(e, struct thread, all_entry), data);
+	}
+	spinlock_release_restore(&allthreads_lock);
+}
+
 void thread_print_all_threads(void)
 {
 	spinlock_acquire_save(&allthreads_lock);

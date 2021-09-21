@@ -14,10 +14,16 @@ impl EventHdr {
 		}
 	}
 
-	pub fn signal(&self, events: u64, num: usize) {
-		self.point.fetch_or(events, std::sync::atomic::Ordering::SeqCst);
-		let ts = ThreadSyncArgs::new_wake(&self.point, num as u64);
-		thread_sync(&mut [ts], None);
+	pub fn wake(&self, events: u64, num: Option<usize>) {
+		let old = self.point.fetch_or(events, std::sync::atomic::Ordering::SeqCst);
+		if (old & events) != events {
+			let ts = ThreadSyncArgs::new_wake(&self.point, num.unwrap_or(!0usize) as u64);
+			thread_sync(&mut [ts], None);
+		}
+	}
+
+	pub fn clear(&self, events: u64) -> u64 {
+		self.point.fetch_and(!events, std::sync::atomic::Ordering::SeqCst) & events
 	}
 }
 

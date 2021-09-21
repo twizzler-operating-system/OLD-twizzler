@@ -129,3 +129,4 @@ void thread_free_become_frame(struct thread_become_frame *frame);
 void arch_thread_print_info(struct thread *t);
 uintptr_t arch_thread_base_pointer(void);
 void thread_onresume_clear_other_sleeps(struct thread *);
+void thread_do_all_threads(void (*fn)(struct thread *, void *data), void *data);
