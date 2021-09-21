@@ -23,6 +23,11 @@ const ECHO: u32 = 0o0000010;
 const VERASE: u32 = 2;
 const VEOF: u32 = 4;
 
+const BRKINT: u32 = 0o0000002;
+const ISIG: u32 = 0o0000001;
+const ECHOE: u32 = 0o0000020;
+const ICRNL: u32 = 0o0000400;
+
 #[derive(Clone, Copy)]
 #[repr(C)]
 struct Termios {
@@ -39,13 +44,13 @@ struct Termios {
 impl Default for Termios {
 	fn default() -> Self {
 		Termios {
-			c_iflag: 0,
-			c_oflag: 0,
+			c_iflag: BRKINT | ICRNL,
+			c_oflag: ONLCR | OPOST,
 			c_cflag: 0,
-			c_lflag: 0,
+			c_lflag: ICANON | ECHO | ISIG | ECHOE,
 			c_line: 0,
 			c_cc: [
-				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+				3, 0, 8, 0, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			],
 			__c_ispeed: 0,
 			__c_ospeed: 0,
