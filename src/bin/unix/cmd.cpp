@@ -10,6 +10,8 @@ static std::pair<long, bool> __get_proc_info(std::shared_ptr<queue_client> clien
 		return R_S(-EINVAL);
 	struct proc_info pi = {
 		.pid = client->proc->pid,
+		.tid = client->thr->tid,
+		/* TODO: is this thread-safe? */
 		.ppid = client->proc->parent == nullptr ? 0 : client->proc->parent->pid,
 		.uid = client->proc->uid,
 		.gid = client->proc->gid,

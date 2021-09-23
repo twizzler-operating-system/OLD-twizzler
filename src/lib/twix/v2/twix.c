@@ -381,6 +381,9 @@ long hook_proc_info_syscalls(struct syscall_args *args)
 		case LINUX_SYS_geteuid:
 			return info.euid;
 			break;
+		case LINUX_SYS_gettid:
+			return info.tid;
+			break;
 		default:
 			return -ENOSYS;
 	}
@@ -753,8 +756,16 @@ long hook_clock_gettime(struct syscall_args *args)
 
 long hook_sys_gettid(struct syscall_args *args)
 {
-	args->num = LINUX_SYS_getpid; // TODO
+	// args->num = LINUX_SYS_getpid; // TODO
 	return hook_proc_info_syscalls(args);
+}
+
+long hook_set_tid_address(struct syscall_args *args)
+{
+	struct proc_info info = {};
+	get_proc_info(&info);
+	/* TODO: need to actually set tid */
+	return info.tid;
 }
 
 long hook_kill(struct syscall_args *args)
@@ -898,7 +909,7 @@ static long (*syscall_v2_table[1024])(struct syscall_args *) = {
 	[LINUX_SYS_getpgid] = hook_proc_info_syscalls,
 	[LINUX_SYS_geteuid] = hook_proc_info_syscalls,
 	[LINUX_SYS_getegid] = hook_proc_info_syscalls,
-	[LINUX_SYS_set_tid_address] = __dummy,
+	[LINUX_SYS_set_tid_address] = hook_set_tid_address,
 	[LINUX_SYS_open] = hook_open,
 	[LINUX_SYS_pwritev2] = hook_sys_pwritev2,
 	[LINUX_SYS_pwritev] = hook_sys_pwritev,
