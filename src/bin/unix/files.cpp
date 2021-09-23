@@ -61,7 +61,7 @@ std::pair<int, std::shared_ptr<filedesc>> open_file(std::shared_ptr<filedesc> at
   int flags)
 {
 	if(path == NULL || path[0] == 0) {
-		return std::make_pair(at != nullptr, at);
+		return std::make_pair(at == nullptr ? -EBADF : 0, at);
 	}
 	std::shared_ptr<filedesc> desc = std::make_shared<filedesc>();
 	int r = desc->init_path(at, path, O_RDWR, 0, flags);
