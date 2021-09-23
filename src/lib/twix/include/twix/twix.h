@@ -140,6 +140,7 @@ struct twix_uname_info {
 
 struct proc_info {
 	int pid;
+	int tid;
 	int ppid;
 	int uid;
 	int gid;
