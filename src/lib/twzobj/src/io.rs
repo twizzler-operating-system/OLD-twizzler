@@ -68,14 +68,14 @@ impl ReadOutput {
 
 	pub fn is_eof(&self) -> bool {
 		match self {
-			EOF => true,
+			ReadOutput::EOF => true,
 			_ => false,
 		}
 	}
 
 	pub fn is_blocked(&self) -> bool {
 		match self {
-			WouldBlock => true,
+			ReadOutput::WouldBlock => true,
 			_ => false,
 		}
 	}

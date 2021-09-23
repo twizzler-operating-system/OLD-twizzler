@@ -27,6 +27,7 @@ const BRKINT: u32 = 0o0000002;
 const ISIG: u32 = 0o0000001;
 const ECHOE: u32 = 0o0000020;
 const ICRNL: u32 = 0o0000400;
+const INLCR: u32 = 0o0000100;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
@@ -160,18 +161,34 @@ impl PtyBuffer {
 }
 
 impl PtyServerHdr {
-	fn transform_write_char(&self, ch: u8) -> Vec<u8> {
+	fn transform_write_char(&self, ch: u8, tr: &mut [u8]) -> usize {
 		if ch == b'\n' && (self.termios.c_oflag & ONLCR) != 0 {
-			vec![b'\r', b'\n']
+			tr[0] = b'\r';
+			tr[1] = b'\n';
+			2
 		} else if ch == b'\r' && (self.termios.c_oflag & OCRNL) != 0 {
-			vec![b'\n']
+			tr[0] = b'\n';
+			1
 		} else {
-			vec![ch]
+			tr[0] = ch;
+			1
 		}
 	}
 
-	fn transform_input_char(&self, ch: u8) -> Vec<u8> {
-		todo!()
+	fn transform_input_char(&self, ch: u8, tr: &mut [u8]) -> usize {
+		if ch == b'\n' && self.termios.c_iflag & INLCR != 0 {
+			tr[0] = b'\r';
+			1
+		} else if ch == b'\r' && self.termios.c_iflag & ICRNL != 0 {
+			tr[0] = b'\n';
+			1
+		} else if ch == 27 {
+			tr[0] = b'^';
+			1
+		} else {
+			tr[0] = ch;
+			1
+		}
 	}
 
 	fn should_take_action(&self, buf: &[u8]) -> u8 {
@@ -188,6 +205,18 @@ impl PtyServerHdr {
 }
 
 impl crate::io::TwzIO for PtyServerHdr {
+	fn poll(&self, events: PollStates) -> Option<Event> {
+		if events.contains_any(PollStates::READ) {
+			let bs = self.ctos.lea();
+			bs.poll(events)
+		} else if events.contains_any(PollStates::WRITE) {
+			let bs = self.stoc.lea();
+			bs.poll(events)
+		} else {
+			None
+		}
+	}
+
 	fn read(&self, buf: &mut [u8], flags: ReadFlags) -> ReadResult {
 		let bs = self.ctos.lea();
 		let result = bs.read(buf, flags)?;
@@ -208,16 +237,17 @@ impl crate::io::TwzIO for PtyServerHdr {
 					input_buffer.erase();
 					echo_bs.write(&[buf[i], b' ', buf[i]], WriteFlags::NONBLOCK);
 				}
-				let tr = self.transform_input_char(buf[i]);
+				let mut tr = [0; 2];
+				let len = self.transform_input_char(buf[i], &mut tr);
 				/* we don't care if this doesn't work, since we discard anything after buffer is
 				 * filled.*/
-				input_buffer.enqueue(&tr);
+				input_buffer.enqueue(&tr[0..len]);
 				if self.termios.c_lflag & ECHO != 0 {
 					/* TODO: can we do better than this best-effort? */
-					echo_bs.write(&tr, WriteFlags::NONBLOCK);
+					echo_bs.write(&tr[0..len], WriteFlags::NONBLOCK);
 				}
 
-				let act = self.should_take_action(&tr);
+				let act = self.should_take_action(&tr[0..len]);
 				let mut eof = false;
 				if act == 2 && input_buffer.bufpos > 0 {
 					eof = true;
@@ -296,9 +326,10 @@ impl crate::io::TwzIO for PtyClientHdr {
 				return Ok(WriteOutput::WouldBlock);
 			}
 			for i in 0..buf.len() {
-				let tr = server.transform_write_char(buf[i]);
-				let wrote_all = output_buffer.enqueue(&tr);
-				if wrote_all {
+				let mut tr = [0; 2];
+				let len = server.transform_write_char(buf[i], &mut tr);
+				let wrote_all = output_buffer.enqueue(&tr[0..len]);
+				if !wrote_all {
 					panic!("failed to enqueue to output buffer in pty");
 				}
 				if !output_buffer.drain(&server, flags.contains_any(WriteFlags::NONBLOCK), false) {
@@ -331,6 +362,7 @@ pub fn create_pty_pair(
 	})
 	.unwrap();
 
+	/*
 	let base = server.base();
 	let bs = base.stoc.lea();
 
@@ -357,11 +389,33 @@ pub fn create_pty_pair(
 		//	println!("read: {} {} {:?} : {:?}", wcount, rcount, result, buffer);
 	}
 	loop {}
+	*/
 
 	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, |obj, tx| {
 		let mut base = obj.base_mut(tx);
 		base.server.set(server.base(), tx);
 	})
 	.unwrap();
+
+	/*
+	let client_base = client.base();
+	let server_base = server.base();
+
+	let result = server_base.write(b"Hello, from server", WriteFlags::none());
+	println!("write {:?}", result);
+
+	let mut buffer = [0; 1024];
+
+	let result = client_base.read(&mut buffer, ReadFlags::none());
+
+	println!("read {:?} {:?}", result, buffer);
+
+	let result = client_base.write(b"Hello, from CLIENT", WriteFlags::none());
+	println!("write client {:?}", result);
+
+	let result = server_base.read(&mut buffer, ReadFlags::none());
+	println!("read client {:?} {:?}", result, buffer);
+	*/
+
 	Ok((client, server))
 }

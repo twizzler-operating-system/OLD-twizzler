@@ -115,6 +115,15 @@ impl Device {
 		use crate::sys::thread_sync;
 		use crate::sys::ThreadSyncArgs;
 		let mut vec = vec![];
+		for e in other_events {
+			let ts = e.thread_sync();
+			if let Some(ts) = ts {
+				vec.push(ts);
+			} else {
+				return;
+			}
+		}
+
 		let hdr = self.get_device_hdr();
 		for i in 0..MAX_DEVICE_SYNCS {
 			let ts = ThreadSyncArgs::new_sleep(&hdr.syncs[i], 0);
