@@ -28,9 +28,9 @@ impl EventHdr {
 }
 
 pub struct Event {
-	point: *const AtomicU64,
+	pub(crate) point: *const AtomicU64,
 	obj: GTwzobj,
-	events: u64,
+	pub(crate) events: u64,
 }
 
 impl Event {
@@ -54,20 +54,33 @@ impl Event {
 	pub fn events(&self) -> u64 {
 		self.events
 	}
+
+	pub(crate) fn thread_sync(&self) -> Option<ThreadSyncArgs> {
+		let val = unsafe { &*self.point }.load(std::sync::atomic::Ordering::SeqCst);
+		if val & self.events != 0 {
+			None
+		} else {
+			Some(ThreadSyncArgs::new_sleep(unsafe { self.point.as_ref() }.unwrap(), val))
+		}
+	}
 }
 
-pub fn wait(events: &[Event], timeout: Option<std::time::Duration>) -> Result<Vec<u64>, crate::TwzErr> {
-	let readies: Vec<u64> = events
-		.iter()
-		.filter_map(|e| if e.ready() != 0 { Some(e.ready()) } else { None })
-		.collect();
-	if readies.len() > 0 {
-		return Ok(readies);
+pub fn wait(events: &[&Event], timeout: Option<std::time::Duration>) -> Result<Vec<(usize, u64)>, crate::TwzErr> {
+	let mut syncs = vec![];
+	let mut rets = vec![];
+	for i in 0..events.len() {
+		let event = events[i];
+		let val = unsafe { &*event.point }.load(std::sync::atomic::Ordering::SeqCst);
+		if val & event.events != 0 {
+			rets.push((i, val & event.events));
+		} else if rets.len() == 0 {
+			syncs.push(ThreadSyncArgs::new_sleep(unsafe { event.point.as_ref() }.unwrap(), val));
+		}
 	}
-	let mut syncs: Vec<ThreadSyncArgs> = events
-		.iter()
-		.map(|e| ThreadSyncArgs::new_sleep(unsafe { e.point.as_ref() }.unwrap(), e.events))
-		.collect();
+
+	if rets.len() > 0 {
+		return Ok(rets);
+	}
 	let res = thread_sync(&mut syncs, timeout);
 	if res != 0 {
 		return Err(crate::TwzErr::OSError(res as i32));

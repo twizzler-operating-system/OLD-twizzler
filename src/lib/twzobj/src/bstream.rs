@@ -42,7 +42,7 @@ impl crate::io::TwzIO for BstreamHdr {
 				}
 				drop(internal);
 				let event = Event::new(&self.ev, PollStates::READ.bits());
-				twz::event::wait(&[event], None).unwrap();
+				twz::event::wait(&[&event], None).unwrap();
 				internal = self.lock.lock();
 				continue;
 			}
@@ -80,7 +80,7 @@ impl crate::io::TwzIO for BstreamHdr {
 
 					drop(internal);
 					let event = Event::new(&self.ev, PollStates::WRITE.bits());
-					twz::event::wait(&[event], None).unwrap();
+					twz::event::wait(&[&event], None).unwrap();
 					internal = self.lock.lock();
 					continue;
 				}
