@@ -11,3 +11,19 @@ pub trait FlexArray<T> {
 		unsafe { transmute::<&[T], _>(std::slice::from_raw_parts(transmute(self.flex_element()), self.len())) }
 	}
 }
+
+pub(crate) unsafe fn flexarray_get_array_start<T, R>(item: &T) -> *const R
+where
+	T: Sized,
+{
+	let item = item as *const T;
+	core::mem::transmute::<*const T, *const R>(item.offset(1))
+}
+
+pub(crate) unsafe fn flexarray_get_array_start_mut<T, R>(item: &mut T) -> *mut R
+where
+	T: Sized,
+{
+	let item = item as *mut T;
+	core::mem::transmute::<*mut T, *mut R>(item.offset(1))
+}
