@@ -21,6 +21,11 @@ impl DeviceNodeState {
 
 static STATE: SyncLazy<Mutex<DeviceNodeState>> = SyncLazy::new(|| Mutex::new(DeviceNodeState::new()));
 
+pub fn publish(node: &DeviceNode) -> Result<(), ()> {
+	todo!();
+	Ok(())
+}
+
 pub fn allocate(pairs: &[(&str, ObjID)]) -> Vec<DeviceNode> {
 	let mut state = STATE.lock().unwrap();
 	pairs

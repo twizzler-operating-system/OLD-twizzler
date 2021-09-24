@@ -77,6 +77,7 @@ impl Instance {
 			let mut inst = inst.lock().unwrap();
 			inst.thread = Some(spawn(|| serial_interrupt_thread(inst2)));
 		}
+		devnode::publish(&inst.lock().unwrap().nodes[0]);
 		inst
 	}
 }
