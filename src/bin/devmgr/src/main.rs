@@ -60,6 +60,25 @@ fn test() {
 fn main() {
 	twz::use_runtime();
 	//test();
+	//
+	//
+
+	for (key, value) in std::env::vars() {
+		println!("{}: {}", key, value);
+	}
+	let x = std::env::var("TWZNAME");
+	println!("{:?}", x);
+
+	if let Ok(n) = x {
+		let id = twz::obj::objid_parse(&n);
+		println!("{:?}", id);
+		if let Some(id) = id {
+			println!("{:x}", id);
+			twz::name::name_test(id);
+		}
+	}
+
+	loop {}
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();
