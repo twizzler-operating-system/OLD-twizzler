@@ -1,5 +1,5 @@
 use crate::obj::id::ObjID;
-use crate::obj::{GTwzobj, ProtFlags, Twzobj};
+use crate::obj::{ProtFlags, Twzobj};
 
 crate::bitflags! {
 	pub struct NameResolveFlags: u32 {
@@ -67,7 +67,21 @@ impl NameEnt {
 	}
 
 	fn write_names(&mut self, name: &[u8], symname: Option<&[u8]>) {
-		todo!()
+		let name_bytes = unsafe { crate::flexarray::flexarray_get_array_start::<Self, u8>(self) };
+		let slice = unsafe { core::slice::from_raw_parts_mut(name_bytes as *mut u8, self.dlen as usize) };
+		for i in 0..slice.len() {
+			slice[i] = 0;
+		}
+
+		for i in 0..name.len() {
+			slice[i] = name[i];
+		}
+
+		if let Some(symname) = symname {
+			for i in 0..symname.len() {
+				slice[i + name.len() + 1] = symname[i];
+			}
+		}
 	}
 
 	unsafe fn next_unchecked_mut(&mut self) -> &mut Self {
@@ -291,6 +305,12 @@ pub(crate) fn add_entry(nhdr: &mut NamespaceHdr, mut ent: NameEnt, name: &[u8], 
 	}
 }
 
+fn init_namespace(nhdr: &mut NamespaceHdr, self_id: ObjID, parent_id: ObjID) {
+	nhdr.magic = NAMESPACE_MAGIC;
+	add_entry(nhdr, NameEnt::new(self_id, NameEntType::Namespace), b".", None).unwrap();
+	add_entry(nhdr, NameEnt::new(parent_id, NameEntType::Namespace), b"..", None).unwrap();
+}
+
 pub(crate) fn hier_resolve_name(
 	root: &Twzobj<NamespaceHdr>,
 	cwd: &Twzobj<NamespaceHdr>,
@@ -298,7 +318,7 @@ pub(crate) fn hier_resolve_name(
 	flags: NameResolveFlags,
 ) -> NameResult {
 	/* trim off any leading '/'s, and choose which starting point */
-	let (mut start, mut path) = {
+	let (start, mut path) = {
 		let mut found = false;
 		while path.len() > 0 && path[0] == b'/' {
 			found = true;
@@ -324,7 +344,6 @@ pub(crate) fn hier_resolve_name(
 	let mut ret_name_ent = None;
 	for i in 0..elements.len() {
 		let last = i == elements.len() - 1;
-		let first = i == 0;
 		let element = elements[i];
 		println!("ELEMENT: `{}' {}", std::str::from_utf8(element).unwrap(), element.len());
 		if element.len() == 0 {
