@@ -62,29 +62,47 @@ impl NameEnt {
 		let slice = unsafe { core::slice::from_raw_parts(name_bytes, self.dlen as usize) };
 		let name_len = slice.iter().position(|x| *x == 0).unwrap_or(self.dlen as usize);
 		let slice = &slice[(name_len + 1)..self.dlen as usize];
-		let sym_len = slice
-			.iter()
-			.position(|x| *x == 0)
-			.unwrap_or(self.dlen as usize - (name_len + 1));
+		let sym_len = slice.iter().position(|x| *x == 0).unwrap_or(self.dlen as usize - (name_len + 1));
 		&slice[0..sym_len]
 	}
 
+	fn write_names(&mut self, name: &[u8], symname: Option<&[u8]>) {
+		todo!()
+	}
+
+	unsafe fn next_unchecked_mut(&mut self) -> &mut Self {
+		let this = self as *mut Self;
+		let offset = self.dlen as usize + std::mem::size_of::<Self>();
+		let offset = (offset + 15) & !15;
+		let ret = this.cast::<u8>().offset(offset as isize).cast::<Self>().as_mut().unwrap();
+		/* TODO: check for end of directory object */
+		ret
+	}
+
+	unsafe fn next_unchecked(&self) -> &Self {
+		let this = self as *const Self;
+		let offset = self.dlen as usize + std::mem::size_of::<Self>();
+		let offset = (offset + 15) & !15;
+		let ret = this.cast::<u8>().offset(offset as isize).cast::<Self>().as_ref().unwrap();
+		/* TODO: check for end of directory object */
+		ret
+	}
+
 	fn next(&self) -> Option<&Self> {
-		unsafe {
-			let this = self as *const Self;
-			let offset = self.dlen as usize + std::mem::size_of::<Self>();
-			let offset = (offset + 15) & !15;
-			let ret = this
-				.cast::<u8>()
-				.offset(offset as isize)
-				.cast::<Self>()
-				.as_ref()
-				.unwrap();
-			if ret.dlen == 0 {
-				None
-			} else {
-				Some(ret)
-			}
+		let ret = unsafe { self.next_unchecked() };
+		if ret.dlen == 0 {
+			None
+		} else {
+			Some(ret)
+		}
+	}
+
+	fn next_mut(&mut self) -> Option<&mut Self> {
+		let ret = unsafe { self.next_unchecked_mut() };
+		if ret.dlen == 0 {
+			None
+		} else {
+			Some(ret)
 		}
 	}
 }
@@ -98,9 +116,27 @@ pub(crate) struct NamespaceHdr {
 }
 
 impl NamespaceHdr {
-	fn get_first_ent(&self) -> Option<&NameEnt> {
+	fn get_first_ent_unchecked_mut(&mut self) -> &mut NameEnt {
 		let entry = unsafe { crate::flexarray::flexarray_get_array_start::<Self, NameEnt>(self) };
-		let ret = unsafe { entry.as_ref().unwrap() };
+		unsafe { (entry as *mut NameEnt).as_mut().unwrap() }
+	}
+
+	fn get_first_ent_unchecked(&self) -> &NameEnt {
+		let entry = unsafe { crate::flexarray::flexarray_get_array_start::<Self, NameEnt>(self) };
+		unsafe { entry.as_ref().unwrap() }
+	}
+
+	fn get_first_ent_mut(&mut self) -> Option<&mut NameEnt> {
+		let ret = self.get_first_ent_unchecked_mut();
+		if ret.dlen == 0 {
+			None
+		} else {
+			Some(ret)
+		}
+	}
+
+	fn get_first_ent(&self) -> Option<&NameEnt> {
+		let ret = self.get_first_ent_unchecked();
 		if ret.dlen == 0 {
 			None
 		} else {
@@ -110,6 +146,37 @@ impl NamespaceHdr {
 }
 
 pub(crate) type NameResult = Result<(Vec<u8>, NameEnt), NameError>;
+
+fn remove_entry_by_name<'a>(nhdr: &'a mut NamespaceHdr, element: &[u8]) -> Result<(), NameError> {
+	if nhdr.magic != NAMESPACE_MAGIC {
+		return Err(NameError::NotDir);
+	}
+
+	let mut entry = nhdr.get_first_ent_mut();
+	while entry.is_some() {
+		let e = entry.unwrap();
+		let name = e.name();
+		fn compare(a: &[u8], b: &[u8]) -> bool {
+			if a.len() == b.len() {
+				for (ai, bi) in a.iter().zip(b.iter()) {
+					if *ai != *bi {
+						return false;
+					}
+				}
+				return true;
+			}
+			false
+		}
+		if compare(element, name) {
+			e.id = 0;
+			return Ok(());
+		}
+
+		entry = e.next_mut();
+	}
+
+	Err(NameError::NotFound)
+}
 
 fn lookup_entry<'a>(nhdr: &'a NamespaceHdr, element: &[u8]) -> Result<&'a NameEnt, NameError> {
 	if nhdr.magic != NAMESPACE_MAGIC {
@@ -121,13 +188,7 @@ fn lookup_entry<'a>(nhdr: &'a NamespaceHdr, element: &[u8]) -> Result<&'a NameEn
 		let e = entry.unwrap();
 		let name = e.name();
 		fn compare(a: &[u8], b: &[u8]) -> bool {
-			println!(
-				"{:?} {:?} {} {}",
-				std::str::from_utf8(a),
-				std::str::from_utf8(b),
-				a.len(),
-				b.len()
-			);
+			println!("{:?} {:?} {} {}", std::str::from_utf8(a), std::str::from_utf8(b), a.len(), b.len());
 			if a.len() == b.len() {
 				for (ai, bi) in a.iter().zip(b.iter()) {
 					if *ai != *bi {
@@ -146,6 +207,88 @@ fn lookup_entry<'a>(nhdr: &'a NamespaceHdr, element: &[u8]) -> Result<&'a NameEn
 	}
 
 	Err(NameError::NotFound)
+}
+
+pub(crate) struct NamespaceIterator<'a> {
+	hdr: &'a NamespaceHdr,
+	entry: Option<&'a NameEnt>,
+}
+
+impl<'a> IntoIterator for &'a NamespaceHdr {
+	type Item = (Vec<u8>, NameEnt);
+	type IntoIter = NamespaceIterator<'a>;
+
+	fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+		NamespaceIterator { hdr: self, entry: None }
+	}
+}
+
+impl<'a> Iterator for NamespaceIterator<'a> {
+	type Item = (Vec<u8>, NameEnt);
+
+	fn next(&mut self) -> Option<<Self as Iterator>::Item> {
+		self.entry = match self.entry {
+			Some(e) => e.next(),
+			None => self.hdr.get_first_ent(),
+		};
+		self.entry.map(|e| (e.name().to_vec(), *e))
+	}
+}
+
+pub(crate) fn get_entries(nhdr: &NamespaceHdr, results: &mut [(Option<Vec<u8>>, NameEnt)]) -> Result<usize, NameError> {
+	if nhdr.magic != NAMESPACE_MAGIC {
+		return Err(NameError::NotDir);
+	}
+
+	let mut entry = nhdr.get_first_ent();
+	for i in 0..results.len() {
+		if entry.is_none() {
+			return Ok(i);
+		}
+		let e = entry.unwrap();
+		results[i] = (Some(e.name().to_vec()), *e);
+		entry = e.next();
+	}
+	Ok(results.len())
+}
+
+pub(crate) fn add_entry(nhdr: &mut NamespaceHdr, mut ent: NameEnt, name: &[u8], symname: Option<&[u8]>) -> Result<(), NameError> {
+	if nhdr.magic != NAMESPACE_MAGIC {
+		return Err(NameError::NotDir);
+	}
+
+	let needed_length = name.len() + 1 + symname.map(|sn| sn.len()).unwrap_or(0) + 1;
+
+	let mut entry = nhdr.get_first_ent_mut();
+	if entry.is_none() {
+		/* append */
+		let entry = nhdr.get_first_ent_unchecked_mut();
+		entry.write_names(name, symname);
+		ent.dlen = needed_length as u64;
+		*entry = ent;
+		return Ok(());
+	} else {
+		loop {
+			let e = entry.unwrap();
+			if e.dlen > needed_length as u64 && e.id == 0 {
+				/* replace */
+				ent.dlen = e.dlen;
+				e.write_names(name, symname);
+				*e = ent;
+				return Ok(());
+			} else {
+				if e.next().is_none() {
+					/* append */
+					let next_e = unsafe { e.next_unchecked_mut() };
+					next_e.write_names(name, symname);
+					ent.dlen = needed_length as u64;
+					*next_e = ent;
+					return Ok(());
+				}
+			}
+			entry = e.next_mut();
+		}
+	}
 }
 
 pub(crate) fn hier_resolve_name(
@@ -205,16 +348,11 @@ pub(crate) fn hier_resolve_name(
 				next = None;
 			}
 			x if x == NameEntType::Symlink as u8 => {
-				if flags.contains_any(NameResolveFlags::FOLLOW_SYMLINKS)
-					|| (flags.contains_any(NameResolveFlags::READLINK) && !last)
-				{
+				if flags.contains_any(NameResolveFlags::FOLLOW_SYMLINKS) || (flags.contains_any(NameResolveFlags::READLINK) && !last) {
 					let symlink_name = result.symtarget();
 					let (symlink_name, symlink_resolved_nameent) = hier_resolve_name(root, &nobj, symlink_name, flags)?;
 					if symlink_resolved_nameent.ent_type == NameEntType::Namespace as u8 {
-						next = Some(Twzobj::<NamespaceHdr>::init_guid(
-							symlink_resolved_nameent.id,
-							ProtFlags::READ,
-						));
+						next = Some(Twzobj::<NamespaceHdr>::init_guid(symlink_resolved_nameent.id, ProtFlags::READ));
 					} else {
 						next = None;
 					}
@@ -249,12 +387,7 @@ pub fn name_test(id: ObjID) {
 		Ok(result) => {
 			let (name, ent) = result;
 			let name = std::str::from_utf8(&name).unwrap();
-			println!(
-				"{} ==> name: `{}' {:?}",
-				std::str::from_utf8(lookup_name).unwrap(),
-				name,
-				ent
-			)
+			println!("{} ==> name: `{}' {:?}", std::str::from_utf8(lookup_name).unwrap(), name, ent)
 		}
 		Err(result) => println!("{:?}", result),
 	}
