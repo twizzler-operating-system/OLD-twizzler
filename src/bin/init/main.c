@@ -424,10 +424,6 @@ int main()
 	if(!fork()) {
 		reopen("/dev/ptyc0", "/dev/ptyc0", "/dev/ptyc0");
 
-		ssize_t r = write(1, "hello", 5);
-		debug_printf("tried to write: %ld %d\n", r, errno);
-
-		printf("Hello, PTY World!\n");
 		start_login();
 	}
 

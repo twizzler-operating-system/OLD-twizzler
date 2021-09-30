@@ -12,8 +12,17 @@ typedef struct __twzobj twzobj;
 extern "C" {
 #endif
 
+enum twzio_type {
+	UNKNOWN = 0,
+	BSTREAM = 1,
+	PTY_CLIENT = 2,
+	PTY_SERVER = 3,
+};
+
 struct event;
 struct twzio_hdr {
+	uint32_t resv;
+	uint32_t type;
 	ssize_t (*read)(twzobj *, void *, size_t len, size_t off, unsigned flags);
 	ssize_t (*write)(twzobj *, const void *, size_t len, size_t off, unsigned flags);
 	int (*ioctl)(twzobj *, int request, long);

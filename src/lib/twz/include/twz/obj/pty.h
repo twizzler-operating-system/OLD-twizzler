@@ -46,3 +46,8 @@ int pty_ioctl_client(twzobj *obj, int request, long arg);
 int pty_obj_init_server(twzobj *obj, struct pty_hdr *hdr);
 
 int pty_obj_init_client(twzobj *obj, struct pty_client_hdr *hdr, struct pty_hdr *);
+
+ssize_t pty_iowrite_client(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags);
+ssize_t pty_ioread_client(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags);
+ssize_t pty_iowrite_server(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags);
+ssize_t pty_ioread_server(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags);

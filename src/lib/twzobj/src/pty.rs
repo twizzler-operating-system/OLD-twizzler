@@ -343,7 +343,7 @@ impl crate::io::TwzIO for PtyClientHdr {
 	}
 }
 
-use crate::io::TwzIO;
+use crate::io::{TwzIO, TwzIOType};
 pub fn create_pty_pair(
 	_client_spec: &CreateSpec,
 	_server_spec: &CreateSpec,
@@ -352,6 +352,10 @@ pub fn create_pty_pair(
 		let mut base = obj.base_mut(tx);
 		base.stoc.set(obj.new_item(tx), tx);
 		base.ctos.set(obj.new_item(tx), tx);
+		base.io.io_type = TwzIOType::PtyServer;
+		unsafe {
+			obj.add_metaext(crate::io::METAEXT_TAG, &base.io);
+		}
 		//base.ctos = base.stoc;
 	})
 	.unwrap();
@@ -388,6 +392,11 @@ pub fn create_pty_pair(
 	let client = Twzobj::<PtyClientHdr>::create_ctor(_client_spec, |obj, tx| {
 		let mut base = obj.base_mut(tx);
 		base.server.set(server.base(), tx);
+		base.io.io_type = TwzIOType::PtyClient;
+
+		unsafe {
+			obj.add_metaext(crate::io::METAEXT_TAG, &base.io);
+		}
 	})
 	.unwrap();
 

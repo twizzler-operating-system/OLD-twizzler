@@ -98,11 +98,17 @@ impl<T> Twzobj<T> {
 			let f = self.get_fote_ref(i);
 			if f.flags.load(Ordering::SeqCst) & FOTEntryFlags::VALID.bits() == 0 {
 				f.obj = FOTEntryInternal { id: p.obj.id() };
+				f.info = 0;
 				f.flags.store(
 					(FOTEntryFlags::READ | FOTEntryFlags::WRITE | FOTEntryFlags::VALID).bits(),
 					Ordering::SeqCst,
 				);
-				f.info = 0;
+				let mi = self.metainfo_mut();
+				let cf = mi.fot_entries.load(Ordering::SeqCst);
+				if cf <= i as u32 {
+					let diff = (i as u32 - cf) + 1;
+					mi.fot_entries.fetch_add(diff, Ordering::SeqCst);
+				}
 				return i;
 			}
 		}
@@ -157,6 +163,24 @@ impl<T> Twzobj<T> {
 				} else if t == 0 {
 					return None;
 				}
+			}
+			i += 1;
+		}
+	}
+
+	/* TODO: replace this with something better */
+	pub unsafe fn add_metaext<R>(&self, tag: u64, ptr: &R) {
+		let mi = self.metainfo_mut();
+		let exts = mi.exts.as_mut_ptr();
+		let mut i = 0;
+		let off = std::mem::transmute::<&R, u64>(ptr) % MAX_SIZE;
+		loop {
+			let ext = exts.offset(i).as_mut().unwrap();
+			let t = ext.tag.load(std::sync::atomic::Ordering::SeqCst);
+			if t == 0 {
+				ext.off = off;
+				ext.tag.store(tag, std::sync::atomic::Ordering::SeqCst);
+				break;
 			}
 			i += 1;
 		}
