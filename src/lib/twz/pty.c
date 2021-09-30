@@ -68,6 +68,7 @@ ssize_t pty_ioread_server(twzobj *obj, void *ptr, size_t len, size_t off, unsign
 
 static void postprocess_char(twzobj *obj, struct pty_hdr *hdr, unsigned char c, unsigned flags)
 {
+	// debug_printf("post process char: '%c' :: %p\n", c, twz_object_lea(obj, hdr->ctos));
 	if(c == '\n' && (hdr->termios.c_oflag & ONLCR)) {
 		char r = '\r';
 		bstream_hdr_write(obj, twz_object_lea(obj, hdr->ctos), &r, 1, flags);

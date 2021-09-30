@@ -140,11 +140,7 @@ impl PtyBuffer {
 			let result = bs
 				.write(
 					&self.buffer[0..self.bufpos],
-					if nonblock {
-						WriteFlags::NONBLOCK
-					} else {
-						WriteFlags::none()
-					},
+					if nonblock { WriteFlags::NONBLOCK } else { WriteFlags::none() },
 				)
 				.unwrap();
 			if let WriteOutput::Done(thislen) = result {
@@ -320,9 +316,7 @@ impl crate::io::TwzIO for PtyClientHdr {
 		let bs = server.ctos.lea();
 		if (server.termios.c_oflag & OPOST) != 0 {
 			let mut output_buffer = server.output_buflock.lock();
-			if !output_buffer.drain(&server, flags.contains_any(WriteFlags::NONBLOCK), false)
-				&& flags.contains_any(WriteFlags::NONBLOCK)
-			{
+			if !output_buffer.drain(&server, flags.contains_any(WriteFlags::NONBLOCK), false) && flags.contains_any(WriteFlags::NONBLOCK) {
 				return Ok(WriteOutput::WouldBlock);
 			}
 			for i in 0..buf.len() {

@@ -78,7 +78,12 @@ fn main() {
 		}
 	}
 
-	loop {}
+	println!("Assign name");
+	let r = twz::name::bind_name("/dev/test", 0x12345678);
+	println!("assign result {:?}", r);
+	let r = twz::name::lookup_name("/dev/test");
+	println!("lookup result {:?}", r);
+
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();

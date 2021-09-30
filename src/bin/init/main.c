@@ -232,11 +232,24 @@ int main()
 		exit(0);
 	}
 
-	int status;
-	r = wait(&status);
+	// int status;
+	// r = wait(&status);
 
-	for(;;)
-		usleep(1000000000);
+	debug_printf("Waiting for device manager\n");
+	for(;;) {
+		usleep(10000);
+		struct stat st;
+		int r = stat("/dev/ptyc0", &st);
+		if(r == 0) {
+			break;
+		}
+		// debug_printf("waiting %d %d\n", r, errno);
+	}
+	debug_printf("Device manager up, continuing\n");
+//	debug_printf("wer're up!d!\n");
+// printf("Hey, we're up!\n");
+// for(;;)
+//		;
 #if 0
 	if(access("/dev/nvme", F_OK) == 0) {
 		if(!fork()) {
@@ -396,20 +409,25 @@ int main()
 	setenv("PATH", "/bin:/usr/bin:/usr/local/bin:/opt/usr/bin", 1);
 
 	/* start a login on the serial port and the terminal */
+	/*
 	if(access("/dev/pty/ptyc0", F_OK) == 0) {
-		if(!fork()) {
-			reopen("/dev/pty/ptyc0", "/dev/pty/ptyc0", "/dev/pty/ptyc0");
+	    if(!fork()) {
+	        reopen("/dev/pty/ptyc0", "/dev/pty/ptyc0", "/dev/pty/ptyc0");
 
-			start_login();
-		}
+	        start_login();
+	    }
 	} else {
-		fprintf(
-		  stderr, "no supported framebuffer found; skipping starting login shell on terminal\n");
-	}
+	    fprintf(
+	      stderr, "no supported framebuffer found; skipping starting login shell on terminal\n");
+	}*/
 
 	if(!fork()) {
-		reopen("/dev/pty/ptyS0c", "/dev/pty/ptyS0c", "/dev/pty/ptyS0c");
+		reopen("/dev/ptyc0", "/dev/ptyc0", "/dev/ptyc0");
 
+		ssize_t r = write(1, "hello", 5);
+		debug_printf("tried to write: %ld %d\n", r, errno);
+
+		printf("Hello, PTY World!\n");
 		start_login();
 	}
 
