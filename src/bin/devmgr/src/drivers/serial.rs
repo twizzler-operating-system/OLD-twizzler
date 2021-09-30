@@ -27,6 +27,7 @@ fn serial_interrupt_thread(instance: std::sync::Arc<std::sync::Mutex<Instance>>)
 			let read_result = twzobj::io::read(&server, &mut buffer, twzobj::io::ReadFlags::NONBLOCK).unwrap();
 			if let twzobj::io::ReadOutput::Done(len) = read_result {
 				if let Ok(s) = std::str::from_utf8(&buffer[0..len]) {
+					eprintln!("[serial] got data");
 					print!("{}", s);
 					std::io::stdout().flush();
 				} else {

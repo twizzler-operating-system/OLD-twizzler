@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::{lazy::SyncLazy, sync::Mutex};
 use twz::obj::ObjID;
 
+#[derive(Debug)]
 pub struct DeviceNode {
 	pub name: String,
 	pub id: ObjID,
@@ -22,7 +23,13 @@ impl DeviceNodeState {
 static STATE: SyncLazy<Mutex<DeviceNodeState>> = SyncLazy::new(|| Mutex::new(DeviceNodeState::new()));
 
 pub fn publish(node: &DeviceNode) -> Result<(), ()> {
-	todo!();
+	let mut path = String::from("/dev/");
+	path.push_str(&node.name);
+	println!("publish node: {:?} :: {}", node, path);
+	/* TODO: dont unwrap */
+	twz::name::bind_name(&path, node.id).unwrap();
+	let c = twz::name::lookup_name(&path);
+	println!("CHECK: {:?}", c);
 	Ok(())
 }
 

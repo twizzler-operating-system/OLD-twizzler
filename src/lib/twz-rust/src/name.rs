@@ -13,11 +13,13 @@ pub enum NameError {
 	NotFound,
 	Loop,
 	NotDir,
+	NoNameRoot,
+	Invalid,
 }
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
-enum NameEntType {
+pub(crate) enum NameEntType {
 	Regular,
 	Namespace,
 	Symlink,
@@ -183,6 +185,7 @@ fn remove_entry_by_name<'a>(nhdr: &'a mut NamespaceHdr, element: &[u8]) -> Resul
 		}
 		if compare(element, name) {
 			e.id = 0;
+			e.flags = 0;
 			return Ok(());
 		}
 
@@ -202,7 +205,7 @@ fn lookup_entry<'a>(nhdr: &'a NamespaceHdr, element: &[u8]) -> Result<&'a NameEn
 		let e = entry.unwrap();
 		let name = e.name();
 		fn compare(a: &[u8], b: &[u8]) -> bool {
-			println!("{:?} {:?} {} {}", std::str::from_utf8(a), std::str::from_utf8(b), a.len(), b.len());
+			//println!("{:?} {:?} {} {}", std::str::from_utf8(a), std::str::from_utf8(b), a.len(), b.len());
 			if a.len() == b.len() {
 				for (ai, bi) in a.iter().zip(b.iter()) {
 					if *ai != *bi {
@@ -213,7 +216,7 @@ fn lookup_entry<'a>(nhdr: &'a NamespaceHdr, element: &[u8]) -> Result<&'a NameEn
 			}
 			false
 		}
-		if compare(element, name) {
+		if (e.flags & NAME_ENT_VALID) != 0 && compare(element, name) {
 			return Ok(e);
 		}
 
@@ -242,7 +245,13 @@ impl<'a> Iterator for NamespaceIterator<'a> {
 
 	fn next(&mut self) -> Option<<Self as Iterator>::Item> {
 		self.entry = match self.entry {
-			Some(e) => e.next(),
+			Some(e) => {
+				let mut e = e.next();
+				while e.is_some() && (e.unwrap().flags & NAME_ENT_VALID) == 0 {
+					e = e.unwrap().next()
+				}
+				e
+			}
 			None => self.hdr.get_first_ent(),
 		};
 		self.entry.map(|e| (e.name().to_vec(), *e))
@@ -277,16 +286,19 @@ pub(crate) fn add_entry(nhdr: &mut NamespaceHdr, mut ent: NameEnt, name: &[u8], 
 	if entry.is_none() {
 		/* append */
 		let entry = nhdr.get_first_ent_unchecked_mut();
-		entry.write_names(name, symname);
 		ent.dlen = needed_length as u64;
+		entry.dlen = needed_length as u64;
+		entry.write_names(name, symname);
+		ent.flags = NAME_ENT_VALID;
 		*entry = ent;
 		return Ok(());
 	} else {
 		loop {
 			let e = entry.unwrap();
-			if e.dlen > needed_length as u64 && e.id == 0 {
+			if e.dlen > needed_length as u64 && e.id == 0 && (e.flags & NAME_ENT_VALID) == 0 {
 				/* replace */
 				ent.dlen = e.dlen;
+				ent.flags = NAME_ENT_VALID;
 				e.write_names(name, symname);
 				*e = ent;
 				return Ok(());
@@ -294,8 +306,10 @@ pub(crate) fn add_entry(nhdr: &mut NamespaceHdr, mut ent: NameEnt, name: &[u8], 
 				if e.next().is_none() {
 					/* append */
 					let next_e = unsafe { e.next_unchecked_mut() };
+					next_e.dlen = needed_length as u64;
 					next_e.write_names(name, symname);
 					ent.dlen = needed_length as u64;
+					ent.flags = NAME_ENT_VALID;
 					*next_e = ent;
 					return Ok(());
 				}
@@ -345,7 +359,7 @@ pub(crate) fn hier_resolve_name(
 	for i in 0..elements.len() {
 		let last = i == elements.len() - 1;
 		let element = elements[i];
-		println!("ELEMENT: `{}' {}", std::str::from_utf8(element).unwrap(), element.len());
+		//println!("ELEMENT: `{}' {}", std::str::from_utf8(element).unwrap(), element.len());
 		if element.len() == 0 {
 			continue;
 		}
@@ -395,6 +409,74 @@ pub(crate) fn hier_resolve_name(
 
 	let ret_name_ent = ret_name_ent.ok_or(NameError::NotFound)?;
 	Ok(ret_name_ent)
+}
+
+use std::os::unix::ffi::OsStrExt;
+use std::path::Path;
+pub(crate) fn assign_name<P: AsRef<Path>>(
+	nameroot: &Twzobj<NamespaceHdr>,
+	cwd: &Twzobj<NamespaceHdr>,
+	name: P,
+	id: ObjID,
+	ty: NameEntType,
+) -> Result<(), NameError> {
+	let fname = name.as_ref().file_name().ok_or(NameError::Invalid)?;
+	let dir = name.as_ref().parent();
+
+	let dir = if let Some(dir) = dir {
+		let (_, result) = hier_resolve_name(nameroot, cwd, dir.as_os_str().as_bytes(), NameResolveFlags::FOLLOW_SYMLINKS)?;
+		Twzobj::<NamespaceHdr>::init_guid(result.id, ProtFlags::WRITE | ProtFlags::READ)
+	} else {
+		cwd.clone()
+	};
+
+	add_entry(
+		&mut *unsafe { dir.base_unchecked_mut() },
+		NameEnt::new(id, ty),
+		fname.as_bytes(),
+		None,
+	)
+}
+
+static NAMEROOT: std::lazy::SyncLazy<std::sync::Mutex<Option<Twzobj<NamespaceHdr>>>> = std::lazy::SyncLazy::new(|| {
+	let namespace_objid_string = std::env::var("TWZNAME");
+	if let Ok(namespace_objid_string) = namespace_objid_string {
+		let nameroot_id = crate::obj::id::objid_parse(&namespace_objid_string);
+		if let Some(nameroot_id) = nameroot_id {
+			std::sync::Mutex::new(Some(Twzobj::init_guid(nameroot_id, ProtFlags::READ | ProtFlags::WRITE)))
+		} else {
+			std::sync::Mutex::new(None)
+		}
+	} else {
+		std::sync::Mutex::new(None)
+	}
+});
+
+pub fn bind_name<P: AsRef<Path>>(path: P, id: ObjID) -> Result<(), NameError> {
+	let nameroot = NAMEROOT.lock().unwrap();
+
+	if let Some(nameroot) = &*nameroot {
+		assign_name(&nameroot, &nameroot, path, id, NameEntType::Regular)
+	} else {
+		Err(NameError::NoNameRoot)
+	}
+}
+
+pub fn lookup_name<P: AsRef<Path>>(path: P) -> Result<ObjID, NameError> {
+	let nameroot = NAMEROOT.lock().unwrap();
+
+	if let Some(nameroot) = &*nameroot {
+		let result = hier_resolve_name(
+			&nameroot,
+			&nameroot,
+			path.as_ref().as_os_str().as_bytes(),
+			NameResolveFlags::FOLLOW_SYMLINKS,
+		)?;
+		let (name, ent) = result;
+		Ok(ent.id)
+	} else {
+		Err(NameError::NoNameRoot)
+	}
 }
 
 pub fn name_test(id: ObjID) {
