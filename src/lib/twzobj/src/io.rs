@@ -22,9 +22,27 @@ twz::bitflags! {
 	}
 }
 
+pub const METAEXT_TAG: u64 = 0x0000000010101010;
+
+#[repr(u32)]
+pub enum TwzIOType {
+	Unknown = 0,
+	Bstream = 1,
+	PtyClient = 2,
+	PtyServer = 3,
+}
+
+impl Default for TwzIOType {
+	fn default() -> Self {
+		Self::Unknown
+	}
+}
+
 #[repr(C)]
 #[derive(Default)]
 pub struct TwzIOHdr {
+	resv: u32,
+	pub io_type: TwzIOType,
 	read: Pptr<extern "C" fn() -> ()>,
 	write: Pptr<extern "C" fn() -> ()>,
 	ioctl: Pptr<extern "C" fn() -> ()>,

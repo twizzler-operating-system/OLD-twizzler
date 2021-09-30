@@ -49,6 +49,9 @@ int bstream_hdr_poll(twzobj *obj, struct bstream_hdr *hdr, uint64_t type, struct
 
 int bstream_obj_init(twzobj *obj, struct bstream_hdr *hdr, uint32_t nbits);
 
+ssize_t bstream_iowrite(twzobj *obj, const void *ptr, size_t len, size_t off, unsigned flags);
+ssize_t bstream_ioread(twzobj *obj, void *ptr, size_t len, size_t off, unsigned flags);
+
 #ifdef __cplusplus
 }
 #endif
