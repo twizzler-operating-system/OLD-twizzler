@@ -9,22 +9,36 @@
 
 ssize_t kec_read_buffer(void *_buffer, size_t len, int flags);
 ssize_t kec_read(void *buffer, size_t len, int flags);
-ssize_t kec_write_buffer(void *_buffer, size_t len, int flags);
+ssize_t kec_write_buffer(const void *_buffer, size_t len, int flags);
+void kec_init(void);
+void kec_write(const void *buffer, size_t len, int flags);
+void kec_add_to_read_buffer(void *buffer, size_t len);
 
 #include <assert.h>
+#include <spinlock.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
 
-#define DISCARD_ON_FULL 1
+#define KEC_WRITE_DISCARD_ON_FULL 1
+#define KEC_WRITE_EMERGENCY 2
+#define KEC_WRITE_ALLOWED_USER_BITS KEC_WRITE_DISCARD_ON_FULL
 
-#define KEC_BUFFER_SZ 64
+#define KEC_READ_NONBLOCK 1
 
-#define MAX_SINGLE_WRITE 32
+#define KEC_BUFFER_SZ 16384
+#define KEC_INPUT_BUFFER_SZ 4096
+#define MAX_SINGLE_WRITE 2048
 
 struct kec_buffer {
 	_Atomic uint64_t state;
 	uint8_t buffer[KEC_BUFFER_SZ];
+	struct spinlock read_lock, write_lock;
+	/* input buffer is not a ring buffer. it's not intended to be especially fast. */
+	size_t read_pos;
+	uint8_t read_buffer[KEC_INPUT_BUFFER_SZ];
+
+	void (*write)(const void *, size_t, int);
 };
 
 static struct kec_buffer kec_main_buffer;
@@ -156,8 +170,51 @@ static inline bool try_commit(struct kec_buffer *kb, uint64_t *old, uint64_t new
 
 ssize_t kec_read(void *buffer, size_t len, int flags)
 {
-	return 0;
-	// return machine_kec_read(buffer, len, flags);
+	spinlock_acquire_save(&kec_main_buffer.read_lock);
+	if(kec_main_buffer.read_pos > 0) {
+		size_t thislen = len;
+		clamp(thislen, kec_main_buffer.read_pos);
+		memcpy(buffer, kec_main_buffer.read_buffer, thislen);
+		memmove(kec_main_buffer.read_buffer,
+		  &kec_main_buffer.read_buffer[thislen],
+		  KEC_INPUT_BUFFER_SZ - thislen);
+		kec_main_buffer.read_pos -= thislen;
+		spinlock_release_restore(&kec_main_buffer.read_lock);
+		return thislen;
+	} else {
+		if(flags & KEC_READ_NONBLOCK) {
+			return -EAGAIN;
+		}
+		/* TODO: block */
+		panic("");
+		spinlock_release_restore(&kec_main_buffer.read_lock);
+	}
+}
+
+void kec_add_to_read_buffer(void *buffer, size_t len)
+{
+	spinlock_acquire_save(&kec_main_buffer.read_lock);
+	clamp(len, KEC_INPUT_BUFFER_SZ - kec_main_buffer.read_pos);
+	memcpy(&kec_main_buffer.read_buffer[kec_main_buffer.read_pos], buffer, len);
+	kec_main_buffer.read_pos += len;
+	spinlock_release_restore(&kec_main_buffer.read_lock);
+}
+
+void kec_write(const void *buffer, size_t len, int flags)
+{
+	if(!(flags & KEC_WRITE_EMERGENCY)) {
+		/* not emergency -- we'll serialize */
+		spinlock_acquire_save_recur(&kec_main_buffer.write_lock);
+	}
+
+	if(kec_main_buffer.write) {
+		kec_main_buffer.write(buffer, len, flags);
+	}
+	kec_write_buffer(buffer, len, flags);
+
+	if(!(flags & KEC_WRITE_EMERGENCY)) {
+		spinlock_release_restore(&kec_main_buffer.write_lock);
+	}
 }
 
 ssize_t kec_read_buffer(void *_buffer, size_t len, int flags)
@@ -182,15 +239,16 @@ ssize_t kec_read_buffer(void *_buffer, size_t len, int flags)
 	return thislen;
 }
 
-ssize_t kec_write_buffer(void *_buffer, size_t len, int flags)
+ssize_t kec_write_buffer(const void *_buffer, size_t len, int flags)
 {
-	uint8_t *buffer = _buffer;
+	const uint8_t *buffer = _buffer;
 	uint64_t state = atomic_load(&kec_main_buffer.state);
 	uint64_t new_state = state;
 	clamp(len, MAX_SINGLE_WRITE);
 	do {
 		uint64_t copy_offset;
-		if(!reserve_space(state, len, !!(flags & DISCARD_ON_FULL), &new_state, &copy_offset)) {
+		if(!reserve_space(
+		     state, len, !!(flags & KEC_WRITE_DISCARD_ON_FULL), &new_state, &copy_offset)) {
 			return -ENOSPC;
 		}
 
@@ -208,17 +266,7 @@ ssize_t kec_write_buffer(void *_buffer, size_t len, int flags)
 	return len;
 }
 
-__initializer static void __test(void)
+void kec_init(void)
 {
-	size_t t = 0;
-	for(;;) {
-		char buf[1024] = {};
-		ssize_t w = kec_write_buffer("Hello, World!!!!", 16, 0);
-		w = kec_write_buffer("Hello, World!!!!", 16, 0);
-		w = kec_write_buffer("Hello, World!!!!", 16, 0);
-		w = kec_write_buffer("Hello, World!!!!!", 17, 0);
-		ssize_t r = kec_read_buffer(buf, 1024, 0);
-		t += w;
-		printk(":: %ld %ld : %ld :: `%s'\n", w, r, t, buf);
-	}
+	// machine_kec_init(&kec_main_buffer);
 }

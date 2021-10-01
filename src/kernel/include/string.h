@@ -9,3 +9,6 @@ char *strnchr(char *s, int c, size_t n);
 char *strncpy(char *d, const char *s, size_t n);
 int strcmp(const char *s1, const char *s2);
 int snprintf(char *buf, size_t len, const char *fmt, ...);
+
+/* we implement overlap in memcpy */
+#define memmove memcpy
