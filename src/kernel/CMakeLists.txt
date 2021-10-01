@@ -42,6 +42,7 @@ list(APPEND KERNEL_SOURCES
 	core/debug.c
 	core/interrupt.c
 	core/kc.c
+	core/kec.c
 	core/main.c
 	core/nvdimm.c
 	core/panic.c
