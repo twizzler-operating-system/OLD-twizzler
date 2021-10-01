@@ -18,9 +18,9 @@ ssize_t kec_write_buffer(void *_buffer, size_t len, int flags);
 
 #define DISCARD_ON_FULL 1
 
-#define KEC_BUFFER_SZ 16384
+#define KEC_BUFFER_SZ 64
 
-#define MAX_SINGLE_WRITE 2048
+#define MAX_SINGLE_WRITE 32
 
 struct kec_buffer {
 	_Atomic uint64_t state;
@@ -41,8 +41,9 @@ static struct kec_buffer kec_main_buffer;
 
 #define NEW_STATE(rh, wh, wr)                                                                      \
 	({                                                                                             \
-		(((uint64_t)rh) & 0xFFFF) | ((((uint64_t)wh) & 0xFFFF) << 32)                              \
-		  | ((((uint64_t)wr) & 0xFFFF) << 16);                                                     \
+		((uint64_t)((rh) % KEC_BUFFER_SZ) & 0xFFFF)                                                \
+		  | ((((uint64_t)((wh) % KEC_BUFFER_SZ)) & 0xFFFF) << 32)                                  \
+		  | ((((uint64_t)((wr) % KEC_BUFFER_SZ)) & 0xFFFF) << 16);                                 \
 	})
 
 #define clamp(x, l)                                                                                \
@@ -66,24 +67,45 @@ static inline size_t avail_space(uint64_t state)
     }
 }*/
 
+static inline bool did_pass(uint16_t x, uint16_t y, uint16_t l, uint16_t N)
+{
+	/*
+	 * does x + l "pass" y? Pass means we our end point goes past this pointer in logical space. But
+	 * since we're only storing phyiscal indicies, it's a little tricky.
+	 * Remember, all variables are mod N.
+	 * option 1: x < y; x + l < y ==> MAYBE
+	 *    YES if x + l wraps; so, YES if x + l < x
+	 *    NO otherwise
+	 * option 2: x < y; x + l >= y ==> YES
+	 * option 3: x >= y; x + l >= y ==> MAYBE
+	 *    YES if x + lwraps; so, YES if x + l < x
+	 * option 4: x >= y; x + l < y ==> NO
+	 */
+
+	assert(l < N);
+	uint16_t next_x = (x + l) % N;
+	bool did_wrap = !!(next_x < x);
+	if(x < y) {
+		return did_wrap || (next_x < y ? did_wrap : true);
+	}
+	return next_x >= y && did_wrap;
+}
+
 static inline uint64_t RESERVE_WRITE(uint64_t state, size_t len)
 {
 	uint16_t wr = WRITE_RESV(state);
 	uint16_t wh = WRITE_HEAD(state);
 	uint16_t rh = READ_HEAD(state);
 
-	int rturn = wr >= rh;
-	int wturn = wr >= wh;
+	bool passed_rh = did_pass(wr, rh, len, KEC_BUFFER_SZ);
+	bool passed_wh = did_pass(wr, wh, len, KEC_BUFFER_SZ);
 	wr = (wr + len) % KEC_BUFFER_SZ;
-	int n_rturn = wr >= rh;
-	int n_wturn = wr >= wh;
 
-	if(rturn != n_rturn) {
-		/* we passed the read head */
+	if(passed_rh) {
 		rh = wr;
 	}
 
-	if(wturn != n_wturn) {
+	if(passed_wh) {
 		/* we passed the write head -- this could happen if many threads are trying to write */
 		wh = (wr - len) % KEC_BUFFER_SZ;
 	}
@@ -123,6 +145,7 @@ static inline uint64_t read_advance(uint64_t state,
 	} else {
 		*thislen = KEC_BUFFER_SZ - (rh - wh);
 	}
+	clamp(*thislen, len);
 	return NEW_STATE(rh + *thislen, wh, WRITE_RESV(state));
 }
 
@@ -183,4 +206,19 @@ ssize_t kec_write_buffer(void *_buffer, size_t len, int flags)
 	} while(!try_commit(&kec_main_buffer, &state, new_state));
 
 	return len;
+}
+
+__initializer static void __test(void)
+{
+	size_t t = 0;
+	for(;;) {
+		char buf[1024] = {};
+		ssize_t w = kec_write_buffer("Hello, World!!!!", 16, 0);
+		w = kec_write_buffer("Hello, World!!!!", 16, 0);
+		w = kec_write_buffer("Hello, World!!!!", 16, 0);
+		w = kec_write_buffer("Hello, World!!!!!", 17, 0);
+		ssize_t r = kec_read_buffer(buf, 1024, 0);
+		t += w;
+		printk(":: %ld %ld : %ld :: `%s'\n", w, r, t, buf);
+	}
 }
