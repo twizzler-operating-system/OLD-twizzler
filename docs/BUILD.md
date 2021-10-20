@@ -64,6 +64,8 @@ apt-get update && apt-get -y install python3.8 python3-distutils gcc-multilib zl
 
 update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
+apt install qemu-kvm qemu virt-manager virt-viewer libvirt-clients libvirt-daemon-system bridge-utils virtinst libvirt-daemon
+
 apt-get update && apt-get -y install graphviz global doxygen
 ```
 
@@ -154,7 +156,9 @@ Again, the ports get installed into sysroot as part of the build process.
 Now that we've built the sysroot, we can make an ISO image that will actually boot. Run this in
 build/:
 
-   ninja bootiso
+   cd .. (build/)
+
+   ninja boot.iso
 
 And if that succeeds, you can go ahead and try it out in Qemu:
 
