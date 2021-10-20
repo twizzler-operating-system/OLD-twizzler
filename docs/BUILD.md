@@ -51,6 +51,22 @@ Once things are installed into the sysroot, we can build a ramdisk image and a b
 The bootable ISO contains the ramdisk and the kernel, and can be booted on a computer (or an
 emulator).
 
+Install Packages Before Building
+--------------------------------
+
+The following packages need to be installed on Linux before you begin
+building the system.
+
+```
+apt-get update && apt-get -y install build-essential cmake xorriso mtools libtommath-dev libtomcrypt-dev ninja-build clang
+
+apt-get update && apt-get -y install python3.8 python3-distutils gcc-multilib zlib1g zlib1g-dev llvm llvm-dev grub2-common
+
+update-alternatives --install /usr/bin/python python /usr/bin/python3 10
+
+apt-get update && apt-get -y install graphviz global doxygen
+```
+
 Building Twizzer the First Time
 -------------------------------
 
