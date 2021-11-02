@@ -5,6 +5,7 @@
  */
 
 #include <debug.h>
+#include <kec.h>
 #include <stdarg.h>
 #include <string.h>
 const char *DIGITS_lower = "0123456789abcdef";
@@ -222,39 +223,21 @@ int vsnprintf(char *buf, size_t len, const char *fmt, va_list args)
 	return strlen(buf);
 }
 
-#include <string.h>
-int printk(const char *fmt, ...)
+void _do_printk(int emerg, const char *fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
-	char buf[1024];
+	char buf[2048];
 	vbufprintk(buf, fmt, args);
-	if(0 && buf[0] == '[') {
-		char *b = strnchr(buf, ']', 11);
-		if(b) {
-			*++b = 0;
-			ptrdiff_t diff = b - buf;
-			debug_puts(buf);
-			if(diff < 10) {
-				for(unsigned i = 0; i < 10 - diff; i++) {
-					debug_puts(" ");
-				}
-			}
-			debug_puts(b + 1);
-		} else {
-			debug_puts(buf);
-		}
-	} else {
-		debug_puts(buf);
-	}
+	kec_write(buf, strlen(buf), emerg ? KEC_WRITE_EMERGENCY : 0);
 	va_end(args);
-	return 0;
 }
 
-int vprintk(const char *fmt, va_list args)
+#error "remove debug_puts"
+
+void _do_vprintk(int emerg, const char *fmt, va_list args)
 {
-	char buf[1024];
+	char buf[2048];
 	vbufprintk(buf, fmt, args);
-	debug_puts(buf);
-	return 0;
+	kec_write(buf, strlen(buf), emerg ? KEC_WRITE_EMERGENCY : 0);
 }

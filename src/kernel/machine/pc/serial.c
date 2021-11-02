@@ -8,6 +8,7 @@
 #include <debug.h>
 #include <device.h>
 #include <interrupt.h>
+#include <kec.h>
 #include <kso.h>
 #include <machine/isa.h>
 #include <machine/machine.h>
@@ -329,6 +330,7 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 			case 6:
 #if 1
 				c = uart_read(u, UART_REG_DATA);
+				kec_add_to_read_buffer(&c, 1);
 
 				if(debug_trigger_state >= array_len(debug_trigger_seq)) {
 					if(debug_process_input(c)) {
