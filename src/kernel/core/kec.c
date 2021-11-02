@@ -7,39 +7,18 @@
 /* Kernel Emergency Console -- abstracted I/O console that uses some machine-specific console for
  * I/O. printk messages go through here. */
 
-ssize_t kec_read_buffer(void *_buffer, size_t len, int flags);
-ssize_t kec_read(void *buffer, size_t len, int flags);
-ssize_t kec_write_buffer(const void *_buffer, size_t len, int flags);
-void kec_init(void);
-void kec_write(const void *buffer, size_t len, int flags);
-void kec_add_to_read_buffer(void *buffer, size_t len);
-
 #include <assert.h>
+#include <lib/list.h>
+#include <processor.h>
 #include <spinlock.h>
 #include <stdatomic.h>
 #include <stdint.h>
 #include <string.h>
+#include <thread.h>
 
-#define KEC_WRITE_DISCARD_ON_FULL 1
-#define KEC_WRITE_EMERGENCY 2
-#define KEC_WRITE_ALLOWED_USER_BITS KEC_WRITE_DISCARD_ON_FULL
+#include <kec.h>
 
-#define KEC_READ_NONBLOCK 1
-
-#define KEC_BUFFER_SZ 16384
-#define KEC_INPUT_BUFFER_SZ 4096
 #define MAX_SINGLE_WRITE 2048
-
-struct kec_buffer {
-	_Atomic uint64_t state;
-	uint8_t buffer[KEC_BUFFER_SZ];
-	struct spinlock read_lock, write_lock;
-	/* input buffer is not a ring buffer. it's not intended to be especially fast. */
-	size_t read_pos;
-	uint8_t read_buffer[KEC_INPUT_BUFFER_SZ];
-
-	void (*write)(const void *, size_t, int);
-};
 
 static struct kec_buffer kec_main_buffer;
 
@@ -66,26 +45,11 @@ static struct kec_buffer kec_main_buffer;
 			(x) = (l);                                                                             \
 	} while(0)
 
-/*
-static inline size_t avail_space(uint64_t state)
-{
-    size_t space;
-
-    uint16_t head = WRITE_HEAD(state);
-    uint16_t tail = READ_HEAD(state);
-
-    if(head > tail) {
-        space = KEC_BUFFER_SZ - (head - tail);
-    } else {
-        space = head - tail;
-    }
-}*/
-
 static inline bool did_pass(uint16_t x, uint16_t y, uint16_t l, uint16_t N)
 {
 	/*
 	 * does x + l "pass" y? Pass means we our end point goes past this pointer in logical space. But
-	 * since we're only storing phyiscal indicies, it's a little tricky.
+	 * since we're only storing physical indicies, it's a little tricky.
 	 * Remember, all variables are mod N.
 	 * option 1: x < y; x + l < y ==> MAYBE
 	 *    YES if x + l wraps; so, YES if x + l < x
@@ -171,24 +135,23 @@ static inline bool try_commit(struct kec_buffer *kb, uint64_t *old, uint64_t new
 ssize_t kec_read(void *buffer, size_t len, int flags)
 {
 	spinlock_acquire_save(&kec_main_buffer.read_lock);
-	if(kec_main_buffer.read_pos > 0) {
-		size_t thislen = len;
-		clamp(thislen, kec_main_buffer.read_pos);
-		memcpy(buffer, kec_main_buffer.read_buffer, thislen);
-		memmove(kec_main_buffer.read_buffer,
-		  &kec_main_buffer.read_buffer[thislen],
-		  KEC_INPUT_BUFFER_SZ - thislen);
-		kec_main_buffer.read_pos -= thislen;
-		spinlock_release_restore(&kec_main_buffer.read_lock);
-		return thislen;
-	} else {
-		if(flags & KEC_READ_NONBLOCK) {
-			return -EAGAIN;
+	if(kec_main_buffer.read_pos == 0) {
+		if(!(flags & KEC_READ_NONBLOCK)) {
+			list_insert(&kec_main_buffer.readblocked, &current_thread->rq_entry);
+			thread_sleep(current_thread, 0);
 		}
-		/* TODO: block */
-		panic("");
 		spinlock_release_restore(&kec_main_buffer.read_lock);
+		return -EAGAIN;
 	}
+	size_t thislen = len;
+	clamp(thislen, kec_main_buffer.read_pos);
+	memcpy(buffer, kec_main_buffer.read_buffer, thislen);
+	memmove(kec_main_buffer.read_buffer,
+	  &kec_main_buffer.read_buffer[thislen],
+	  KEC_INPUT_BUFFER_SZ - thislen);
+	kec_main_buffer.read_pos -= thislen;
+	spinlock_release_restore(&kec_main_buffer.read_lock);
+	return thislen;
 }
 
 void kec_add_to_read_buffer(void *buffer, size_t len)
@@ -197,6 +160,14 @@ void kec_add_to_read_buffer(void *buffer, size_t len)
 	clamp(len, KEC_INPUT_BUFFER_SZ - kec_main_buffer.read_pos);
 	memcpy(&kec_main_buffer.read_buffer[kec_main_buffer.read_pos], buffer, len);
 	kec_main_buffer.read_pos += len;
+	for(struct list *next, *l = list_iter_start(&kec_main_buffer.readblocked);
+	    l != list_iter_end(&kec_main_buffer.readblocked);
+	    l = next) {
+		struct thread *th = list_entry(l, struct thread, rq_entry);
+		next = list_iter_next(l);
+		list_remove(l);
+		thread_wake(th);
+	}
 	spinlock_release_restore(&kec_main_buffer.read_lock);
 }
 
@@ -268,5 +239,6 @@ ssize_t kec_write_buffer(const void *_buffer, size_t len, int flags)
 
 void kec_init(void)
 {
-	// machine_kec_init(&kec_main_buffer);
+	list_init(&kec_main_buffer.readblocked);
+	machine_kec_init(&kec_main_buffer);
 }
