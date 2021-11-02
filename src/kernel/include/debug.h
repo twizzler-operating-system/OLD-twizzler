@@ -32,10 +32,6 @@ void debug_print_backtrace_userspace(void);
  * @return Is the next frame valid?
  */
 bool arch_debug_unwind_frame(struct frame *frame, bool userspace);
-/** Put a single string onto the debug console. */
-void debug_puts(char *);
-/** Send a character input to the debugger. */
-bool debug_process_input(unsigned int c);
 
 /** Register the location of the kernel's ELF section headers loaded by the bootloader.
  * @param sections A virtual pointer to the ELF section headers.

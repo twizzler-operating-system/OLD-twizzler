@@ -12,6 +12,7 @@
 #include <device.h>
 #include <init.h>
 #include <kc.h>
+#include <kec.h>
 #include <kheap.h>
 #include <kso.h>
 #include <machine/machine.h>
@@ -345,6 +346,7 @@ void x86_64_init(uint32_t magic, struct multiboot *mth)
 {
 	idt_init();
 	serial_init();
+	kec_init();
 	x86_feature_detect();
 	proc_init();
 

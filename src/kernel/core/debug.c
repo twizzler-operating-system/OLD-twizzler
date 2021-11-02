@@ -115,7 +115,7 @@ static bool debug_process_line(char *line)
 	return false;
 }
 
-bool debug_process_input(unsigned int c)
+static bool debug_process_input(unsigned int c)
 {
 	static int state = 0;
 	static char buffer[128];
