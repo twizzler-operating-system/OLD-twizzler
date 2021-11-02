@@ -332,13 +332,15 @@ __noinstrument static void _serial_interrupt(int i, struct interrupt_handler *h 
 				c = uart_read(u, UART_REG_DATA);
 				kec_add_to_read_buffer(&c, 1);
 
+				/*
 				if(debug_trigger_state >= array_len(debug_trigger_seq)) {
-					if(debug_process_input(c)) {
-						debug_trigger_state = 0;
-					}
+				    if(debug_process_input(c)) {
+				        debug_trigger_state = 0;
+				    }
 				} else if(c == debug_trigger_seq[debug_trigger_state]) {
-					debug_trigger_state++;
-				}
+				    debug_trigger_state++;
+				    }
+				*/
 
 				/* TODO */
 				if(c == '`') {
@@ -424,24 +426,42 @@ __orderedinitializer(__orderedafter(ARCH_INTERRUPT_INITIALIZATION_ORDER)) static
 	  CONFIG_SERIAL_DEBUG_BAUD);
 }
 
-#include <spinlock.h>
-static struct spinlock _lock = SPINLOCK_INIT;
-__noinstrument void debug_puts(char *s)
+static void __kec_serial_write(const void *buf, size_t len, int flags __unused)
 {
-#if CONFIG_INSTRUMENT
-	instrument_disable();
-#endif
-
-	bool fl = __spinlock_acquire(&_lock, 1, NULL, 0);
-	while(*s) {
+	const char *s = buf;
+	for(size_t i = 0; i < len; i++) {
 		serial_putc(*s);
 		if(*s == '\n')
 			serial_putc('\r');
 		s++;
 	}
-	__spinlock_release(&_lock, fl, NULL, 0);
+}
+
+void machine_kec_init(struct kec_buffer *kb)
+{
+	kb->write = __kec_serial_write;
+}
+
+/*
+#include <spinlock.h>
+static struct spinlock _lock = SPINLOCK_INIT;
+__noinstrument void debug_puts(char *s)
+{
+#if CONFIG_INSTRUMENT
+    instrument_disable();
+#endif
+
+    bool fl = __spinlock_acquire(&_lock, 1, NULL, 0);
+    while(*s) {
+        serial_putc(*s);
+        if(*s == '\n')
+            serial_putc('\r');
+        s++;
+    }
+    __spinlock_release(&_lock, fl, NULL, 0);
 
 #if CONFIG_INSTRUMENT
-	instrument_enable();
+    instrument_enable();
 #endif
 }
+*/

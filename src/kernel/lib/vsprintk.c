@@ -233,8 +233,6 @@ void _do_printk(int emerg, const char *fmt, ...)
 	va_end(args);
 }
 
-#error "remove debug_puts"
-
 void _do_vprintk(int emerg, const char *fmt, va_list args)
 {
 	char buf[2048];
