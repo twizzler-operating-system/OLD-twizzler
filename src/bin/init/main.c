@@ -239,7 +239,7 @@ int main()
 	for(;;) {
 		usleep(10000);
 		struct stat st;
-		int r = stat("/dev/ptyc0", &st);
+		int r = stat("/dev/kec_ptyc0", &st);
 		if(r == 0) {
 			break;
 		}
@@ -422,7 +422,7 @@ int main()
 	}*/
 
 	if(!fork()) {
-		reopen("/dev/ptyc0", "/dev/ptyc0", "/dev/ptyc0");
+		reopen("/dev/kec_ptyc0", "/dev/kec_ptyc0", "/dev/kec_ptyc0");
 
 		start_login();
 	}

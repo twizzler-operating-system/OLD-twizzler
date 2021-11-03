@@ -82,10 +82,11 @@ impl CreateSpec {
 impl<T: Default> Twzobj<T> {
 	/* This is unsafe because it returns zero-initialized base memory, which may be invalid */
 	unsafe fn internal_create(spec: &CreateSpec) -> Result<Twzobj<T>, TwzErr> {
-		let (id, res) = crate::sys::create(spec);
-		if res != 0 {
+		let res = crate::sys::create(spec);
+		if let Err(res) = res {
 			Err(TwzErr::OSError(res as i32))
 		} else {
+			let id = res.unwrap();
 			let obj = Twzobj::init_guid(id, ProtFlags::READ | ProtFlags::WRITE);
 			obj.raw_init_alloc(NULLPAGE_SIZE as usize + std::mem::size_of::<T>());
 			obj.init_tx();

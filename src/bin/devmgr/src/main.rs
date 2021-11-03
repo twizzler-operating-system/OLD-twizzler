@@ -107,6 +107,7 @@ fn main() {
 	tree.init_busses();
 	tree.init_devices(&mut rd);
 
+	let kec_instance = drivers::kec::Instance::new();
 	loop {
 		use std::{thread, time};
 		let ten_millis = time::Duration::from_millis(1000);

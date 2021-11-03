@@ -93,7 +93,7 @@ impl Driver for SerialDriver {
 	}
 
 	fn start(&mut self, _bus: &Box<dyn Bus>, device: Device, ident: &DeviceIdent) {
-		self.instances.push(Instance::new(device, ident));
+		//self.instances.push(Instance::new(device, ident));
 	}
 }
 

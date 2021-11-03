@@ -137,8 +137,8 @@ ssize_t kec_read(void *buffer, size_t len, int flags)
 	spinlock_acquire_save(&kec_main_buffer.read_lock);
 	if(kec_main_buffer.read_pos == 0) {
 		if(!(flags & KEC_READ_NONBLOCK)) {
-			list_insert(&kec_main_buffer.readblocked, &current_thread->rq_entry);
 			thread_sleep(current_thread, 0);
+			list_insert(&kec_main_buffer.readblocked, &current_thread->rq_entry);
 		}
 		spinlock_release_restore(&kec_main_buffer.read_lock);
 		return -EAGAIN;
