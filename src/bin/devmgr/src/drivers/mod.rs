@@ -16,6 +16,8 @@ macro_rules! mod_hookup {
 
 mod_hookup! {serial}
 
+pub mod kec;
+
 #[macro_export]
 macro_rules! mod_driver_register {
 	($drv:tt) => {

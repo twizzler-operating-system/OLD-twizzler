@@ -279,7 +279,7 @@ struct KernelCreateSrc {
 }
 
 use crate::obj::{CreateSpec, KuSpec, TieSpec};
-pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
+pub(crate) fn create(spec: &CreateSpec) -> Result<ObjID, u64> {
 	let kuid = if let KuSpec::Obj(id) = spec.ku { id } else { 0 };
 	let srcs: Vec<KernelCreateSrc> = spec
 		.srcs
@@ -313,5 +313,9 @@ pub(crate) fn create(spec: &CreateSpec) -> (ObjID, i64) {
 		lifetime: spec.lt as u16,
 	};
 	let res = unsafe { raw_syscall(SYS_OCREATE, (&mut ks as *mut KernelCreateSpec) as u64, 0, 0, 0, 0, 0) };
-	(ks.result, res)
+	if res < 0 {
+		Err(-res as u64)
+	} else {
+		Ok(ks.result)
+	}
 }
