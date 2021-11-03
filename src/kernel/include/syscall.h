@@ -60,5 +60,5 @@ long syscall_ocopy(objid_t *destid,
   size_t len,
   int flags);
 long syscall_kqueue(uint64_t idlo, uint64_t idhi, enum kernel_queues kq, int flags);
-bool verify_user_pointer(void *p, size_t run);
+bool verify_user_pointer(const void *p, size_t run);
 long syscall_ostat(uint64_t idlo, uint64_t idhi, int, uint64_t arg, void *p);

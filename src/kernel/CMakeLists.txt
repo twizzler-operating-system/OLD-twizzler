@@ -79,6 +79,7 @@ list(APPEND KERNEL_SOURCES
 	core/obj/secctx.c
 	core/obj/tie.c
 	core/sys/kconf.c
+	core/sys/kec.c
 	core/sys/object.c
 	core/sys/thread.c
 	core/sys/thread_sync.c
