@@ -86,6 +86,7 @@ ExternalProject_Add(
 	"install"
 	INSTALL_COMMAND
 	cp -a ${CMAKE_BINARY_DIR}/ports/busybox-1.31.1/_install/bin ${SYSROOT_DIR}/usr/
+	COMMAND cp -a ${CMAKE_BINARY_DIR}/ports/busybox-1.31.1/busybox_unstripped ${SYSROOT_DIR}/usr/busybox
 	LOG_BUILD ON
 	LOG_CONFIGURE ON
 	LOG_DOWNLOAD ON
