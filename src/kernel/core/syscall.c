@@ -5,6 +5,7 @@
  */
 
 #include <interrupt.h>
+#include <kec.h>
 #include <memory.h>
 #include <processor.h>
 #include <syscall.h>
@@ -19,7 +20,7 @@ static long syscall_null(long a)
 	return 0;
 }
 
-bool verify_user_pointer(void *p, size_t run)
+bool verify_user_pointer(const void *p, size_t run)
 {
 	run = (run + 7) & ~7;
 	if(run < 8)
@@ -67,6 +68,8 @@ long (*syscall_table[NUM_SYSCALLS])() = {
 	[SYS_OSTAT] = syscall_ostat,
 	[SYS_SIGNAL] = syscall_signal,
 	[SYS_OCREATE2] = syscall_ocreate2,
+	[SYS_KEC_READ] = syscall_kec_read,
+	[SYS_KEC_WRITE] = syscall_kec_write,
 };
 
 long syscall_prelude(int num)

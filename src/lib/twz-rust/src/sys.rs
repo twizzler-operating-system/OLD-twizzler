@@ -9,6 +9,8 @@ const SYS_THRD_CTL: i64 = 10;
 const SYS_INVL_KSO: i64 = 3;
 const SYS_OCREATE: i64 = 21;
 const SYS_KACTION: i64 = 11;
+const SYS_KEC_READ: i64 = 22;
+const SYS_KEC_WRITE: i64 = 23;
 
 pub(crate) const THRD_CTL_EXIT: i32 = 0x100;
 pub fn thrd_ctl(op: i32, arg: u64) -> i64 {
@@ -26,6 +28,54 @@ pub const KCONF_RDRESET: u64 = 1;
 pub const KCONF_ARCH_TSC_PSPERIOD: u64 = 1001;
 pub fn kconf(cmd: u64, arg: u64) -> i64 {
 	unsafe { raw_syscall(SYS_KCONF, cmd, arg, 0, 0, 0, 0) }
+}
+
+crate::bitflags! {
+	pub struct KECReadFlags : u32 {
+		const KEC_READ_NONBLOCK = 1;
+	}
+}
+pub fn kec_read(buffer: &mut [u8], flags: KECReadFlags) -> Result<&mut [u8], u64> {
+	let result = unsafe {
+		raw_syscall(
+			SYS_KEC_READ,
+			buffer.as_ptr() as u64,
+			buffer.len() as u64,
+			flags.bits() as u64,
+			0,
+			0,
+			0,
+		)
+	};
+	if result < 0 {
+		Err(-result as u64)
+	} else {
+		Ok(&mut buffer[0..result as usize])
+	}
+}
+
+crate::bitflags! {
+	pub struct KECWriteFlags : u32 {
+		const KEC_WRITE_DISCARD_ON_FULL = 1;
+	}
+}
+pub fn kec_write(buffer: &[u8], flags: KECWriteFlags) -> Result<(), u64> {
+	let result = unsafe {
+		raw_syscall(
+			SYS_KEC_WRITE,
+			buffer.as_ptr() as u64,
+			buffer.len() as u64,
+			flags.bits() as u64,
+			0,
+			0,
+			0,
+		)
+	};
+	if result < 0 {
+		Err(-result as u64)
+	} else {
+		Ok(())
+	}
 }
 
 #[allow(dead_code)]
@@ -148,17 +198,7 @@ pub fn thread_sync(specs: &mut [ThreadSyncArgs], timeout: Option<std::time::Dura
 	} else {
 		std::ptr::null()
 	};
-	unsafe {
-		raw_syscall(
-			SYS_THREAD_SYNC,
-			specs.len() as u64,
-			specs.as_ptr() as u64,
-			to as u64,
-			0,
-			0,
-			0,
-		)
-	}
+	unsafe { raw_syscall(SYS_THREAD_SYNC, specs.len() as u64, specs.as_ptr() as u64, to as u64, 0, 0, 0) }
 }
 
 #[derive(Default)]
