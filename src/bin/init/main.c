@@ -190,7 +190,8 @@ int main()
 	objid_t si;
 	r = twz_name_dfl_resolve("usr_bin_init.sctx", 0, &si);
 	if(r) {
-		EPRINTF("failed to resolve 'init.sctx'\n");
+		/* TODO */
+		// EPRINTF("failed to resolve 'init.sctx'\n");
 		// exit(1);
 	} else {
 		r = sys_attach(0, si, 0, KSO_SECCTX);
@@ -215,27 +216,24 @@ int main()
 		execlp("/usr/bin/unix", "unix", NULL);
 	}
 
-	debug_printf("trying open connection to unix server\n");
+	debug_printf("[init] connecting to unix server\n");
 	while(1) {
 		usleep(10000);
 		// debug_printf("trying...\n");
 		if(twix_force_v2_retry())
 			break;
 	}
-	debug_printf("opened!\n");
 
 	/* start the device manager */
 	if(!fork()) {
 		execlp("devmgr", "devmgr", NULL);
-		execlp("rust-test", "devmgr", NULL);
-		debug_printf("FAILED TO EXECUTE RUST TEST\n");
 		exit(0);
 	}
 
 	// int status;
 	// r = wait(&status);
 
-	debug_printf("Waiting for device manager\n");
+	debug_printf("[init] waiting for device manager\n");
 	for(;;) {
 		usleep(10000);
 		struct stat st;
@@ -245,7 +243,7 @@ int main()
 		}
 		// debug_printf("waiting %d %d\n", r, errno);
 	}
-	debug_printf("Device manager up, continuing\n");
+	// debug_printf("Device manager up, continuing\n");
 //	debug_printf("wer're up!d!\n");
 // printf("Hey, we're up!\n");
 // for(;;)

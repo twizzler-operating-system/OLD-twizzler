@@ -16,6 +16,7 @@ mod devtree;
 mod driver;
 #[macro_use]
 mod drivers;
+mod devidentstring;
 
 use twz::device::DeviceData;
 use twz::kso::KSOType;
@@ -63,42 +64,16 @@ fn main() {
 	//
 	//
 
-	for (key, value) in std::env::vars() {
-		println!("{}: {}", key, value);
-	}
-	let x = std::env::var("TWZNAME");
-	println!("{:?}", x);
-
-	if let Ok(n) = x {
-		let id = twz::obj::objid_parse(&n);
-		println!("{:?}", id);
-		if let Some(id) = id {
-			println!("{:x}", id);
-			twz::name::name_test(id);
-		}
-	}
-
-	println!("Assign name");
-	let r = twz::name::bind_name("/dev/test", 0x12345678);
-	println!("assign result {:?}", r);
-	let r = twz::name::lookup_name("/dev/test");
-	println!("lookup result {:?}", r);
-
 	let root = twz::kso::get_root();
 
 	let subtree = root.get_subtree(KSOType::Device).unwrap();
 	let dir = subtree.get_dir().unwrap();
-	println!("{}", dir.len());
 	for c in dir {
 		let kso = c.into_kso::<DeviceData, { KSOType::Device }>(ProtFlags::READ).unwrap();
-		println!("{:?} :: {}", c, kso.name());
 		let dev = kso.into_device();
 		for dc in dev.get_children() {
 			let kso = dc.into_generic_kso();
-			println!("   {:?} :: {}", dc, kso.name());
 		}
-
-		//1let chobj: twz::obj::Twzobj = c.try_into().unwrap();
 	}
 
 	let mut rd = drivers::register();
