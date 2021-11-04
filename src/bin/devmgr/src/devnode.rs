@@ -25,11 +25,9 @@ static STATE: SyncLazy<Mutex<DeviceNodeState>> = SyncLazy::new(|| Mutex::new(Dev
 pub fn publish(node: &DeviceNode) -> Result<(), ()> {
 	let mut path = String::from("/dev/");
 	path.push_str(&node.name);
-	println!("publish node: {:?} :: {}", node, path);
+	println!("[devmgr] publish node {}", path);
 	/* TODO: dont unwrap */
 	twz::name::bind_name(&path, node.id).unwrap();
-	let c = twz::name::lookup_name(&path);
-	println!("CHECK: {:?}", c);
 	Ok(())
 }
 

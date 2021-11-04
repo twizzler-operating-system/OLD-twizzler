@@ -289,7 +289,6 @@ DECLARE_SAPI_ENTRY(open_queue, TWIX_GATE_OPEN_QUEUE, int, int flags, objid_t *qi
 #include <twz/name.h>
 int main()
 {
-	debug_printf("\n\n\n\nUNIX STARTED\n");
 	twzobj api_obj;
 	int r = twz_object_new(&api_obj, NULL, NULL, OBJ_VOLATILE, TWZ_OC_DFL_READ | TWZ_OC_DFL_WRITE);
 	if(r) {
@@ -305,7 +304,7 @@ int main()
 	mkdir("/dev", 0644);
 	twz_name_dfl_assign(twz_object_guid(&api_obj), "/dev/unix");
 
-	debug_printf("Got through init... " IDFMT "\n", IDPR(twz_object_guid(&api_obj)));
+	// debug_printf("Got through init... " IDFMT "\n", IDPR(twz_object_guid(&api_obj)));
 	for(;;) {
 		sleep(100);
 	}

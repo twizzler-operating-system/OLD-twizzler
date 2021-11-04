@@ -58,7 +58,6 @@ static void tmpmap_init(struct tmpmap *tmpmap)
 	if(tmpmap->virt == 0) {
 		tmpmap->virt = atomic_fetch_add(&tmpmap_start, TMPMAP_LEN);
 		tmpmap->oaddr = mm_objspace_kernel_reserve(TMPMAP_LEN);
-		printk("mapping tmpmap: %lx -> %lx\n", tmpmap->virt, tmpmap->oaddr);
 		mm_map(tmpmap->virt,
 		  tmpmap->oaddr,
 		  TMPMAP_LEN,
