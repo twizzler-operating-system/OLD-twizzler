@@ -64,6 +64,8 @@ apt-get update && apt-get -y install python3.8 python3-distutils gcc-multilib zl
 
 update-alternatives --install /usr/bin/python python /usr/bin/python3 10
 
+apt-get -y install rust cargo
+
 apt-get -y install qemu-kvm qemu virt-manager virt-viewer libvirt-clients libvirt-daemon-system bridge-utils virtinst libvirt-daemon
 
 apt-get update && apt-get -y install graphviz global doxygen

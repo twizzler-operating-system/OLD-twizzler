@@ -122,7 +122,7 @@ ExternalProject_Add(
 	"CC=${TOOLCHAIN_DIR}/bin/clang -target ${TWIZZLER_TRIPLE} --sysroot ${SYSROOT_DIR}"
 	"LD=${TOOLCHAIN_DIR}/bin/clang"
 	"CFLAGS=-target ${TWIZZLER_TRIPLE} --sysroot ${SYSROOT_DIR} -O2 -g -fPIC"
-	"LDFLAGS=-target ${TWIZZLER_TRIPLE} --sysroot ${SYSROOT_DIR} -Wl,-z,notext"
+	"LDFLAGS=-target ${TWIZZLER_TRIPLE} --sysroot ${SYSROOT_DIR} -Wl,-z,notext -Wl,--discard-none -Wl,--no-gc-sections"
 	"install"
 	INSTALL_COMMAND
 	cp -a ${CMAKE_BINARY_DIR}/ports/busybox-1.31.1/_install/bin ${SYSROOT_DIR}/usr/
