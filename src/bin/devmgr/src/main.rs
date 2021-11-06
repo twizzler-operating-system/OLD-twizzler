@@ -58,8 +58,42 @@ fn test() {
 	loop {}
 }
 
+#[derive(Clone, Copy, Debug)]
+struct Foo {
+	x: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Bar {
+	y: u32,
+}
+
+use twzobj::queue::{Queue, QueueEntry, QueueFlags};
 fn main() {
 	twz::use_runtime();
+
+	let s = twz::obj::CreateSpec::new(
+		twz::obj::LifetimeType::Volatile,
+		twz::obj::BackingType::Normal,
+		twz::obj::CreateFlags::DFL_READ | twz::obj::CreateFlags::DFL_WRITE,
+	);
+	let q = Queue::<Foo, Bar>::create(&s, 8, 8).unwrap();
+
+	let qe = QueueEntry::new(41, Foo { x: 42 });
+
+	let ret = q.submit(&qe, QueueFlags::none());
+	println!("submitted: {:?}", ret);
+	let ret = q.receive(QueueFlags::none());
+	println!("received: {:?}", ret);
+
+	let qe2 = QueueEntry::new(43, Bar { y: 44 });
+
+	let ret = q.complete(&qe2, QueueFlags::none());
+	println!("submittedc: {:?}", ret);
+	let ret = q.get_completed(QueueFlags::none());
+	println!("receivedc: {:?}", ret);
+
+	loop {}
 	//test();
 	//
 	//

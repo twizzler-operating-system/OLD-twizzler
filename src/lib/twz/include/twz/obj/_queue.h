@@ -381,10 +381,12 @@ struct queue_dequeue_multiple_spec {
 	union {
 		twzobj *obj;
 		atomic_uint_least64_t *word;
+		void *hdr;
 	};
 	struct queue_entry *result;
 	uint64_t cmp;
-	int sq;
+	uint16_t sq;
+	uint16_t ishdr;
 	int ret;
 };
 
