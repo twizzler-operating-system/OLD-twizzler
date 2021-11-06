@@ -68,7 +68,7 @@ struct Bar {
 	y: u32,
 }
 
-use twzobj::queue::{Queue, QueueEntry, QueueFlags};
+use twzobj::queue::{ManagedQueue, Queue, QueueEntry, QueueFlags};
 fn main() {
 	twz::use_runtime();
 
@@ -87,11 +87,21 @@ fn main() {
 	println!("received: {:?}", ret);
 
 	let qe2 = QueueEntry::new(43, Bar { y: 44 });
-
 	let ret = q.complete(&qe2, QueueFlags::none());
 	println!("submittedc: {:?}", ret);
 	let ret = q.get_completed(QueueFlags::none());
 	println!("receivedc: {:?}", ret);
+
+	let mut mq = ManagedQueue::new(q);
+
+	let ret = mq.submit_callback(Foo { x: 69 }, |id, c| println!("call back {} {:?}", id, c), QueueFlags::none());
+	println!("submitted {:?}", ret);
+
+	let qe2 = QueueEntry::new(0, Bar { y: 44 });
+	let ret = mq.queue.complete(&qe2, QueueFlags::none());
+
+	let ret = mq.check_finished(false);
+	println!("cf {:?}", ret);
 
 	loop {}
 	//test();
